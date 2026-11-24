@@ -16,6 +16,8 @@ use color_convert_rust::{library,reports};
 #[cfg(windows)] use update_via_github::{UpdateConfig,UpdateManager,UpdateStatus};
 use color_convert_rust::{optimizer::{self,Settings as RecipeSettings,Report as RecipeReport},lab::{self,MeasuredComparison}};
 
+const STUDIO_VERSION:&str=include_str!("../../STUDIO_VERSION");
+
 #[derive(Clone,Copy,PartialEq,Eq)]
 enum Page { Dashboard, Library, Inspector, Validator, Rebuilder, Comparison, Curves, Reorder, Metadata, Gamut, Gradient, Correction, Smoothing, Converter, DeviceLink, Recipes, Black, Lab, Settings, About }
 const PAGES: [(Page,&str);20] = [
@@ -28,7 +30,7 @@ struct Studio {
  caps:[f64;4],tac:f64,grid:usize,mode:Mode,status:String,busy:bool, candidate:Option<PathBuf>,comparison:Option<Comparison>,compare_error:Option<String>,compare_grid:usize,gamma:[f64;4],order:[usize;4], preview_open:bool, preview:Option<Overlay>, preview_options:ViewOptions, gamut_grid:usize,gradient:Option<GradientReport>,gradient_error:Option<String>,coverage_threshold:f64, selective:[f64;5], correction_grid:usize, correction_tac:f64, smoothing:f64, smoothing_passes:usize,orbit_last:Option<Point<Pixels>>,image_files:Vec<PathBuf>,image_root:Option<PathBuf>,image_options:ImageOptions,image_results:Vec<ImageOutput>,image_errors:Vec<String>,image_preview:usize,stream_options:StreamOptions,stream_enabled:bool,batch_cancel:Option<Arc<AtomicBool>>,recipe_target:[f64;3],recipe_settings:RecipeSettings,recipe_result:Option<RecipeReport>,lab_levels:usize,measured:[Option<PathBuf>;2],measurement_result:Option<MeasuredComparison>,black:BlackGeneration,curve_points:[[f64;5];4],library_root:Option<PathBuf>,library_entries:Vec<library::Entry>,logo:std::sync::Arc<gpui::Image>,#[cfg(windows)] updater:UpdateManager,
 }
 impl Default for Studio {
- fn default()->Self{Self{page:Page::Dashboard,source:None,profile:None,report:None,error:None,caps:[100.,100.,100.,0.],tac:240.,grid:33,mode:Mode::Custom,status:"Open an ICC or ICM profile to start.".into(),busy:false,candidate:None,comparison:None,compare_error:None,compare_grid:17,gamma:[1.;4],order:[0,1,2,3],preview_open:true,preview:None,preview_options:ViewOptions::default(),gamut_grid:17,gradient:None,gradient_error:None,coverage_threshold:2.,selective:[135.,45.,0.,0.,0.],correction_grid:33,correction_tac:400.,smoothing:0.20,smoothing_passes:1,orbit_last:None,image_files:vec![],image_root:None,image_options:ImageOptions::default(),image_results:vec![],image_errors:vec![],image_preview:0,stream_options:StreamOptions::default(),stream_enabled:false,batch_cancel:None,recipe_target:[50.,0.,0.],recipe_settings:RecipeSettings::default(),recipe_result:None,lab_levels:5,measured:[None,None],measurement_result:None,black:BlackGeneration::default(),curve_points:IDENTITY_POINTS,library_root:None,library_entries:vec![],logo:std::sync::Arc::new(gpui::Image::from_bytes(gpui::ImageFormat::Png,include_bytes!("../../assets/icon.png").to_vec())),#[cfg(windows)] updater:UpdateManager::new(UpdateConfig::new("emadgh/color-convert-rust","ICC-Profile-Studio.exe",env!("CARGO_PKG_VERSION")).with_app_name("ICC Profile Studio").with_checksum_asset("ICC-Profile-Studio.exe.sha256").with_required_checksum(true))}}
+ fn default()->Self{Self{page:Page::Dashboard,source:None,profile:None,report:None,error:None,caps:[100.,100.,100.,0.],tac:240.,grid:33,mode:Mode::Custom,status:"Open an ICC or ICM profile to start.".into(),busy:false,candidate:None,comparison:None,compare_error:None,compare_grid:17,gamma:[1.;4],order:[0,1,2,3],preview_open:true,preview:None,preview_options:ViewOptions::default(),gamut_grid:17,gradient:None,gradient_error:None,coverage_threshold:2.,selective:[135.,45.,0.,0.,0.],correction_grid:33,correction_tac:400.,smoothing:0.20,smoothing_passes:1,orbit_last:None,image_files:vec![],image_root:None,image_options:ImageOptions::default(),image_results:vec![],image_errors:vec![],image_preview:0,stream_options:StreamOptions::default(),stream_enabled:false,batch_cancel:None,recipe_target:[50.,0.,0.],recipe_settings:RecipeSettings::default(),recipe_result:None,lab_levels:5,measured:[None,None],measurement_result:None,black:BlackGeneration::default(),curve_points:IDENTITY_POINTS,library_root:None,library_entries:vec![],logo:std::sync::Arc::new(gpui::Image::from_bytes(gpui::ImageFormat::Png,include_bytes!("../../assets/icon.png").to_vec())),#[cfg(windows)] updater:UpdateManager::new(UpdateConfig::new("emadgh/color-convert-rust","ICC-Profile-Studio.exe",STUDIO_VERSION.trim()).with_app_name("ICC Profile Studio").with_checksum_asset("ICC-Profile-Studio.exe.sha256").with_required_checksum(true))}}
 }
 fn button(id: impl Into<ElementId>,label:impl Into<SharedString>)->Stateful<Div>{
  div().id(id).px_3().py_2().rounded_md().bg(rgb(0x263449)).text_color(rgb(0xe6eefb)).cursor_pointer().hover(|s|s.bg(rgb(0x354963))).child(label.into())
@@ -522,7 +524,7 @@ impl Studio {
  }
  fn about_page(&self,cx:&mut Context<Self>)->Div{
   let mut p=div().flex().flex_col().gap_3().child(div().flex().items_center().gap_3().child(img(self.logo.clone()).w(px(80.)).h(px(80.))).child(heading("ICC Profile Studio","Portable Windows color management / GPUI")))
-   .child(format!("Core version {} · Development preview",env!("CARGO_PKG_VERSION")))
+   .child(format!("Studio {} · Core {} · Preview",STUDIO_VERSION.trim(),env!("CARGO_PKG_VERSION")))
    .child("Developed by emadgh. LittleCMS 2 · ArgyllCMS · Rust · GPUI · Parry3D.")
    .child(button("github-project","GitHub repository").on_click(cx.listener(|_,_,_,cx|cx.open_url("https://github.com/emadgh/color-convert-rust"))))
    .child(button("github-releases","Open signed-in GitHub Releases").on_click(cx.listener(|_,_,_,cx|cx.open_url("https://github.com/emadgh/color-convert-rust/releases"))))
@@ -547,7 +549,7 @@ impl Studio {
     p=p.child(button("check-studio","Check for updates").on_click(cx.listener(|v,_,_,cx|{if !v.busy{v.updater.start_check(false);v.update_poll(cx);cx.notify();}})));
    }
   }
-  p.child("Private repository: unauthenticated shared updater cannot access private releases. No tokens are embedded. Download builds through signed-in GitHub until an authenticated/public feed exists. Studio requires its own EXE and SHA256 asset, never the legacy executable.")
+  p.child("Private repository: unauthenticated shared updater cannot access private releases. No tokens are embedded. Download Studio previews through signed-in GitHub Releases. Studio beta tags use a separate namespace and are not supported by the existing latest-release updater; no automatic beta installation. Studio requires its own EXE and SHA256 asset, never the legacy executable.")
  }
  fn point_curves_page(&self,cx:&mut Context<Self>)->Div{
   let mut p=div().flex().flex_col().gap_3().child(heading("Bounded multipoint curves","Five monotone points per ink; endpoints locked."))

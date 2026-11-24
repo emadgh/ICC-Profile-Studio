@@ -5,15 +5,24 @@ on:
     paths:
       - 'src/**'
       - 'Cargo.toml'
+      - 'STUDIO_VERSION'
       - 'build.rs'
       - 'assets/**'
       - '.github/workflows/studio.yml'
   workflow_dispatch:
+    inputs:
+      publish_preview:
+        description: Publish a separate private Studio prerelease after tests
+        required: false
+        default: false
+        type: boolean
 permissions:
   contents: read
 jobs:
   studio:
     runs-on: windows-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -30,7 +39,26 @@ jobs:
           Copy-Item target/x86_64-pc-windows-msvc/release/icc-profile-studio.exe studio-dist/ICC-Profile-Studio.exe
           $hash = (Get-FileHash studio-dist/ICC-Profile-Studio.exe -Algorithm SHA256).Hash.ToLower()
           "$hash  ICC-Profile-Studio.exe" | Set-Content -Encoding ascii studio-dist/ICC-Profile-Studio.exe.sha256
-          Copy-Item README.md,ROADMAP.md studio-dist/
+          Copy-Item README.md,ROADMAP.md,CERAMIC_WORKFLOW.md,STUDIO_VERSION studio-dist/
+          Compress-Archive -Path studio-dist/* -DestinationPath ICC-Profile-Studio-Windows-x64.zip
+      - name: Publish separate Studio prerelease
+        if: github.event_name == 'workflow_dispatch' && inputs.publish_preview && github.ref == 'refs/heads/main'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $version = (Get-Content STUDIO_VERSION -Raw).Trim()
+          if ($version -notmatch '^\d+\.\d+\.\d+-beta\.\d+
+        with:
+          name: ICC-Profile-Studio-GPUI-preview
+          path: studio-dist/
+          if-no-files-found: error
+) { throw "Expected Studio beta version" }
+          $tag = "studio-v$version"
+          gh release view $tag --json tagName 2>$null
+          if ($LASTEXITCODE -eq 0) { throw "Immutable Studio version exists; increment STUDIO_VERSION" }
+          gh release create $tag studio-dist/ICC-Profile-Studio.exe studio-dist/ICC-Profile-Studio.exe.sha256 ICC-Profile-Studio-Windows-x64.zip --target $env:GITHUB_SHA --prerelease --latest=false --title "ICC Profile Studio $version" --notes "Windows x64 preview. Automated tests passed; production printer and interactive runtime validation pending. Separate from the legacy Rebuilder release."
+          if ($LASTEXITCODE -ne 0) { throw "Studio preview publication failed" }
       - uses: actions/upload-artifact@v4
         with:
           name: ICC-Profile-Studio-GPUI-preview

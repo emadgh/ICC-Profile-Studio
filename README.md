@@ -86,3 +86,7 @@ Black Generation is a bounded K preference (GCR/UCR-like) based on original A2B1
 ### Large TIFF workflow
 
 Streaming is selectable for interleaved strip-based TIFF, with up to 2 million pixels per strip and 2 billion total pixels. Explicit BigTIFF is available if the RIP supports it, and full-size grayscale 16-bit separation TIFFs can be written alongside the CMYK file. Per-strip progress, cancellation and staged output prevent publishing a partial streamed job. Standard TIFF remains default; tiled/planar, multipage and alpha are not supported by this streaming path. Other formats retain the original 24 MP limit. Pending CI and real printer validation.
+
+### Studio preview releases
+
+`STUDIO_VERSION` is independent from the legacy Cargo version. The Studio workflow builds/tests Windows x64 and packages the EXE, SHA256, ZIP and documentation. To publish a private prerelease, run Studio GPUI preview on main using workflow_dispatch with publish_preview=true; the separate studio-v<version> tag is immutable and is not marked latest. The existing unauthenticated updater does not consume these private beta releases. No stable release is claimed until the interactive and real-printer release gates are met.

@@ -94,6 +94,12 @@
 - [x] Synthetic native ICC/BigTIFF integration tests added (not yet run in CI), plus native selective correction and DeviceLink tests.
 - [ ] CI and end-to-end real large-file/RIP regression; tiled TIFF, planar input, metadata preservation and calibrated monitor proof. No claim of unrestricted file-size support.
 
+## Release engineering
+
+- [x] Studio-specific version file (0.9.0-beta.1), immutable separate Studio prerelease packaging with EXE, SHA256 and ZIP; legacy release kept independent.
+- [x] Manual opt-in publication on main only after the Studio CI tests/build succeed; prerelease is not marked latest. Existing updater cannot automatically consume the private beta feed.
+- [ ] Run and verify the new CI, optionally invoke workflow_dispatch with publish_preview=true, Windows interactive smoke tests, and real print regression before a stable release.
+
 ## Next milestones
 
 - v0.4: Complete validation/export of Profile Comparison, Delta E2000, neutral axis and ink distribution.
