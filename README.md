@@ -41,3 +41,5 @@ Beta.13: native LittleCMS forward pipeline inversion in the four-channel Rebuild
 Beta.14 adds a display-only standard/embedded channel-name switch, stored v4 colorant-table swatches, live channel/TAC limit bars, reorder palette, gradient line plots, bounded content width and Arabic/Persian display shaping with Unicode BiDi. RTL soft wrapping and Windows visual behavior remain to be checked.
 
 Beta.15: dynamic nCLR Rebuilder adds per-channel caps, total ink ceiling, native forward inversion with bounded search and independent strict/native output verification. All three output intents are regenerated from relative A2B1; validate color drift and print behavior. Other multichannel editing modules remain limited.
+
+Beta.16 extends Profile Comparison and Gradient Analyzer to CMYK/nCLR profiles, including unequal channel counts. Ink statistics and trajectories are independent per profile; no inferred physical channel mapping. CSV reports include all channels. The reference RGB sample grid is internal, not RGB-profile editing.

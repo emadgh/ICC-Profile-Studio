@@ -30,10 +30,10 @@ enum Event { Progress(String), Done(Result<String,String>) }
 struct Studio {
  embedded_names:bool,display_profile:Option<Profile>,language:Language,nav_collapsed:[bool;5],picker:Option<Picker>,system_catalog:Option<system_profiles::Catalog>,system_error:Option<String>,system_loading:bool,
  version_allow_omit:bool,version_relative_only:bool,version_de:f64,version_ink:f64,version_report:Option<versioning::Report>,page:Page, source:Option<PathBuf>, profile:Option<Profile>, report:Option<Inspection>, error:Option<String>,
- multi_caps:Vec<f64>,multi_tac:f64,caps:[f64;4],tac:f64,grid:usize,mode:Mode,status:String,busy:bool, candidate:Option<PathBuf>,comparison:Option<Comparison>,compare_error:Option<String>,compare_grid:usize,compare_intent:lcms2::Intent,gamma:[f64;4],order:[usize;4], preview_open:bool, preview:Option<Overlay>, preview_revision:u64, preview_width:f32,preview_fullscreen:bool,resize_last:Option<Pixels>,gamut_advanced:bool,curve_drag:Option<(usize,usize,Pixels)>, preview_cache:std::cell::RefCell<gamut_view::PreviewCache>, preview_options:ViewOptions, gamut_grid:usize,gradient:Option<GradientReport>,gradient_error:Option<String>,coverage_threshold:f64, regions:[Selective;MAX_REGIONS],region_count:usize,region_selected:usize, correction_grid:usize, correction_tac:f64, smoothing:f64, smoothing_passes:usize,orbit_last:Option<Point<Pixels>>,chart_dpi:u32,recipe_target:[f64;3],recipe_settings:RecipeSettings,recipe_result:Option<RecipeReport>,lab_levels:usize,measured:[Option<PathBuf>;2],measurement_result:Option<MeasuredComparison>,black:BlackGeneration,curve_points:[[f64;5];4],logo:std::sync::Arc<gpui::Image>,#[cfg(windows)] updater:UpdateManager,
+ multi_caps:Vec<f64>,multi_tac:f64,caps:[f64;4],tac:f64,grid:usize,mode:Mode,status:String,busy:bool, candidate:Option<PathBuf>,comparison:Option<Comparison>,compare_error:Option<String>,compare_grid:usize,compare_intent:lcms2::Intent,gamma:[f64;4],order:[usize;4], preview_open:bool, preview:Option<Overlay>, preview_revision:u64, preview_width:f32,preview_fullscreen:bool,resize_last:Option<Pixels>,gamut_advanced:bool,curve_drag:Option<(usize,usize,Pixels)>, preview_cache:std::cell::RefCell<gamut_view::PreviewCache>, preview_options:ViewOptions, gamut_grid:usize,gradient:Option<GradientReport>,gradient_detail:Option<usize>,gradient_error:Option<String>,coverage_threshold:f64, regions:[Selective;MAX_REGIONS],region_count:usize,region_selected:usize, correction_grid:usize, correction_tac:f64, smoothing:f64, smoothing_passes:usize,orbit_last:Option<Point<Pixels>>,chart_dpi:u32,recipe_target:[f64;3],recipe_settings:RecipeSettings,recipe_result:Option<RecipeReport>,lab_levels:usize,measured:[Option<PathBuf>;2],measurement_result:Option<MeasuredComparison>,black:BlackGeneration,curve_points:[[f64;5];4],logo:std::sync::Arc<gpui::Image>,#[cfg(windows)] updater:UpdateManager,
 }
 impl Default for Studio {
- fn default()->Self{Self{embedded_names:true,display_profile:None,language:Language::En,nav_collapsed:[false;5],picker:None,system_catalog:None,system_error:None,system_loading:false,version_allow_omit:false,version_relative_only:false,version_de:0.5,version_ink:0.5,version_report:None,page:Page::Inspector,source:None,profile:None,report:None,error:None,multi_caps:vec![],multi_tac:0.,caps:[100.,100.,100.,0.],tac:240.,grid:33,mode:Mode::Custom,status:"Open an ICC or ICM profile to start.".into(),busy:false,candidate:None,comparison:None,compare_error:None,compare_grid:17,compare_intent:lcms2::Intent::RelativeColorimetric,gamma:[1.;4],order:[0,1,2,3],preview_open:true,preview:None,preview_revision:0,preview_width:360.,preview_fullscreen:false,resize_last:None,gamut_advanced:false,curve_drag:None,preview_cache:std::cell::RefCell::new(gamut_view::PreviewCache::default()),preview_options:ViewOptions::default(),gamut_grid:33,gradient:None,gradient_error:None,coverage_threshold:2.,regions:[Selective::default();MAX_REGIONS],region_count:1,region_selected:0,correction_grid:33,correction_tac:400.,smoothing:0.20,smoothing_passes:1,orbit_last:None,chart_dpi:300,recipe_target:[50.,0.,0.],recipe_settings:RecipeSettings::default(),recipe_result:None,lab_levels:5,measured:[None,None],measurement_result:None,black:BlackGeneration::default(),curve_points:IDENTITY_POINTS,logo:std::sync::Arc::new(gpui::Image::from_bytes(gpui::ImageFormat::Png,include_bytes!("../../assets/icon.png").to_vec())),#[cfg(windows)] updater:UpdateManager::new(UpdateConfig::new("emadgh/color-convert-rust","ICC-Profile-Studio.exe",STUDIO_VERSION.trim()).with_app_name("ICC Profile Studio").with_checksum_asset("ICC-Profile-Studio.exe.sha256").with_required_checksum(true))}}
+ fn default()->Self{Self{embedded_names:true,display_profile:None,language:Language::En,nav_collapsed:[false;5],picker:None,system_catalog:None,system_error:None,system_loading:false,version_allow_omit:false,version_relative_only:false,version_de:0.5,version_ink:0.5,version_report:None,page:Page::Inspector,source:None,profile:None,report:None,error:None,multi_caps:vec![],multi_tac:0.,caps:[100.,100.,100.,0.],tac:240.,grid:33,mode:Mode::Custom,status:"Open an ICC or ICM profile to start.".into(),busy:false,candidate:None,comparison:None,compare_error:None,compare_grid:17,compare_intent:lcms2::Intent::RelativeColorimetric,gamma:[1.;4],order:[0,1,2,3],preview_open:true,preview:None,preview_revision:0,preview_width:360.,preview_fullscreen:false,resize_last:None,gamut_advanced:false,curve_drag:None,preview_cache:std::cell::RefCell::new(gamut_view::PreviewCache::default()),preview_options:ViewOptions::default(),gamut_grid:33,gradient:None,gradient_detail:None,gradient_error:None,coverage_threshold:2.,regions:[Selective::default();MAX_REGIONS],region_count:1,region_selected:0,correction_grid:33,correction_tac:400.,smoothing:0.20,smoothing_passes:1,orbit_last:None,chart_dpi:300,recipe_target:[50.,0.,0.],recipe_settings:RecipeSettings::default(),recipe_result:None,lab_levels:5,measured:[None,None],measurement_result:None,black:BlackGeneration::default(),curve_points:IDENTITY_POINTS,logo:std::sync::Arc::new(gpui::Image::from_bytes(gpui::ImageFormat::Png,include_bytes!("../../assets/icon.png").to_vec())),#[cfg(windows)] updater:UpdateManager::new(UpdateConfig::new("emadgh/color-convert-rust","ICC-Profile-Studio.exe",STUDIO_VERSION.trim()).with_app_name("ICC Profile Studio").with_checksum_asset("ICC-Profile-Studio.exe.sha256").with_required_checksum(true))}}
 }
 fn button(id: impl Into<ElementId>,label:impl Into<SharedString>)->Stateful<Div>{
  let label:SharedString=label.into();
@@ -109,7 +109,7 @@ fn lab_swatch(lab:[f64;3])->u32{let [r,g,b]=color_convert_rust::gamut_raster::la
 
 fn neutral_plot(samples:&[comparison::NeutralSample],metric:usize)->impl IntoElement{
  let points:Vec<_>=samples.iter().map(|n|{
-  let (a,b)=if metric==0{(n.reference_lab[0],n.candidate_lab[0])}else{(n.reference_ink[metric-1],n.candidate_ink[metric-1])};
+  let (a,b)=if metric==0{(n.reference_lab[0],n.candidate_lab[0])}else{(n.reference_ink.get(metric-1).copied().unwrap_or(0.),n.candidate_ink.get(metric-1).copied().unwrap_or(0.))};
   (n.rgb as f32/255.,(a/100.).clamp(0.,1.) as f32,(b/100.).clamp(0.,1.) as f32)
  }).collect();
  canvas(move|_,_,_|{},move|bounds,_,window,_|{
@@ -170,7 +170,7 @@ impl Studio {
       .on_click(cx.listener(move|v,_,_,cx|{
        if v.busy{return}v.picker=None;
        if target==Picker::Reference{v.load_reference(path.clone(),cx);}
-       else{v.candidate=Some(path.clone());v.preview_options.candidate=true;v.preview=None;v.comparison=None;v.compare_error=None;v.gradient=None;v.gradient_error=None;if v.preview_open||target==Picker::Gamut{v.refresh_gamut(cx);}}
+       else{v.candidate=Some(path.clone());v.preview_options.candidate=true;v.preview=None;v.comparison=None;v.compare_error=None;v.gradient=None;v.gradient_detail=None;v.gradient_error=None;if v.preview_open||target==Picker::Gamut{v.refresh_gamut(cx);}}
        cx.notify();
       }))
     })));
@@ -185,7 +185,7 @@ impl Studio {
  fn load_reference(&mut self,path:PathBuf,cx:&mut Context<Self>){
   if self.busy{return}
   self.picker=None;
-  self.source=Some(path.clone());self.version_report=None;self.version_allow_omit=false;self.version_relative_only=false;self.black=BlackGeneration::default();self.curve_points=IDENTITY_POINTS;self.recipe_result=None;self.regions=[Selective::default();MAX_REGIONS];self.region_count=1;self.region_selected=0;self.correction_grid=33;self.correction_tac=400.;self.smoothing=0.20;self.smoothing_passes=1;self.preview=None;self.candidate=None;self.gradient=None;self.gradient_error=None;self.gamma=[1.;4];self.order=[0,1,2,3];self.comparison=None;self.compare_error=None;self.report=None;self.profile=None;self.display_profile=None;self.multi_caps.clear();self.multi_tac=0.;self.error=None;
+  self.source=Some(path.clone());self.version_report=None;self.version_allow_omit=false;self.version_relative_only=false;self.black=BlackGeneration::default();self.curve_points=IDENTITY_POINTS;self.recipe_result=None;self.regions=[Selective::default();MAX_REGIONS];self.region_count=1;self.region_selected=0;self.correction_grid=33;self.correction_tac=400.;self.smoothing=0.20;self.smoothing_passes=1;self.preview=None;self.candidate=None;self.gradient=None;self.gradient_detail=None;self.gradient_error=None;self.gamma=[1.;4];self.order=[0,1,2,3];self.comparison=None;self.compare_error=None;self.report=None;self.profile=None;self.display_profile=None;self.multi_caps.clear();self.multi_tac=0.;self.error=None;
   match inspection::inspect(&path){Ok(r)=>self.report=Some(r),Err(e)=>self.error=Some(e)}
   if let Ok(p)=Profile::read(&path){
    self.display_profile=Some(p.clone());
@@ -218,7 +218,7 @@ impl Studio {
    loop{
     match rx.try_recv(){
      Ok(Event::Progress(s))=>{if this.update(cx,|v,cx|{v.status=s;cx.notify();}).is_err(){break}}
-     Ok(Event::Done(result))=>{let _=this.update(cx,|v,cx|{v.busy=false;match result{Ok(s)=>{v.status=s;v.candidate=Some(path.clone());v.preview=None;v.comparison=None;v.gradient=None;v.gradient_error=None;if v.preview_open{v.refresh_gamut(cx);}},Err(e)=>v.status=format!("Error: {e}")}cx.notify();});break}
+     Ok(Event::Done(result))=>{let _=this.update(cx,|v,cx|{v.busy=false;match result{Ok(s)=>{v.status=s;v.candidate=Some(path.clone());v.preview=None;v.comparison=None;v.gradient=None;v.gradient_detail=None;v.gradient_error=None;if v.preview_open{v.refresh_gamut(cx);}},Err(e)=>v.status=format!("Error: {e}")}cx.notify();});break}
      Err(mpsc::TryRecvError::Disconnected)=>{let _=this.update(cx,|v,cx|{v.busy=false;v.status="Worker disconnected".into();cx.notify();});break}
      Err(mpsc::TryRecvError::Empty)=>{}
     }
@@ -275,7 +275,7 @@ impl Studio {
     let mut finished=false;
     match rx.try_recv(){
      Ok(Event::Progress(s))=>{if this.update(cx,|view,cx|{view.status=s;cx.notify();}).is_err(){break}}
-     Ok(Event::Done(result))=>{let _=this.update(cx,|view,cx|{view.busy=false;match result{Ok(s)=>{view.status=s;view.candidate=Some(output_path.clone());view.preview=None;view.comparison=None;view.gradient=None;view.gradient_error=None;if view.preview_open{view.refresh_gamut(cx);}},Err(e)=>view.status=format!("Error: {e}")}cx.notify();});finished=true;}
+     Ok(Event::Done(result))=>{let _=this.update(cx,|view,cx|{view.busy=false;match result{Ok(s)=>{view.status=s;view.candidate=Some(output_path.clone());view.preview=None;view.comparison=None;view.gradient=None;view.gradient_detail=None;view.gradient_error=None;if view.preview_open{view.refresh_gamut(cx);}},Err(e)=>view.status=format!("Error: {e}")}cx.notify();});finished=true;}
      Err(mpsc::TryRecvError::Disconnected)=>{let _=this.update(cx,|view,cx|{view.status="Worker disconnected".into();view.busy=false;cx.notify();});finished=true;}
      Err(mpsc::TryRecvError::Empty)=>{}
     }
@@ -298,10 +298,10 @@ impl Studio {
   }).detach();
  }
  fn comparison_page(&self,cx:&mut Context<Self>)->Div{
-  let mut p=div().flex().flex_col().gap_3().child(heading("Profile Comparison","Predicted D50 media-relative Lab appearance and CMYK separation."));
+  let mut p=div().flex().flex_col().gap_3().child(heading("Profile Comparison","Predicted D50 media-relative Lab appearance and CMYK / nCLR separation."));
   p=p.child(format!("Reference: {}",self.source.as_ref().map(|p|p.display().to_string()).unwrap_or("Not selected".into())))
    .child(div().flex().gap_2().items_center().flex_wrap().child(button("pick-candidate","Select candidate ICC").on_click(cx.listener(|this,_,_,cx|{
-    if !this.busy{if let Some(path)=rfd::FileDialog::new().add_filter("ICC profile",&["icc","icm"]).pick_file(){this.candidate=Some(path);this.preview=None;this.comparison=None;this.gradient=None;this.gradient_error=None;this.compare_error=None;if this.preview_open{this.refresh_gamut(cx);}cx.notify();}}
+    if !this.busy{if let Some(path)=rfd::FileDialog::new().add_filter("ICC profile",&["icc","icm"]).pick_file(){this.candidate=Some(path);this.preview=None;this.comparison=None;this.gradient=None;this.gradient_detail=None;this.gradient_error=None;this.compare_error=None;if this.preview_open{this.refresh_gamut(cx);}cx.notify();}}
    })))
    .child(seg("sys-compare-button","System profiles ▾",self.picker==Some(Picker::Comparison)).on_click(cx.listener(|v,_,_,cx|v.toggle_system_picker(Picker::Comparison,cx)))))
    .when(self.picker==Some(Picker::Comparison),|p|p.child(self.system_picker(Picker::Comparison,cx)))
@@ -319,14 +319,35 @@ impl Studio {
     let fraction=r.histogram[i] as f32/r.count as f32;
     p=p.child(div().flex().items_center().gap_2().child(div().w(px(55.)).child(label)).child(div().w(px(200.)).h(px(9.)).rounded_md().bg(rgb(0x3b3b3b)).child(div().w(px(200.*fraction)).h_full().rounded_md().bg(rgb(0x60a5fa)))).child(format!("{:.1}%",100.*fraction)));
    }
-   p=p.child(div().text_lg().child(tr("Ink distribution (sampled)"))).child(div().text_xs().child("Names follow reference channel indices; candidate order may differ."));
-   for j in 0..4{p=p.child(format!("{} — mean {:.2}% → {:.2}% | max {:.2}% → {:.2}%",self.ink_name(j),r.reference.mean[j],r.candidate.mean[j],r.reference.max[j],r.candidate.max[j]));}
+   p=p.child(div().text_lg().child(tr("Ink distribution (sampled)")))
+    .child("Independent channel indices and names for each profile. No assumed physical channel correspondence.");
+   for (side,stats,channels) in [(0,&r.reference,&r.reference_channels),(1,&r.candidate,&r.candidate_channels)]{
+    let mut group=div().flex().flex_col().gap_2().p_3().rounded_md().bg(rgb(0x292929))
+     .child(div().text_lg().child(format!("{} · {} channels",if side==0{tr("Reference")}else{tr("Candidate")},channels.len())));
+    for (j,ch) in channels.iter().enumerate(){
+     let name=color_convert_rust::rtl::visual(ch.label(self.embedded_names));let color=ch.swatch(self.embedded_names);
+     group=group.child(div().flex().flex_col().gap_1()
+      .child(div().flex().items_center().gap_2().child(swatch(color,16.)).child(div().flex_1().child(format!("{} · {name}",j+1))).child(div().text_xs().child(format!("Mean {:.2}% · Max {:.2}%",stats.mean[j],stats.max[j]))))
+      .child(bar(stats.mean[j]/100.,color,12.)).child(bar(stats.max[j]/100.,color,5.)));
+    }
+    p=p.child(group);
+   }
    p=p.child(format!("Mean TAC {:.2}% → {:.2}%  |  Max sampled TAC {:.2}% → {:.2}%",r.reference.mean_tac,r.candidate.mean_tac,r.reference.max_tac,r.candidate.max_tac))
     .child(div().text_lg().child(tr("Neutral axis — all 33 samples")))
-    .child("Blue = before; amber = after. L* and ink curves use fixed 0–100 scales.")
+    .child("Blue = reference; orange = candidate. Fixed 0–100 scale. Channel curves are separate because ink identities can differ.")
     .child(neutral_plot(&r.neutral,0))
     .child("L* (input gray 0 → 255)");
-   for j in 0..4{p=p.child(neutral_plot(&r.neutral,j+1)).child(format!("{} (%)",self.ink_name(j)));}
+   for (side,channels) in [(0,&r.reference_channels),(1,&r.candidate_channels)]{
+    let mut group=div().flex().flex_col().gap_2().p_3().rounded_md().bg(rgb(0x292929))
+     .child(div().text_lg().child(tr(if side==0{"Reference"}else{"Candidate"})));
+    for (j,ch) in channels.iter().enumerate(){
+     let values:Vec<_>=r.neutral.iter().map(|v|if side==0{v.reference_ink[j]}else{v.candidate_ink[j]}).collect();
+     group=group.child(div().flex().items_center().gap_2().child(swatch(ch.swatch(self.embedded_names),16.)).child(color_convert_rust::rtl::visual(ch.label(self.embedded_names))))
+      .child(if side==0{analysis_plot(&values,None,100.)}else{analysis_plot(&[],Some(&values),100.)})
+      .child(chart_labels(100.));
+    }
+    p=p.child(group);
+   }
    for n in &r.neutral{
     p=p.child(div().p_2().rounded_md().bg(rgb(0x292929))
      .child(format!("Gray {:3} | ΔE00 {:.3} | L*a*b* {:.2?} → {:.2?}",n.rgb,n.delta_e,n.reference_lab,n.candidate_lab))
@@ -347,7 +368,7 @@ impl Studio {
   self.busy=true;self.status="Editing ICC and validating with LittleCMS…".into();cx.notify();
   cx.spawn(async move |this,cx|{
    let result=cx.background_spawn(async move{editing::edit_file(&source,&destination,edit)}).await;
-   let _=this.update(cx,|view,cx|{view.busy=false;match result{Ok(s)=>{view.status=s;view.candidate=Some(output_path);view.preview=None;view.comparison=None;view.gradient=None;view.gradient_error=None;if view.preview_open{view.refresh_gamut(cx);}},Err(e)=>view.status=format!("Error: {e}")}cx.notify();});
+   let _=this.update(cx,|view,cx|{view.busy=false;match result{Ok(s)=>{view.status=s;view.candidate=Some(output_path);view.preview=None;view.comparison=None;view.gradient=None;view.gradient_detail=None;view.gradient_error=None;if view.preview_open{view.refresh_gamut(cx);}},Err(e)=>view.status=format!("Error: {e}")}cx.notify();});
   }).detach();
  }
  fn curve_cards(&self,point_mode:bool,cx:&mut Context<Self>)->Div{
@@ -453,7 +474,7 @@ impl Studio {
      let path=dest.clone();
      let result=cx.background_spawn(async move{versioning::convert_file(&source,&dest,target,omit,de,ink,rel)}).await;
      let _=this.update(cx,|v,cx|{v.busy=false;match result{
-      Ok(r)=>{v.status=format!("Saved ICC v{} ({}): {}",r.target,if r.relative_absolute_only{"Relative/Absolute only"}else{"all intents validated"},path.display());v.version_report=Some(r);v.candidate=Some(path);v.preview=None;v.comparison=None;v.gradient=None;v.gradient_error=None;if v.preview_open{v.refresh_gamut(cx);}},
+      Ok(r)=>{v.status=format!("Saved ICC v{} ({}): {}",r.target,if r.relative_absolute_only{"Relative/Absolute only"}else{"all intents validated"},path.display());v.version_report=Some(r);v.candidate=Some(path);v.preview=None;v.comparison=None;v.gradient=None;v.gradient_detail=None;v.gradient_error=None;if v.preview_open{v.refresh_gamut(cx);}},
       Err(e)=>v.status=format!("Version conversion refused: {e}")
      }cx.notify();});
     }).detach();
@@ -542,9 +563,9 @@ impl Studio {
    .child(div().text_xs().child(format!("Reference: {}",filename(&self.source))))
    .child(div().text_xs().child(format!("Candidate: {}",filename(&self.candidate))))
    .child(div().flex().gap_1().flex_wrap()
-    .child(seg("preview-pick","Compare ICC",false).on_click(cx.listener(|v,_,_,cx|{if !v.busy{if let Some(path)=rfd::FileDialog::new().add_filter("ICC profile",&["icc","icm"]).pick_file(){v.candidate=Some(path);v.preview_options.candidate=true;v.preview=None;v.comparison=None;v.gradient=None;v.gradient_error=None;v.refresh_gamut(cx);cx.notify();}}})))
+    .child(seg("preview-pick","Compare ICC",false).on_click(cx.listener(|v,_,_,cx|{if !v.busy{if let Some(path)=rfd::FileDialog::new().add_filter("ICC profile",&["icc","icm"]).pick_file(){v.candidate=Some(path);v.preview_options.candidate=true;v.preview=None;v.comparison=None;v.gradient=None;v.gradient_detail=None;v.gradient_error=None;v.refresh_gamut(cx);cx.notify();}}})))
     .child(seg("sys-gamut-button","System ▾",self.picker==Some(Picker::Gamut)).on_click(cx.listener(|v,_,_,cx|v.toggle_system_picker(Picker::Gamut,cx))))
-    .when(self.candidate.is_some(),|p|p.child(seg("clear-candidate","Clear",false).on_click(cx.listener(|v,_,_,cx|{if !v.busy{v.candidate=None;v.preview=None;v.comparison=None;v.gradient=None;v.gradient_error=None;v.refresh_gamut(cx);cx.notify();}}))))
+    .when(self.candidate.is_some(),|p|p.child(seg("clear-candidate","Clear",false).on_click(cx.listener(|v,_,_,cx|{if !v.busy{v.candidate=None;v.preview=None;v.comparison=None;v.gradient=None;v.gradient_detail=None;v.gradient_error=None;v.refresh_gamut(cx);cx.notify();}}))))
     .child(seg("refresh-gamut",if self.busy{"Working…"}else{"Refresh"},false).on_click(cx.listener(|v,_,_,cx|v.refresh_gamut(cx)))))
    .when(self.picker==Some(Picker::Gamut),|p|p.child(self.system_picker(Picker::Gamut,cx)))
    .child(div().text_xs().text_color(rgb(0xa1a1aa)).child(tr("High quality surface")))
@@ -572,7 +593,7 @@ impl Studio {
  }
  fn analyze_gradient(&mut self,cx:&mut Context<Self>){
   if self.busy{return}let Some(reference)=self.source.clone()else{return};
-  let candidate=self.candidate.clone();self.gradient=None;self.gradient_error=None;self.busy=true;self.status="Analyzing 13 gradients with LittleCMS…".into();cx.notify();
+  let candidate=self.candidate.clone();self.gradient=None;self.gradient_detail=None;self.gradient_error=None;self.busy=true;self.status="Analyzing 13 gradients with LittleCMS…".into();cx.notify();
   cx.spawn(async move |this,cx|{
    let result=cx.background_spawn(async move{gradient::compare(&reference,candidate.as_deref())}).await;
    let _=this.update(cx,|view,cx|{view.busy=false;match result{Ok(r)=>{view.gradient=Some(r);view.status="Gradient analysis complete.".into();},Err(e)=>{view.gradient_error=Some(e);view.status="Gradient analysis failed.".into();}}cx.notify();});
@@ -598,6 +619,20 @@ impl Studio {
      .child(div().text_sm().child(tr("Lightness L*")))
      .child(analysis_plot(&a.light,b.map(|x|x.light.as_slice()),100.))
      .child(chart_labels(100.));
+    row=row.child(seg(("gradient-inks",i),if self.gradient_detail==Some(i){"Hide ink curves"}else{"Show ink curves"},self.gradient_detail==Some(i)).on_click(cx.listener(move|v,_,_,cx|{v.gradient_detail=if v.gradient_detail==Some(i){None}else{Some(i)};cx.notify();})));
+    if self.gradient_detail==Some(i){
+     for (side,ramp,channels) in [(0,Some(a),&r.reference_channels),(1,b,&r.candidate_channels)]{
+      if let Some(ramp)=ramp{
+       row=row.child(div().text_lg().child(tr(if side==0{"Reference"}else{"Candidate"})));
+       for (j,ch) in channels.iter().enumerate(){
+        let values=&ramp.ink_curves[j];
+        row=row.child(div().flex().items_center().gap_2().child(swatch(ch.swatch(self.embedded_names),16.)).child(color_convert_rust::rtl::visual(ch.label(self.embedded_names))))
+         .child(if side==0{analysis_plot(values,None,100.)}else{analysis_plot(&[],Some(values),100.)})
+         .child(chart_labels(100.));
+       }
+      }
+     }
+    }
     p=p.child(row);
    }
   }
@@ -767,7 +802,7 @@ impl Studio {
     let tac=v.tac;v.busy=true;v.status="Argyll colprof is building measured profile…".into();cx.notify();
     cx.spawn(async move|this,cx|{
      let result=cx.background_spawn(async move{lab::profile_from_ti3(&source,&dest,tac).map(|_|dest)}).await;
-     let _=this.update(cx,|v,cx|{v.busy=false;match result{Ok(p)=>{v.status=format!("Saved {}",p.display());v.candidate=Some(p);v.preview=None;v.comparison=None;v.gradient=None;if v.preview_open{v.refresh_gamut(cx);}},Err(e)=>v.status=format!("Error: {e}")}cx.notify();});
+     let _=this.update(cx,|v,cx|{v.busy=false;match result{Ok(p)=>{v.status=format!("Saved {}",p.display());v.candidate=Some(p);v.preview=None;v.comparison=None;v.gradient=None;v.gradient_detail=None;if v.preview_open{v.refresh_gamut(cx);}},Err(e)=>v.status=format!("Error: {e}")}cx.notify();});
     }).detach();
    })))
  }
