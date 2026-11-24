@@ -81,7 +81,7 @@ impl App{
   let (Some(source),Some(destination))=(self.source.clone(),self.destination.clone())else{return};
   let j=Job{source,destination,mode:self.mode,caps:self.caps,tac:self.tac,estimate:self.estimate,grid:self.grid};
   let (tx,rx)=mpsc::channel();self.rx=Some(rx);self.busy=true;self.status="Starting profile rebuild...".into();let ctx=ctx.clone();
-  thread::spawn(move||{let notify=|s|{let _=tx.send(Event::Progress(s));ctx.request_repaint();};let result=std::panic::catch_unwind(||run(j,notify)).unwrap_or_else(|_|Err("Unexpected engine failure".into()));let _=tx.send(Event::Done(result));ctx.request_repaint();});
+  thread::spawn(move||{let notify=|s|{let _=tx.send(Event::Progress(s));ctx.request_repaint();};let result=std::panic::catch_unwind(std::panic::AssertUnwindSafe(||run(j,notify))).unwrap_or_else(|_|Err("Unexpected engine failure".into()));let _=tx.send(Event::Done(result));ctx.request_repaint();});
  }
 }
 impl eframe::App for App{
