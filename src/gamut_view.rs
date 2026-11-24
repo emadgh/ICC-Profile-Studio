@@ -28,7 +28,7 @@ impl PreviewCache{
 }
 pub fn plot(data:Option<&Overlay>,revision:u64,o:ViewOptions,cache:&mut PreviewCache,use_image:bool)->Div{
  cache.update(data,revision,o);
- let frame=div().relative().w(px(DISPLAY)).h(px(DISPLAY)).min_h(px(DISPLAY)).flex_shrink_0().overflow_hidden().bg(rgb(0x0b1220));
+ let frame=div().relative().w(px(DISPLAY)).h(px(DISPLAY)).min_h(px(DISPLAY)).flex_shrink_0().overflow_hidden().bg(rgb(0x313337));
  let frame=if use_image{
   if let Some(image)=cache.image.clone(){frame.child(img(image).w(px(DISPLAY)).h(px(DISPLAY)).flex_shrink_0())}
   else{frame.child("Direct BGRA image unavailable")}
@@ -40,7 +40,7 @@ pub fn plot(data:Option<&Overlay>,revision:u64,o:ViewOptions,cache:&mut PreviewC
  // If these are missing, the entire panel is clipped or not rendered.
  div().flex().flex_col().items_center().gap_1().w_full().flex_shrink_0()
   .child(div().p(px(1.)).bg(rgb(0x536780)).flex_shrink_0().child(frame))
-  .child(div().flex().gap_1().items_center().child(div().w(px(12.)).h(px(8.)).bg(rgb(0xe87979))).child(div().w(px(12.)).h(px(8.)).bg(rgb(0x66bb8a))).child(div().w(px(12.)).h(px(8.)).bg(rgb(0xe5e7eb))).child(div().text_xs().child(if use_image{"BGRA renderer · R3"}else{"Native cells renderer · R3"})))
+  .child(div().flex().gap_1().items_center().child(div().w(px(12.)).h(px(8.)).bg(rgb(0xe87979))).child(div().w(px(12.)).h(px(8.)).bg(rgb(0x66bb8a))).child(div().w(px(12.)).h(px(8.)).bg(rgb(0xe5e7eb))).child(div().text_xs().child(if use_image{"BGRA renderer · R4"}else{"Native cells renderer · R4"})))
   .child(div().text_xs().child(cache.label.clone()))
   .child(div().text_xs().child(format!("{} native spans · {} view",cache.spans.len(),if o.three_d{"3D"}else{"2D"})))
 }

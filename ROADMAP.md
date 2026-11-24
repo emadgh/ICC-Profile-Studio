@@ -174,3 +174,11 @@ Check boxes mean source implementation, not verified runtime unless explicitly m
 
 - Local independent LCMS round-trip checks for all three Durst ICCs at the 41³ adaptive field: 2,565 original / 3,020 K0 / 2,944 K10 lattice nodes within ΔE00 ≤ 2, no sampled outer-box face hits. These are reproducibility-grid counts for different adaptive boxes, not directly comparable volumes. Proprietary ICCs were not uploaded. R3 Rust tests and Windows display remain separate verification gates.
 - Preserve black pixels in native-cell fallback and test filled solid triangle interior; distinguish profile-color legend from comparison tint. Quality labels Draft/Normal/High map to 25³/41³/57³ surface field.
+
+## Gamut R4 — GamutVision-style comparison
+
+- R3 CI failed with E0284 in marching tetrahedra position array; explicitly typed [f32;3].
+- [x] Source: default reference solid and candidate wireframe overlay, reverse layout, shared points/wire/solid/both modes, interpolated Lab-derived sRGB colors, compare tint remains optional. Mixed wireframe overlays visible irrespective of depth; solid remains opaque away from wires.
+- [x] Source: neutral gray 3D walls/floor, Lab axis/tick labels, common auto-fit, projected L*=20/40/60/80 section contours on floor; separate toggle and GamutVision Style reset. Both BGRA/native retained, settings persisted.
+- [x] Source: mixed overlay and floor contour regression tests; R4 version 0.9.0-beta.4.
+- [ ] CI, Windows interactive visual confirmation. Sampled ΔE00=2 surface remains an approximation; actual profile-derived Lab color display is clipped to sRGB where needed. No proprietary profile data committed.

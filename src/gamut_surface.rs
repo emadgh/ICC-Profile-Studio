@@ -8,7 +8,7 @@ pub struct Surface{pub triangles:Vec<[[f32;3];3]>,pub resolution:usize}
 pub fn extract(field:&[f64],n:usize,lo:[f32;3],hi:[f32;3],threshold:f64)->Option<Surface>{
  if n<3||field.len()!=n.pow(3)||field.iter().any(|v|!v.is_finite()){return None}
  let idx=|x:usize,y:usize,z:usize|(x*n+y)*n+z;
- let position=|x:usize,y:usize,z:usize|std::array::from_fn(|i|lo[i]+(hi[i]-lo[i])*[x,y,z][i] as f32/(n-1) as f32);
+ let position=|x:usize,y:usize,z:usize| -> [f32;3] {std::array::from_fn(|i|lo[i]+(hi[i]-lo[i])*[x,y,z][i] as f32/(n-1) as f32)};
  let corners=[[0,0,0],[1,0,0],[1,1,0],[0,1,0],[0,0,1],[1,0,1],[1,1,1],[0,1,1]];
  let tetra=[[0,5,1,6],[0,1,2,6],[0,2,3,6],[0,3,7,6],[0,7,4,6],[0,4,5,6]];
  let mut triangles=Vec::new();

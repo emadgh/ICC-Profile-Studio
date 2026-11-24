@@ -118,3 +118,7 @@ The plot is fixed above the preview scroll area and duplicated on Gamut Viewer. 
 ### Gamut R3
 
 Default BGRA renderer (confirmed by owner in R2). Profile Colors render approximate display sRGB from D50 Lab; Compare Tint identifies reference/candidate. Four modes: Points, Wireframe, Solid, Solid + Wire. Default sampled surface is an adaptive Lab round-trip ΔE00 ≤ 2 isosurface (25/41/57 lattice resolution, marching tetrahedra), not a convex hull or a measured exact boundary. Convex geometry is optional; mesh unavailable falls back to points. 2D projections and L* plane slices are available. Settings save display/geometry modes. CI and Windows runtime validation pending.
+
+### Gamut R4 comparison
+
+GamutVision Style is the default: opaque reference solid plus colorized candidate wireframe, gray labeled Lab box and optional floor projections of L*=20/40/60/80 section contours. Use the reverse comparison or shared display modes if desired. Profile colors are interpolated from sampled D50 Lab coordinates to approximate sRGB, not arbitrary rainbow colors. Nonconvex sampled reproduction surface remains the default, convex hull optional. BGRA remains the default display path. R4 includes the R3 compiler fix; CI and visual confirmation pending.

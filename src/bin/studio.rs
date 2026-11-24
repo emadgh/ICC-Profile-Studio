@@ -8,6 +8,7 @@ use color_convert_rust::correction::{Operation,Selective,BlackGeneration,IDENTIT
 #[path = "../gamut_view.rs"] mod gamut_view;
 use color_convert_rust::gamut::{self,Overlay};
 use gamut_view::ViewOptions;
+use color_convert_rust::gamut_raster::CompareLayout;
 use color_convert_rust::images::{self,Options as ImageOptions,Output as ImageOutput};
 use color_convert_rust::streaming::{self,StreamOptions};
 use std::sync::{Arc,atomic::{AtomicBool,Ordering}};
@@ -222,7 +223,7 @@ impl Studio {
  fn preview_panel(&self,cx:&mut Context<Self>)->Div{
   let o=self.preview_options;
   let panel=div().flex().flex_col().w(px(360.)).flex_shrink_0().h_full().min_h(px(0.)).overflow_hidden().bg(rgb(0x101a2a))
-   .child(div().flex().items_center().justify_between().p_2().flex_shrink_0().child(div().text_lg().child("Gamut Preview · R3"))
+   .child(div().flex().items_center().justify_between().p_2().flex_shrink_0().child(div().text_lg().child("Gamut Preview · R4"))
     .child(button("collapse-preview","»").on_click(cx.listener(|this,_,_,cx|{this.preview_open=false;cx.notify();}))));
   let controls=div().flex().flex_col().gap_1().flex_shrink_0().p_2()
    .child(div().flex().gap_2().child(button("view-2d",if o.three_d{"2D"}else{"2D ✓"}).on_click(cx.listener(|this,_,_,cx|{this.preview_options.three_d=false;cx.notify();})))
@@ -252,8 +253,9 @@ let chart=div().id("gamut-orbit").w_full().flex_shrink_0().cursor_pointer()
     }))
     .child(gamut_view::plot(self.preview.as_ref(),self.preview_revision,o,&mut self.preview_cache.borrow_mut(),self.preview_direct_image));
   panel.child(controls)
+   .child(div().px_2().text_xs().child(format!("Before: {} | After: {}",o.style_label(0),o.style_label(1))))
    .child(div().flex().flex_col().items_center().flex_shrink_0().child(chart))
-   .child(div().flex().gap_1().p_1().flex_shrink_0().children([("Pts",false,false),("Wire",false,true),("Solid",true,false),("Both",true,true)].into_iter().enumerate().map(|(i,(name,solid,wire))|button(("quick-style",i),if o.solid==solid&&o.wireframe==wire{format!("{name} ✓")}else{name.into()}).on_click(cx.listener(move|v,_,_,cx|{v.preview_options.solid=solid;v.preview_options.wireframe=wire;cx.notify();})))))
+   .child(div().flex().gap_1().p_1().flex_shrink_0().children([("Pts",false,false),("Wire",false,true),("Solid",true,false),("Both",true,true)].into_iter().enumerate().map(|(i,(name,solid,wire))|button(("quick-style",i),if o.layout==CompareLayout::Shared&&o.solid==solid&&o.wireframe==wire{format!("{name} ✓")}else{name.into()}).on_click(cx.listener(move|v,_,_,cx|{v.preview_options.layout=CompareLayout::Shared;v.preview_options.solid=solid;v.preview_options.wireframe=wire;cx.notify();})))))
    .child(div().flex().gap_1().p_2().flex_shrink_0()
     .child(button("renderer-native",if self.preview_direct_image{"Native cells"}else{"Native cells ✓"}).on_click(cx.listener(|v,_,_,cx|{v.preview_direct_image=false;cx.notify();})))
     .child(button("renderer-bgra",if self.preview_direct_image{"BGRA ✓"}else{"BGRA"}).on_click(cx.listener(|v,_,_,cx|{v.preview_direct_image=true;cx.notify();}))))
@@ -288,8 +290,12 @@ let chart=div().id("gamut-orbit").w_full().flex_shrink_0().cursor_pointer()
    match &data.reference{Ok(c)=>p=p.child(format!("Before: {} distinct / {} targets",c.points.len(),c.sampled)),Err(e)=>p=p.child(format!("Before failed: {e}"))}
    if let Some(c)=&data.candidate{match c{Ok(c)=>p=p.child(format!("After: {} distinct / {} targets",c.points.len(),c.sampled)),Err(e)=>p=p.child(format!("After failed: {e}"))}}
    }
-   p=p.child(div().text_sm().child("Display mode"))
-    .child(div().flex().flex_wrap().gap_1().children([("Points",false,false),("Wireframe",false,true),("Solid",true,false),("Solid + Wire",true,true)].into_iter().enumerate().map(|(i,(name,solid,wire))|button(("gamut-style",i),if o.solid==solid&&o.wireframe==wire{format!("{name} ✓")}else{name.into()}).on_click(cx.listener(move|v,_,_,cx|{v.preview_options.solid=solid;v.preview_options.wireframe=wire;cx.notify();})))))
+   p=p.child(button("gamutvision-style","GamutVision Style (reset view)").on_click(cx.listener(|v,_,_,cx|{v.preview_options=ViewOptions::default();v.preview_direct_image=true;cx.notify();})))
+    .child(div().text_sm().child("Comparison layout"))
+    .child(div().flex().flex_wrap().gap_1().children([("Ref solid / Cand wire",CompareLayout::ReferenceSolidCandidateWire),("Ref wire / Cand solid",CompareLayout::ReferenceWireCandidateSolid)].into_iter().enumerate().map(|(i,(name,layout))|button(("mixed-gamut",i),if o.layout==layout{format!("{name} ✓")}else{name.into()}).on_click(cx.listener(move|v,_,_,cx|{v.preview_options.layout=layout;cx.notify();})))))
+    .child(button("floor-contour",if o.floor_contour{"Floor contours ✓"}else{"Floor contours"}).on_click(cx.listener(|v,_,_,cx|{v.preview_options.floor_contour=!v.preview_options.floor_contour;cx.notify();})))
+    .child(div().text_sm().child("Shared display mode (both profiles)"))
+    .child(div().flex().flex_wrap().gap_1().children([("Points",false,false),("Wireframe",false,true),("Solid",true,false),("Solid + Wire",true,true)].into_iter().enumerate().map(|(i,(name,solid,wire))|button(("gamut-style",i),if o.layout==CompareLayout::Shared&&o.solid==solid&&o.wireframe==wire{format!("{name} ✓")}else{name.into()}).on_click(cx.listener(move|v,_,_,cx|{v.preview_options.layout=CompareLayout::Shared;v.preview_options.solid=solid;v.preview_options.wireframe=wire;cx.notify();})))))
     .child(div().flex().flex_wrap().gap_1().child(button("gamut-profile-colors",if o.profile_colors{"Profile colors ✓"}else{"Profile colors"}).on_click(cx.listener(|v,_,_,cx|{v.preview_options.profile_colors=true;cx.notify();})))
      .child(button("gamut-compare-colors",if !o.profile_colors{"Compare tint ✓"}else{"Compare tint"}).on_click(cx.listener(|v,_,_,cx|{v.preview_options.profile_colors=false;cx.notify();}))))
     .child(div().flex().flex_wrap().gap_1().child(button("gamut-surface",if !o.convex{"Sampled surface ✓"}else{"Sampled surface"}).on_click(cx.listener(|v,_,_,cx|{v.preview_options.convex=false;cx.notify();})))
@@ -303,7 +309,7 @@ let chart=div().id("gamut-orbit").w_full().flex_shrink_0().cursor_pointer()
    p=p.child("Drag to orbit (3D); scroll to zoom. Both profiles share the same auto-fit scale.")
     .child(button("save-gamut-png","Export current gamut PNG").on_click(cx.listener(|v,_,_,cx|{if let Some(data)=&v.preview{if let Some(path)=rfd::FileDialog::new().add_filter("PNG",&["png"]).set_file_name("gamut.png").save_file(){let result=color_convert_rust::gamut_raster::render(Some(data),v.preview_options).png().and_then(|bytes|{use std::io::Write;let mut f=tempfile::NamedTempFile::new_in(path.parent().unwrap_or(std::path::Path::new("."))).map_err(|e|e.to_string())?;f.write_all(&bytes).map_err(|e|e.to_string())?;f.persist_noclobber(&path).map_err(|e|e.to_string())?;Ok(())});v.status=result.map(|_|format!("Saved {}",path.display())).unwrap_or_else(|e|format!("Error: {e}"));cx.notify();}}})));
    if o.convex{p=p.child("Convex envelope fills concavities. Use sampled surface for a nonconvex estimate.");}else{p=p.child("Sampled ΔE00 ≤ 2 round-trip isosurface; concavities retained where resolved. Not a measured physical boundary.");}
-   if o.three_d{p=p.child("Axes: red +a*, green +b*, white +L*");}else{p=p.child(if o.slice{format!("a* / b* | L* {:.0} ± 5",o.light)}else{"a* / b* | all lightness values".into()});}
+   if o.three_d{p=p.child("Axes: L* / a* / b*. Floor lines project L*=20/40/60/80 contours.");}else{p=p.child(if o.slice{format!("a* / b* | L* {:.0} ± 5",o.light)}else{"a* / b* | all lightness values".into()});}
   }
   if self.preview.is_none(){p=p.child(if self.busy{"Sampling in progress…"}else{"Open an ICC or refresh to calculate the preview."});}
   p.child(div().text_xs().text_color(rgb(0x94a3b8)).child("Sampled effective separation gamut (Lab → B2A → device → A2B → Lab). Relative colorimetric, D50. Profile colors approximate D50 Lab → sRGB (display clipping possible); compare tint distinguishes overlapping profiles. No exact or measured gamut claim."))
@@ -671,10 +677,10 @@ let chart=div().id("gamut-orbit").w_full().flex_shrink_0().cursor_pointer()
   p
  }
  fn preference_snapshot(&self)->Preferences{
-  Preferences{schema:1,preview_open:self.preview_open,three_d:self.preview_options.three_d,wireframe:self.preview_options.wireframe,solid:self.preview_options.solid,profile_colors:self.preview_options.profile_colors,convex:self.preview_options.convex,direct_image:self.preview_direct_image,gamut_grid:self.gamut_grid,compare_grid:self.compare_grid,dpi:self.image_options.dpi,stream_enabled:self.stream_enabled,bigtiff:self.stream_options.bigtiff,separations:self.stream_options.separations,proof_media:self.proof_media,proof_bpc:self.proof_bpc,monitor:self.monitor_profile.clone(),library:self.library_root.clone(),output:self.image_root.clone()}
+  Preferences{schema:1,preview_open:self.preview_open,three_d:self.preview_options.three_d,wireframe:self.preview_options.wireframe,solid:self.preview_options.solid,profile_colors:self.preview_options.profile_colors,convex:self.preview_options.convex,layout:self.preview_options.layout,floor_contour:self.preview_options.floor_contour,direct_image:self.preview_direct_image,gamut_grid:self.gamut_grid,compare_grid:self.compare_grid,dpi:self.image_options.dpi,stream_enabled:self.stream_enabled,bigtiff:self.stream_options.bigtiff,separations:self.stream_options.separations,proof_media:self.proof_media,proof_bpc:self.proof_bpc,monitor:self.monitor_profile.clone(),library:self.library_root.clone(),output:self.image_root.clone()}
  }
  fn apply_preferences(&mut self,p:Preferences){
-  self.preview_open=p.preview_open;self.preview_options.three_d=p.three_d;self.preview_options.wireframe=p.wireframe;self.preview_options.solid=p.solid;self.preview_options.profile_colors=p.profile_colors;self.preview_options.convex=p.convex;self.preview_direct_image=p.direct_image;
+  self.preview_open=p.preview_open;self.preview_options.three_d=p.three_d;self.preview_options.wireframe=p.wireframe;self.preview_options.solid=p.solid;self.preview_options.profile_colors=p.profile_colors;self.preview_options.convex=p.convex;self.preview_options.layout=p.layout;self.preview_options.floor_contour=p.floor_contour;self.preview_direct_image=p.direct_image;
   self.gamut_grid=p.gamut_grid;self.compare_grid=p.compare_grid;self.image_options.dpi=p.dpi;
   self.stream_enabled=p.stream_enabled;self.stream_options.bigtiff=p.bigtiff;self.stream_options.separations=p.separations;
   self.proof_media=p.proof_media;self.proof_bpc=p.proof_bpc;self.monitor_profile=p.monitor.filter(|p|p.is_file());self.library_root=p.library.filter(|p|p.is_dir());self.image_root=p.output.filter(|p|p.is_dir());
@@ -779,7 +785,7 @@ let chart=div().id("gamut-orbit").w_full().flex_shrink_0().cursor_pointer()
 impl Render for Studio {
  fn render(&mut self,_window:&mut Window,cx:&mut Context<Self>)->impl IntoElement{
   let sidebar=div().id("sidebar").flex().flex_col().w(px(224.)).flex_shrink_0().h_full().overflow_y_scroll().p_3().gap_1().bg(rgb(0x101a2a))
-   .child(div().text_lg().child("ICC Profile Studio")).child(div().text_xs().mb_3().child(format!("{} · Gamut R3",STUDIO_VERSION.trim())))
+   .child(div().text_lg().child("ICC Profile Studio")).child(div().text_xs().mb_3().child(format!("{} · Gamut R4",STUDIO_VERSION.trim())))
    .child(button("open-profile","Open ICC / ICM").on_click(cx.listener(|this,_,_,cx|{this.open(cx);cx.notify();})))
    .children(PAGES.into_iter().enumerate().map(|(i,(page,label))|{
     let active=self.page==page;
