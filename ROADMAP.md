@@ -93,7 +93,7 @@
 
 - [x] Interleaved single-image RGB/CMYK 8/16-bit strip TIFF streaming, 2 MP per strip and up to 2 billion pixels total; per-strip LCMS conversion, strict TAC rejection, staged output, thumbnails and stats.
 - [x] Explicit classic/BigTIFF selection for streaming, optional full-resolution 16-bit grayscale separation TIFFs, per-strip progress and cancellation (in-memory jobs cancel between files).
-- [x] Synthetic native ICC/BigTIFF integration tests added (not yet run in CI), plus native selective correction and DeviceLink tests.
+- [x] Synthetic native ICC/BigTIFF, native selective correction and DeviceLink integration tests passed in Windows GPUI run 45409608575 (45 tests overall).
 - [ ] CI and end-to-end real large-file/RIP regression; tiled TIFF, planar input, metadata preservation and calibrated monitor proof. No claim of unrestricted file-size support.
 
 ## Monitor proofing
@@ -145,4 +145,7 @@ Check boxes mean source implementation, not verified runtime unless explicitly m
 - v0.7 legacy build succeeded at 71fb5180. GPUI failed on mouse event type inference (E0282); explicit event types added in the subsequent source. Complete Studio build succeeded at b3e71c44.
 - v0.8 legacy/core build succeeded at 64e71891; GPUI compiled at b3e71c44; runtime and end-to-end checks remain pending.
 
-- Studio release workflow initially failed YAML validation at 310ad675; corrected the malformed PowerShell regex line and artifact block. New CI pending.
+- Studio release workflow initially failed YAML validation at 310ad675; corrected the malformed PowerShell regex line and artifact block. New release workflow CI pending.
+- GPUI build at 10af67e9 passed 45 tests and uploaded artifact 14929160937: https://github.com/emadgh/color-convert-rust/actions/runs/45409608575.
+- Legacy/core build at 6bfdc843 (paper/substrate color) succeeded: https://github.com/emadgh/color-convert-rust/actions/runs/45410491959. GPUI verification pending.
+- Soft Proof initial build bba58f12 failed because Rust binding uses SOFT_PROOFING rather than SOFTPROOFING. Corrected; subsequent CI pending.

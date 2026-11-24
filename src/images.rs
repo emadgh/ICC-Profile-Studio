@@ -138,7 +138,7 @@ pub fn device_link(reference:&Path,candidate:&Path,destination:&Path,intent:Inte
 pub struct ProofOptions{pub intent:Intent,pub simulate_media:bool,pub bpc:bool,pub assume_untagged:bool}
 fn proof_pixels(input:&Input,monitor:&Profile,printer:&Profile,indices:&[usize],options:ProofOptions)->R<Vec<u8>>{
  let proof_intent=if options.simulate_media{Intent::AbsoluteColorimetric}else{Intent::RelativeColorimetric};
- let flags=if options.bpc&&!options.simulate_media{Flags::SOFTPROOFING|Flags::BLACKPOINT_COMPENSATION}else{Flags::SOFTPROOFING};
+ let flags=if options.bpc&&!options.simulate_media{Flags::SOFT_PROOFING|Flags::BLACKPOINT_COMPENSATION}else{Flags::SOFT_PROOFING};
  let mut out=vec![[0u8;3];indices.len()];
  match &input.pixels{
   Pixels::Rgb(p)=>{
