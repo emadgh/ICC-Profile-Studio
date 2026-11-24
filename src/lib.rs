@@ -83,6 +83,12 @@ impl Profile {
   self.tags.insert(*b"desc",t);
  }
  pub fn clean_stale(&mut self){for k in [b"gamt",b"pre0",b"pre1",b"pre2",b"gbd0",b"gbd1",b"gbd2",b"gbd3"]{self.tags.remove(k);}}
+ pub fn estimated_tac_percent(&self)->Option<f64>{
+  let lut=Lut::parse(self.tags.get(b"B2A1")?).ok()?;
+  if lut.inputs!=3||lut.outputs!=4{return None}
+  let peak=lut.clut.chunks_exact(4).map(|node|(0..4).map(|j|interp(&lut.out_curves[j],node[j])).sum::<f64>()).fold(0.0_f64,f64::max);
+  Some((100.*peak).floor().clamp(0.,400.))
+ }
  pub fn verify(&self,caps:[f64;4])->R<[f64;4]>{
   self.check()?;let mut max:[f64;4]=[0.;4];
   for k in [b"B2A0",b"B2A1",b"B2A2"]{

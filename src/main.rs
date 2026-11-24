@@ -75,7 +75,7 @@ impl App{
   self.source=Some(p.clone());self.profile=None;self.destination=None;self.names.clear();
   match Profile::read(&p){Ok(profile)=>{
    self.names=profile.channels();self.caps=[100.;4];if profile.cmyk(){self.caps[3]=0.;self.mode=if profile.version_major()==4{Mode::Custom}else{Mode::Argyll}}else{self.mode=Mode::Custom}
-   match profile.check(){Ok(())=>{self.status=format!("Detected ICC v{} / {} / PCS {}. Confirm physical ink order before rebuilding.",profile.version_major(),profile.space(),profile.pcs());if profile.version_major()==4{self.grid=33;}self.profile=Some(profile);self.destination=Some(p.with_file_name(format!("{}_limited.icc",p.file_stem().unwrap_or_default().to_string_lossy())));}
+   match profile.check(){Ok(())=>{self.status=format!("Detected ICC v{} / {} / PCS {}. Confirm physical ink order before rebuilding.",profile.version_major(),profile.space(),profile.pcs());if profile.version_major()==4{self.grid=33;}self.tac=profile.estimated_tac_percent().unwrap_or(300.);self.profile=Some(profile);self.destination=Some(p.with_file_name(format!("{}_limited.icc",p.file_stem().unwrap_or_default().to_string_lossy())));}
    Err(e)=>self.status=e}
   }Err(e)=>self.status=e}
  }
@@ -131,7 +131,7 @@ impl eframe::App for App{
       ui.checkbox(&mut self.estimate,"Estimate total ink from reference ICC");
      }else{
       if self.profile.as_ref().is_some_and(|p|p.version_major()==4){ui.label("ICC v4 detected: Argyll revfix disabled; original version preserved.");}
-      ui.label("Custom ICC v2 mft2 / v4 mAB (sampled curves). Specify a safe TAC from your print calibration.");
+      ui.label("Custom ICC v2 mft2 / v4 mAB (sampled curves). TAC starts from the reference B2A1 node estimate when supported. Confirm safe TAC with your print calibration.");
      }
      if self.mode==Mode::Custom||!self.estimate{ui.add(egui::Slider::new(&mut self.tac,0.0..=400.).step_by(1.).suffix("%").text("Total ink (TAC)"));}
      ui.horizontal(|ui|{ui.label("CLUT grid:");egui::ComboBox::from_id_salt("grid").selected_text(format!("{}³",self.grid)).show_ui(ui,|ui|{for v in [9,17,25,33]{ui.selectable_value(&mut self.grid,v,format!("{v}³"));}});});
