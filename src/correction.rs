@@ -81,8 +81,75 @@ fn optimize_node(base:[f64;4],caps:[f64;4],tac:f64,weights:[f64;4],tol:f64,mut p
  }
  Ok(best)
 }
+/// A predictive black-generation preference, not a measured separation
+/// characterization. GCR uses broad chroma support; UCR is near-neutral/dark.
 #[derive(Clone,Copy,Debug)]
-pub enum Operation{Selective(Selective),Smooth{strength:f64,passes:usize},Optimize{weights:[f64;4],tolerance:f64}}
+pub struct BlackGeneration{
+ pub start:f64,pub maximum:f64,pub gamma:f64,pub strength:f64,pub tolerance:f64,pub ucr:bool,
+}
+impl Default for BlackGeneration{fn default()->Self{Self{start:0.20,maximum:1.,gamma:1.,strength:0.75,tolerance:2.,ucr:false}}}
+impl BlackGeneration{
+ fn check(self)->R<()>{
+  if ![self.start,self.maximum,self.gamma,self.strength,self.tolerance].iter().all(|v|v.is_finite())||
+   !(0.0..=0.95).contains(&self.start)||!(0.0..=1.).contains(&self.maximum)||!(0.25..=4.).contains(&self.gamma)||
+   !(0.0..=1.).contains(&self.strength)||!(0.1..=5.).contains(&self.tolerance){return Err("Invalid black generation settings".into())}Ok(())
+ }
+ fn target(self,appearance:CIELab,base:f64,cap:f64)->f64{
+  let dark=(1.-appearance.L/100.).clamp(0.,1.);
+  let ramp=((dark-self.start)/(1.-self.start)).clamp(0.,1.).powf(self.gamma);
+  let chroma=appearance.a.hypot(appearance.b);
+  let region=if self.ucr{smoothstep(1.-chroma/25.)*smoothstep((dark-0.40)/0.35)}else{0.25+0.75*smoothstep(1.-chroma/120.)};
+  let w=self.strength*region;
+  (base+(ramp*self.maximum.min(cap)-base)*w).clamp(0.,cap)
+ }
+}
+fn black_node(base:[f64;4],caps:[f64;4],tac:f64,s:BlackGeneration,mut predict:impl FnMut([f64;4])->R<CIELab>)->R<[f64;4]>{
+ let target=predict(base)?;
+ if ![target.L,target.a,target.b].iter().all(|v|v.is_finite()){return Err("Invalid baseline Lab".into())}
+ let desired=s.target(target,base[3],caps[3]);
+ let mut best=quantized(base);
+ if base.iter().zip(caps).any(|(&v,c)|v>c+1e-6)||best.iter().sum::<f64>()>tac+1e-9{return Err("Source exceeds chosen bounds; rebuild before black generation".into())}
+ let baseline_error=predict(best)?.cie2000_delta_e(&target,1.,1.,1.);
+ if !baseline_error.is_finite()||baseline_error>s.tolerance{return Err("Baseline quantization exceeds tolerance".into())}
+ // Primary objective is closeness to the requested K preference; only
+ // accept an improvement if predicted appearance remains in tolerance.
+ let score=|v:[f64;4]|(v[3]-desired).abs();
+ for step in [0.10,0.05,0.02,0.01]{
+  for _ in 0..3{
+   let prior=best;
+   let mut candidates=Vec::new();
+   for i in 0..4{for sign in [-1.,1.]{
+    let mut v=best;v[i]+=sign*step;candidates.push(v);
+   }}
+   for i in 0..4{for j in 0..4{if i!=j{let mut v=best;v[i]-=step;v[j]+=step;candidates.push(v);}}}
+   for sign in [-1.,1.]{for ratio in [0.25,0.5,1.]{
+    let mut v=best;v[3]+=sign*step;for x in &mut v[..3]{*x-=sign*step*ratio;}candidates.push(v);
+   }}
+   for v in candidates{
+    if v.iter().zip(caps).any(|(&x,c)|x<0.||x>c)||v.iter().sum::<f64>()>tac+1e-10{continue}
+    let v=quantized(v);
+    if score(v)+1e-7>=score(best){continue}
+    let de=predict(v)?.cie2000_delta_e(&target,1.,1.,1.);
+    if !de.is_finite(){return Err("Non-finite black generation error".into())}
+    if de<=s.tolerance{best=v;}
+   }
+   if prior==best{break}
+  }
+ }
+ Ok(best)
+}
+pub const IDENTITY_POINTS:[[f64;5];4]=[[0.,0.25,0.5,0.75,1.];4];
+fn validate_points(points:[[f64;5];4])->R<()>{
+ for p in points{
+  if p[0]!=0.||p[4]!=1.||p.iter().any(|v|!v.is_finite()||!(0.0..=1.).contains(v))||p.windows(2).any(|v|v[0]>v[1]){return Err("Curves must be monotone, with fixed 0% and 100% endpoints".into())}
+ }
+ Ok(())
+}
+fn curve_points(v:[f64;4],points:[[f64;5];4])->[f64;4]{
+ std::array::from_fn(|i|super::interp(&points[i],v[i]))
+}
+#[derive(Clone,Copy,Debug)]
+pub enum Operation{Selective(Selective),Smooth{strength:f64,passes:usize},Optimize{weights:[f64;4],tolerance:f64},Black(BlackGeneration),Points([[f64;5];4])}
 /// Explicit total ink cap is a user setting, not inferred physical calibration.
 /// Source per-channel upper bounds are independently obtained from LUT curves.
 impl Profile{
@@ -93,12 +160,14 @@ impl Profile{
   match op{
    Operation::Selective(c)=>{c.check()?;if c.light==0.&&c.chroma_percent==0.&&c.hue_shift==0.{return Err("Choose a nonzero color adjustment first".into())}},
    Operation::Smooth{strength,passes}=>{if !strength.is_finite()||!(0.05..=0.5).contains(&strength)||!(1..=5).contains(&passes){return Err("Smoothing strength 5–50%, passes 1–5".into())}}
+   Operation::Black(s)=>{s.check()?;if grid>33{return Err("Black generation grid must be 17 or 33".into())}},
+   Operation::Points(p)=>validate_points(p)?,
    Operation::Optimize{weights,tolerance}=>{if grid>33||weights.iter().any(|v|!v.is_finite()||!(0.01..=100.).contains(v))||!tolerance.is_finite()||!(0.1..=5.).contains(&tolerance){return Err("Ink optimization: grid 17 or 33, tolerance 0.1–5, positive weights required".into())}}
   }
   let tac=tac_percent/100.;
   let global_caps=self.verify([1.;4]).map_err(|e|format!("Cannot establish source limits: {e}"))?;
   let native=lcms2::Profile::new_icc(&self.bytes()?).map_err(|e|e.to_string())?;
-  let forward=if matches!(op,Operation::Optimize{..}){
+  let forward=if matches!(op,Operation::Optimize{..}|Operation::Black(_)){
    let Tag::Pipeline(p)=native.read_tag(TagSignature::AToB1Tag)else{return Err("Ink optimization requires A2B1".into())};
    if p.input_channels()!=4||p.output_channels()!=3{return Err("Unexpected forward pipeline dimensions".into())}Some(p)
   }else{None};
@@ -114,11 +183,11 @@ impl Profile{
    let mut nodes=Vec::with_capacity(grid.pow(3));
    for l in 0..grid{for a in 0..grid{for b in 0..grid{
     let lab=lab_at(l,a,b,grid);
-    let lab=match op{Operation::Selective(c)=>corrected_lab(lab,c),Operation::Smooth{..}|Operation::Optimize{..}=>lab};
+    let lab=match op{Operation::Selective(c)=>corrected_lab(lab,c),_=>lab};
     let mut result=[0f32;4];
     pipeline.eval(&normalized(lab),&mut result);
     let result=result.map(|v|v as f64);
-    if let Operation::Optimize{weights,tolerance}=op{
+    if matches!(op,Operation::Optimize{..}|Operation::Black(_)){
      let p=forward.as_ref().ok_or("Missing forward pipeline")?;
      let predict=|v:[f64;4]|->R<CIELab>{
       let mut lab=[0f32;3];p.eval(&v.map(|x|x as f32),&mut lab);
@@ -126,8 +195,8 @@ impl Profile{
       Ok(CIELab{L:100.*lab[0] as f64,a:255.*lab[1] as f64-128.,b:255.*lab[2] as f64-128.})
      };
      if result.iter().any(|v|!v.is_finite()||*v<0.||*v>1.000001){return Err("Invalid source separation".into())}
-     nodes.push(optimize_node(result,global_caps,tac,weights,tolerance,predict)?);
-    }else{nodes.push(constrained(result,global_caps,tac)?);}
+     nodes.push(match op{Operation::Optimize{weights,tolerance}=>optimize_node(result,global_caps,tac,weights,tolerance,predict)?,Operation::Black(s)=>black_node(result,global_caps,tac,s,predict)?,_=>unreachable!()});
+    }else{let v=if let Operation::Points(points)=op{curve_points(result,points)}else{result};nodes.push(constrained(v,global_caps,tac)?);}
    }}}
    if let Operation::Smooth{strength,passes}=op{smooth_nodes(&mut nodes,grid,strength,passes);}
    let mut table=Vec::with_capacity(nodes.len()*8);
@@ -160,5 +229,16 @@ impl Profile{
  assert_eq!(result[3],0.);assert!(ink_cost(result,[2.,1.,1.,1.])<ink_cost(base,[2.,1.,1.,1.]));
  assert!(predict(base).unwrap().cie2000_delta_e(&predict(result).unwrap(),1.,1.,1.)<=0.5);
  }
+ #[test]fn black_preference_respects_original_zero_k(){
+ let predict=|v:[f64;4]|Ok(CIELab{L:100.-20.*v.iter().sum::<f64>(),a:0.,b:0.});
+ let s=BlackGeneration{start:0.,strength:1.,..Default::default()};
+ let a=black_node([0.4,0.3,0.2,0.],[1.,1.,1.,0.],2.4,s,predict).unwrap();
+ assert_eq!(a[3],0.);
+ let b=black_node([0.4,0.3,0.2,0.],[1.;4],2.4,s,predict).unwrap();
+ assert!(b[3]>0.);
+ assert!(predict(b).unwrap().cie2000_delta_e(&predict([0.4,0.3,0.2,0.]).unwrap(),1.,1.,1.)<=s.tolerance);
+ }
+ #[test]fn ucr_protects_saturated_colors(){let s=BlackGeneration{ucr:true,..Default::default()};assert_eq!(s.target(CIELab{L:30.,a:80.,b:20.},0.1,1.),0.1);}
+ #[test]fn points_monotone(){let mut p=IDENTITY_POINTS;assert_eq!(curve_points([0.25,0.5,0.75,1.],p),[0.25,0.5,0.75,1.]);p[0][2]=0.1;assert!(validate_points(p).is_err());}
  #[test]fn bounds_validation(){assert!(constrained([f64::NAN,0.,0.,0.],[1.;4],3.).is_err());assert_eq!(constrained([1.;4],[1.,1.,1.,0.],0.).unwrap(),[0.;4]);}
 }

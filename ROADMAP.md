@@ -30,7 +30,7 @@
 - [x] GPUI screens and new-file-only save, LCMS opening and CMYK transform creation before writing.
 - [x] Unit tests for forward/reverse permutation and v4 LUT encoding.
 - [x] CI compiled editing and passed its unit tests at 9b264922.
-- [ ] Real profile regression, full transform-equivalence testing, custom editable multi-point curves, strict TAC and prior cap revalidation after tone changes.
+- [ ] Real profile regression, full transform-equivalence testing, gamma/point-curve regression; bounded multipoint editor now implemented separately, legacy gamma still requires revalidation.
 - [ ] Add explicit adapters for Durst/vendor tags only after their structure is verified; current reorder can refuse proprietary profiles.
 
 ## v0.6 — persistent gamut preview (source implementation started)
@@ -74,10 +74,17 @@
 - [x] Actual measured machine/glaze/firing/ink-batch comparison using matched patch IDs and recipes, ΔE00 mean/P95/max and signed mean Lab bias.
 - [x] Argyll colprof integration for an actual supplied CMYK TI3; independent new printer ICC output and LCMS class check.
 - [x] Whole-profile bounded ink optimization using original LCMS B2A and A2B1 pipelines, lower relative weighted cost subject to predicted per-node ΔE00 tolerance; v4 mBA, 17/33 grid, preserve source caps and refuse source over selected TAC.
-- [ ] CI and real print trials, validate measuring instrument workflow, output profile quality, black generation control, numerical drift between optimized nodes and real ink cost. Measured compensation/machine matching requires real datasets and validation; comparison alone is not compensation.
+- [ ] CI and real print trials, validate measuring instrument workflow, output profile quality, black generation validation, numerical drift between optimized nodes and real ink cost. Measured compensation/machine matching requires real datasets and validation; comparison alone is not compensation.
 - [x] Local profile library with CSV line/printer/glaze/ink batch/firing/notes metadata; browse reference/candidate without modifying ICCs; template export and rescan.
 - [x] CSV export of profile comparison and gradient analysis.
 - [ ] Full workflow persistence, direct instrument acquisition, certified device limits and UI migration completion.
+
+## v1.0 — advanced separation (source implementation)
+
+- [x] Black Generation / GCR / UCR preference editor: onset, target K maximum, gamma, strength, chroma-sensitive scope, per-node LCMS predicted ΔE00 tolerance. Local constrained solver; K0 stays K0, original caps preserved and baseline over TAC rejected.
+- [x] Monotone five-point per-channel output correction, bounded v4 mBA resampling, strict source caps and explicit TAC.
+- [x] Unit tests for K0, UCR saturated-color protection and point monotonicity.
+- [ ] New CI, complete real-profile checks, richer editable curves, black generation interpolation validation; this is a predictive preference, not measured profiling.
 
 ## Next milestones
 
@@ -106,7 +113,7 @@ Check boxes mean source implementation, not verified runtime unless explicitly m
 
 - Successful baseline: https://github.com/emadgh/color-convert-rust/actions/runs/45400551593 — 17 tests; artifact 14924101531. Legacy build also succeeded.
 - Successful analytics: https://github.com/emadgh/color-convert-rust/actions/runs/45402521624 — 21 tests; artifact 14923084302.
-- Current v0.7 source: new CI not yet verified. Convex hull is an approximation and sampled target loss is not exact gamut volume.
+- v0.7 and all modules through integrated commit b3e71c44 compiled successfully (36 tests; run 45406351743, artifact 14924639806). Convex hull is an approximation and sampled target loss is not exact gamut volume.
 
-- v0.7 legacy build succeeded at 71fb5180. GPUI failed on mouse event type inference (E0282); explicit event types added in the subsequent source. New complete Studio build not yet verified.
-- v0.8 legacy/core build succeeded at 64e71891; GPUI image workflow runtime and end-to-end checks remain pending.
+- v0.7 legacy build succeeded at 71fb5180. GPUI failed on mouse event type inference (E0282); explicit event types added in the subsequent source. Complete Studio build succeeded at b3e71c44.
+- v0.8 legacy/core build succeeded at 64e71891; GPUI compiled at b3e71c44; runtime and end-to-end checks remain pending.
