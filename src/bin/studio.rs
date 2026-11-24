@@ -196,7 +196,7 @@ impl Studio {
       .child(div().text_xs().text_color(rgb(0xa1a1aa)).child(e.description.clone()))
       .on_click(cx.listener(move|v,_,_,cx|{
        if v.busy{return}v.picker=None;
-       if target==Picker::Reference{v.load_reference(path.clone(),cx);}
+       if target==Picker::Reference{let previous=v.page;v.load_reference(path.clone(),cx);if previous==Page::DeviceLink{v.page=Page::DeviceLink;}}
        else{v.candidate=Some(path.clone());v.preview_options.candidate=true;v.preview=None;v.comparison=None;v.compare_error=None;v.gradient=None;v.gradient_detail=None;v.gradient_error=None;if v.preview_open||target==Picker::Gamut{v.refresh_gamut(cx);}}
        cx.notify();
       }))
@@ -755,7 +755,7 @@ impl Studio {
   p=p.child(div().flex().flex_col().gap_2().p_3().rounded_md().bg(rgb(0x282828))
    .child(div().text_sm().child(tr("Source profile")))
    .child(self.source.as_ref().map(|p|p.display().to_string()).unwrap_or_else(||tr("Not selected")))
-   .child(div().flex().flex_wrap().gap_1().child(button("link-source","Open ICC").on_click(cx.listener(|v,_,_,cx|{v.open(cx);if v.source.is_some(){v.page=Page::DeviceLink;cx.notify();}}))).child(self.system_dropdown(Picker::Reference,cx)))
+   .child(div().flex().flex_wrap().gap_1().child(button("link-source","Open ICC").on_click(cx.listener(|v,_,_,cx|{v.open(cx);if v.source.is_some(){v.page=Page::DeviceLink;cx.notify();}}))))
    .child(div().text_sm().child(tr("Destination profile")))
    .child(self.candidate.as_ref().map(|p|p.display().to_string()).unwrap_or_else(||tr("Not selected")))
    .child(div().flex().flex_wrap().gap_1().child(button("link-candidate","Select candidate ICC").on_click(cx.listener(|v,_,_,cx|{
@@ -764,7 +764,7 @@ impl Studio {
   p=p.child(div().flex().flex_wrap().gap_1().items_center().child(tr("Rendering intent"))
    .children([("Relative",lcms2::Intent::RelativeColorimetric),("Perceptual",lcms2::Intent::Perceptual),("Saturation",lcms2::Intent::Saturation),("Absolute",lcms2::Intent::AbsoluteColorimetric)].into_iter().enumerate().map(|(i,(label,intent))|seg(("link-intent",i),label,self.link_intent==intent).on_click(cx.listener(move|v,_,_,cx|{if !v.busy{v.link_intent=intent;cx.notify();}})))));
   p=p.child(div().flex().flex_wrap().gap_1().items_center().child(tr("CLUT grid"))
-   .children([0usize,2,3,4,5,7,9,13,17,25,33].into_iter().map(|g|seg(("link-grid",g),if g==0{tr("Automatic")}else{g.to_string()},self.link_grid==g).on_click(cx.listener(move|v,_,_,cx|{if !v.busy{v.link_grid=g;cx.notify();}})))))
+   .children([0usize,2,3,4,5,7,9,13,17,25,33].into_iter().map(|g|seg(("link-grid",g),if g==0{"Automatic".to_owned()}else{g.to_string()},self.link_grid==g).on_click(cx.listener(move|v,_,_,cx|{if !v.busy{v.link_grid=g;cx.notify();}})))))
    .child(tr("Automatic selects the largest supported grid within a 2,000,000-value CLUT budget. High input-channel counts may require a coarse grid."));
   p=p.child(div().flex().flex_wrap().items_center().gap_2().child(format!("{}: {:.1} pp",tr("Maximum channel deviation"),self.link_tolerance))
    .child(seg("link-tol-minus","−",false).on_click(cx.listener(|v,_,_,cx|{if !v.busy{v.link_tolerance=(v.link_tolerance-0.5).max(0.1);cx.notify();}})))
