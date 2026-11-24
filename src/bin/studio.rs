@@ -10,21 +10,23 @@ use color_convert_rust::gamut::{self,Overlay};
 use gamut_view::ViewOptions;
 use color_convert_rust::images::{self,Options as ImageOptions,Output as ImageOutput};
 use color_convert_rust::gradient::{self,GradientReport};
+use color_convert_rust::{library,reports};
+#[cfg(windows)] use update_via_github::{UpdateConfig,UpdateManager,UpdateStatus};
 use color_convert_rust::{optimizer::{self,Settings as RecipeSettings,Report as RecipeReport},lab::{self,MeasuredComparison}};
 
 #[derive(Clone,Copy,PartialEq,Eq)]
-enum Page { Dashboard, Inspector, Validator, Rebuilder, Comparison, Curves, Reorder, Metadata, Gamut, Gradient, Correction, Smoothing, Converter, DeviceLink, Recipes, Lab, Settings, About }
-const PAGES: [(Page,&str);18] = [
- (Page::Dashboard,"Dashboard"),(Page::Inspector,"Profile Inspector"),(Page::Validator,"Profile Validator"),(Page::Rebuilder,"Profile Rebuilder"),
+enum Page { Dashboard, Library, Inspector, Validator, Rebuilder, Comparison, Curves, Reorder, Metadata, Gamut, Gradient, Correction, Smoothing, Converter, DeviceLink, Recipes, Lab, Settings, About }
+const PAGES: [(Page,&str);19] = [
+ (Page::Dashboard,"Dashboard"),(Page::Library,"Profile Library"),(Page::Inspector,"Profile Inspector"),(Page::Validator,"Profile Validator"),(Page::Rebuilder,"Profile Rebuilder"),
  (Page::Comparison,"Profile Comparison"),(Page::Curves,"Tone Curves"),(Page::Reorder,"Channel Reorder"),(Page::Metadata,"Profile Metadata"),(Page::Gamut,"Gamut Viewer"),(Page::Gradient,"Gradient Analyzer"),(Page::Correction,"Color Correction"),(Page::Smoothing,"LUT Smoothing"),(Page::Converter,"Image Converter"),(Page::DeviceLink,"DeviceLink"),(Page::Recipes,"Ink Optimizer"),(Page::Lab,"Profiling Lab"),(Page::Settings,"Settings"),(Page::About,"About & Updates")
 ];
 enum Event { Progress(String), Done(Result<String,String>) }
 struct Studio {
  page:Page, source:Option<PathBuf>, profile:Option<Profile>, report:Option<Inspection>, error:Option<String>,
- caps:[f64;4],tac:f64,grid:usize,mode:Mode,status:String,busy:bool, candidate:Option<PathBuf>,comparison:Option<Comparison>,compare_error:Option<String>,compare_grid:usize,gamma:[f64;4],order:[usize;4], preview_open:bool, preview:Option<Overlay>, preview_options:ViewOptions, gamut_grid:usize,gradient:Option<GradientReport>,gradient_error:Option<String>,coverage_threshold:f64, selective:[f64;5], correction_grid:usize, correction_tac:f64, smoothing:f64, smoothing_passes:usize,orbit_last:Option<Point<Pixels>>,image_files:Vec<PathBuf>,image_root:Option<PathBuf>,image_options:ImageOptions,image_results:Vec<ImageOutput>,image_errors:Vec<String>,image_preview:usize,recipe_target:[f64;3],recipe_settings:RecipeSettings,recipe_result:Option<RecipeReport>,lab_levels:usize,measured:[Option<PathBuf>;2],measurement_result:Option<MeasuredComparison>,
+ caps:[f64;4],tac:f64,grid:usize,mode:Mode,status:String,busy:bool, candidate:Option<PathBuf>,comparison:Option<Comparison>,compare_error:Option<String>,compare_grid:usize,gamma:[f64;4],order:[usize;4], preview_open:bool, preview:Option<Overlay>, preview_options:ViewOptions, gamut_grid:usize,gradient:Option<GradientReport>,gradient_error:Option<String>,coverage_threshold:f64, selective:[f64;5], correction_grid:usize, correction_tac:f64, smoothing:f64, smoothing_passes:usize,orbit_last:Option<Point<Pixels>>,image_files:Vec<PathBuf>,image_root:Option<PathBuf>,image_options:ImageOptions,image_results:Vec<ImageOutput>,image_errors:Vec<String>,image_preview:usize,recipe_target:[f64;3],recipe_settings:RecipeSettings,recipe_result:Option<RecipeReport>,lab_levels:usize,measured:[Option<PathBuf>;2],measurement_result:Option<MeasuredComparison>,library_root:Option<PathBuf>,library_entries:Vec<library::Entry>,logo:std::sync::Arc<gpui::Image>,#[cfg(windows)] updater:UpdateManager,
 }
 impl Default for Studio {
- fn default()->Self{Self{page:Page::Dashboard,source:None,profile:None,report:None,error:None,caps:[100.,100.,100.,0.],tac:240.,grid:33,mode:Mode::Custom,status:"Open an ICC or ICM profile to start.".into(),busy:false,candidate:None,comparison:None,compare_error:None,compare_grid:17,gamma:[1.;4],order:[0,1,2,3],preview_open:true,preview:None,preview_options:ViewOptions::default(),gamut_grid:17,gradient:None,gradient_error:None,coverage_threshold:2.,selective:[135.,45.,0.,0.,0.],correction_grid:33,correction_tac:400.,smoothing:0.20,smoothing_passes:1,orbit_last:None,image_files:vec![],image_root:None,image_options:ImageOptions::default(),image_results:vec![],image_errors:vec![],image_preview:0,recipe_target:[50.,0.,0.],recipe_settings:RecipeSettings::default(),recipe_result:None,lab_levels:5,measured:[None,None],measurement_result:None}}
+ fn default()->Self{Self{page:Page::Dashboard,source:None,profile:None,report:None,error:None,caps:[100.,100.,100.,0.],tac:240.,grid:33,mode:Mode::Custom,status:"Open an ICC or ICM profile to start.".into(),busy:false,candidate:None,comparison:None,compare_error:None,compare_grid:17,gamma:[1.;4],order:[0,1,2,3],preview_open:true,preview:None,preview_options:ViewOptions::default(),gamut_grid:17,gradient:None,gradient_error:None,coverage_threshold:2.,selective:[135.,45.,0.,0.,0.],correction_grid:33,correction_tac:400.,smoothing:0.20,smoothing_passes:1,orbit_last:None,image_files:vec![],image_root:None,image_options:ImageOptions::default(),image_results:vec![],image_errors:vec![],image_preview:0,recipe_target:[50.,0.,0.],recipe_settings:RecipeSettings::default(),recipe_result:None,lab_levels:5,measured:[None,None],measurement_result:None,library_root:None,library_entries:vec![],logo:std::sync::Arc::new(gpui::Image::from_bytes(gpui::ImageFormat::Png,include_bytes!("../../assets/icon.png").to_vec())),#[cfg(windows)] updater:UpdateManager::new(UpdateConfig::new("emadgh/color-convert-rust","ICC-Profile-Studio.exe",env!("CARGO_PKG_VERSION")).with_app_name("ICC Profile Studio").with_checksum_asset("ICC-Profile-Studio.exe.sha256").with_required_checksum(true))}}
 }
 fn button(id: impl Into<ElementId>,label:impl Into<SharedString>)->Stateful<Div>{
  div().id(id).px_3().py_2().rounded_md().bg(rgb(0x263449)).text_color(rgb(0xe6eefb)).cursor_pointer().hover(|s|s.bg(rgb(0x354963))).child(label.into())
@@ -34,6 +36,10 @@ impl Studio {
  fn open(&mut self,cx:&mut Context<Self>) {
   if self.busy{return}
   let Some(path)=rfd::FileDialog::new().add_filter("ICC profile",&["icc","icm"]).pick_file() else{return};
+  self.load_reference(path,cx);
+ }
+ fn load_reference(&mut self,path:PathBuf,cx:&mut Context<Self>){
+  if self.busy{return}
   self.source=Some(path.clone());self.recipe_result=None;self.selective=[135.,45.,0.,0.,0.];self.correction_grid=33;self.correction_tac=400.;self.smoothing=0.20;self.smoothing_passes=1;self.preview=None;self.candidate=None;self.gradient=None;self.gradient_error=None;self.gamma=[1.;4];self.order=[0,1,2,3];self.comparison=None;self.compare_error=None;self.report=None;self.profile=None;self.error=None;
   match inspection::inspect(&path){Ok(r)=>self.report=Some(r),Err(e)=>self.error=Some(e)}
   if let Ok(p)=Profile::read(&path){
@@ -101,6 +107,7 @@ impl Studio {
    .child(button("compare-run",if self.busy{"Working…"}else{"Compare profiles"}).on_click(cx.listener(|this,_,_,cx|this.compare_profiles(cx))));
   if let Some(e)=&self.compare_error{p=p.child(div().text_color(rgb(0xfca5a5)).child(e.clone()));}
   if let Some(r)=&self.comparison{
+   p=p.child(button("export-comparison","Export analysis CSV").on_click(cx.listener(|v,_,_,cx|{if !v.busy{if let Some(r)=&v.comparison{if let Some(path)=rfd::FileDialog::new().add_filter("CSV",&["csv"]).set_file_name("comparison.csv").save_file(){v.status=reports::comparison(&path,r).map(|_|format!("Saved {}",path.display())).unwrap_or_else(|e|format!("Error: {e}"));cx.notify();}}}})));
    p=p.child(div().flex().gap_3().children([("Mean ΔE00",r.mean_de),("P95 ΔE00",r.p95_de),("Max ΔE00",r.max_de)].map(|(label,v)|div().flex_1().p_3().rounded_md().bg(rgb(0x1b2637)).child(div().text_sm().child(label)).child(div().text_2xl().child(format!("{v:.2}"))))))
     .child(format!("{} samples · worst source RGB {:?}",r.count,r.worst_rgb))
     .child(div().text_lg().child("Delta E distribution"));
@@ -254,6 +261,7 @@ impl Studio {
    .child("Reference and optional candidate use the same input ramps. Plateau: ΔE00 < 0.05; spike: > 3× neighboring median + 0.5. Heuristics, not measured banding.");
   if let Some(e)=&self.gradient_error{p=p.child(div().text_color(rgb(0xfca5a5)).child(e.clone()));}
   if let Some(r)=&self.gradient{
+   p=p.child(button("export-gradients","Export gradient CSV").on_click(cx.listener(|v,_,_,cx|{if !v.busy{if let Some(r)=&v.gradient{if let Some(path)=rfd::FileDialog::new().add_filter("CSV",&["csv"]).set_file_name("gradients.csv").save_file(){v.status=reports::gradient(&path,r).map(|_|format!("Saved {}",path.display())).unwrap_or_else(|e|format!("Error: {e}"));cx.notify();}}}})));
    for (i,a) in r.reference.iter().enumerate(){
     let b=r.candidate.as_ref().and_then(|v|v.get(i));
     let scale=a.steps.iter().chain(b.into_iter().flat_map(|v|v.steps.iter())).copied().fold(0.1_f64,f64::max);
@@ -460,6 +468,71 @@ impl Studio {
     }).detach();
    })))
  }
+ fn scan_library(&mut self,cx:&mut Context<Self>){
+  if self.busy{return}let Some(root)=self.library_root.clone()else{return};
+  self.busy=true;self.status="Scanning local profiles…".into();cx.notify();
+  cx.spawn(async move|this,cx|{
+   let result=cx.background_spawn(async move{library::scan(&root)}).await;
+   let _=this.update(cx,|v,cx|{v.busy=false;match result{Ok(e)=>{v.status=format!("{} profiles in catalog",e.len());v.library_entries=e},Err(e)=>{v.status=format!("Error: {e}");v.library_entries.clear()}}cx.notify();});
+  }).detach();
+ }
+ fn library_page(&self,cx:&mut Context<Self>)->Div{
+  let mut p=div().flex().flex_col().gap_3().child(heading("Profile Library","Browse a local ICC folder with optional production metadata."))
+   .child(button("choose-library","Select library folder").on_click(cx.listener(|v,_,_,cx|{if !v.busy{if let Some(root)=rfd::FileDialog::new().pick_folder(){v.library_root=Some(root);v.library_entries.clear();v.scan_library(cx);}}})))
+   .child(self.library_root.as_ref().map(|v|v.display().to_string()).unwrap_or("No folder selected".into()))
+   .child(button("rescan-library","Refresh library").on_click(cx.listener(|v,_,_,cx|v.scan_library(cx))))
+   .child(button("manifest-library","Create profiles.csv metadata template").on_click(cx.listener(|v,_,_,cx|{
+    if !v.busy{if let Some(root)=&v.library_root{v.status=library::write_manifest(root,&v.library_entries).map(|p|format!("Saved {}; edit metadata in your spreadsheet app, then refresh.",p.display())).unwrap_or_else(|e|format!("Error: {e}"));cx.notify();}}
+   })))
+   .child("Edit line, printer, glaze, ink batch, firing and notes in profiles.csv; refresh to read them. Manifest is never overwritten. Local files only.");
+  for (i,e) in self.library_entries.iter().enumerate(){
+   let a=e.path.clone();let b=e.path.clone();
+   let mut row=div().p_2().rounded_md().bg(rgb(0x1b2637)).flex().flex_col().gap_1().child(e.meta.filename.clone()).child(e.format.clone())
+    .child(format!("Line {} | Printer {} | Glaze {} | Ink {} | Firing {}",e.meta.line,e.meta.printer,e.meta.glaze,e.meta.ink_batch,e.meta.firing)).child(e.meta.notes.clone());
+   if e.valid{row=row.child(div().flex().gap_2().child(button(("lib-ref",i),"Use reference").on_click(cx.listener(move|v,_,_,cx|v.load_reference(a.clone(),cx))))
+     .child(button(("lib-candidate",i),"Use candidate").on_click(cx.listener(move|v,_,_,cx|{if !v.busy{v.candidate=Some(b.clone());v.preview=None;v.comparison=None;v.gradient=None;v.gradient_error=None;if v.preview_open{v.refresh_gamut(cx);}cx.notify();}}))));}
+   p=p.child(row);
+  }p
+ }
+ #[cfg(windows)]
+ fn update_poll(&self,cx:&mut Context<Self>){
+  cx.spawn(async move|this,cx|{
+   loop{
+    cx.background_executor().timer(Duration::from_millis(150)).await;
+    let state=this.update(cx,|v,cx|{cx.notify();matches!(v.updater.status(),UpdateStatus::Checking|UpdateStatus::Downloading{..})});
+    if !matches!(state,Ok(true)){break}
+   }
+  }).detach();
+ }
+ fn about_page(&self,cx:&mut Context<Self>)->Div{
+  let mut p=div().flex().flex_col().gap_3().child(div().flex().items_center().gap_3().child(img(self.logo.clone()).w(px(80.)).h(px(80.))).child(heading("ICC Profile Studio","Portable Windows color management / GPUI")))
+   .child(format!("Core version {} · Development preview",env!("CARGO_PKG_VERSION")))
+   .child("Developed by emadgh. LittleCMS 2 · ArgyllCMS · Rust · GPUI · Parry3D.")
+   .child(button("github-project","GitHub repository").on_click(cx.listener(|_,_,_,cx|cx.open_url("https://github.com/emadgh/color-convert-rust"))))
+   .child(button("github-releases","Open signed-in GitHub Releases").on_click(cx.listener(|_,_,_,cx|cx.open_url("https://github.com/emadgh/color-convert-rust/releases"))))
+   .child(button("github-builds","Windows preview builds").on_click(cx.listener(|_,_,_,cx|cx.open_url("https://github.com/emadgh/color-convert-rust/actions"))))
+   .child(div().text_lg().child("Software updates"));
+  #[cfg(windows)]{
+   match self.updater.status(){
+    UpdateStatus::Idle=>p=p.child("Check for a compatible Studio release."),
+    UpdateStatus::Checking=>p=p.child("Checking GitHub Releases…"),
+    UpdateStatus::UpToDate=>p=p.child("No newer accessible release found; private releases may be invisible."),
+    UpdateStatus::Available(info)=>p=p.child(format!("Version {} available",info.version)).child(button("download-studio","Download verified update").on_click(cx.listener(|v,_,_,cx|{if !v.busy{v.updater.start_download();v.update_poll(cx);cx.notify();}}))),
+    UpdateStatus::Downloading{info,downloaded,total}=>{
+     p=p.child(format!("Downloading {} · {:.1} MiB",info.version,downloaded as f64/1048576.));
+     if let Some(n)=total.filter(|n|*n>0){let f=(downloaded as f32/n as f32).clamp(0.,1.);p=p.child(div().h(px(10.)).bg(rgb(0x283a51)).child(div().w(relative(f)).h_full().bg(rgb(0x60a5fa))));}
+    }
+    UpdateStatus::Ready(info,_)=>p=p.child(format!("Version {} downloaded and verified",info.version)).child(button("install-studio","Restart and install").on_click(cx.listener(|v,_,_,cx|{
+     if v.busy{return}match v.updater.apply_ready(){Ok(true)=>cx.quit(),Ok(false)=>{v.status="No staged update".into();cx.notify();},Err(e)=>{v.status=e;cx.notify();}}
+    }))),
+    UpdateStatus::Failed(e)=>p=p.child(div().text_color(rgb(0xfca5a5)).child(e)),
+   }
+   if !matches!(self.updater.status(),UpdateStatus::Checking|UpdateStatus::Downloading{..}|UpdateStatus::Ready(..)){
+    p=p.child(button("check-studio","Check for updates").on_click(cx.listener(|v,_,_,cx|{if !v.busy{v.updater.start_check(false);v.update_poll(cx);cx.notify();}})));
+   }
+  }
+  p.child("Private repository: unauthenticated shared updater cannot access private releases. No tokens are embedded. Download builds through signed-in GitHub until an authenticated/public feed exists. Studio requires its own EXE and SHA256 asset, never the legacy executable.")
+ }
  fn inspector(&self)->Div{
   let mut panel=div().flex().flex_col().gap_3().child(heading("Profile Inspector","ICC metadata decoded by LittleCMS 2."));
   if let Some(e)=&self.error{panel=panel.child(div().text_color(rgb(0xfca5a5)).child(e.clone()));}
@@ -540,7 +613,8 @@ impl Render for Studio {
    Page::Recipes=>self.recipe_page(cx),
    Page::Lab=>self.lab_page(cx),
    Page::Settings=>div().flex().flex_col().gap_3().child(heading("Settings","Engine configuration")).child("LittleCMS is linked statically. ArgyllCMS is installed by the existing portable backend when required."),
-   Page::About=>div().flex().flex_col().gap_3().child(heading("ICC Profile Studio","Experimental GPUI frontend")).child(format!("Core version {}",env!("CARGO_PKG_VERSION"))).child("Developed by emadgh. LittleCMS 2 · ArgyllCMS · Rust.").child("Updater integration is pending in this frontend. Use the stable executable for updates."),
+   Page::About=>self.about_page(cx),
+   Page::Library=>self.library_page(cx),
    other=>div().flex().flex_col().gap_3().child(heading(PAGES.iter().find(|(p,_)|*p==other).map(|(_,n)|*n).unwrap_or("Tool"),"Planned module")).child("Not implemented yet. See ROADMAP.md."),
   };
   div().flex().size_full().bg(rgb(0x152031)).text_color(rgb(0xe2e8f0)).child(sidebar)

@@ -17,6 +17,8 @@ required-features = ["studio"]
 gpui = { version = "=0.2.2", optional = true }
 parry3d = "0.31"
 tiff = "0.11"
+csv = "1.3"
+serde = { version = "1", features = ["derive"] }
 lcms2 = { version = "6.3", features = ["static"] }
 eframe = "0.31.1"
 rfd = "0.15.3"

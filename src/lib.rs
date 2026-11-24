@@ -1,3 +1,5 @@
+pub mod library;
+pub mod reports;
 pub mod optimizer;
 pub mod lab;
 pub mod images;

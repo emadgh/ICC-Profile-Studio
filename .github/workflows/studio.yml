@@ -23,8 +23,16 @@ jobs:
         run: cargo test --lib --release --target x86_64-pc-windows-msvc
       - name: Build GPUI preview
         run: cargo build --release --features studio --bin icc-profile-studio --target x86_64-pc-windows-msvc
+      - name: Package Studio preview
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path studio-dist -Force
+          Copy-Item target/x86_64-pc-windows-msvc/release/icc-profile-studio.exe studio-dist/ICC-Profile-Studio.exe
+          $hash = (Get-FileHash studio-dist/ICC-Profile-Studio.exe -Algorithm SHA256).Hash.ToLower()
+          "$hash  ICC-Profile-Studio.exe" | Set-Content -Encoding ascii studio-dist/ICC-Profile-Studio.exe.sha256
+          Copy-Item README.md,ROADMAP.md studio-dist/
       - uses: actions/upload-artifact@v4
         with:
           name: ICC-Profile-Studio-GPUI-preview
-          path: target/x86_64-pc-windows-msvc/release/icc-profile-studio.exe
+          path: studio-dist/
           if-no-files-found: error

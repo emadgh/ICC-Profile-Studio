@@ -8,7 +8,8 @@
 - [x] GPUI sidebar shell and first Inspector/Validator/Rebuilder screens implemented in source.
 - [x] Windows CI at commit 9b264922: LittleCMS 6.3.0 resolved, 17 tests passed and GPUI EXE built/uploaded (run 45400551593).
 - [ ] Launch on Windows and verify layout and real printer workflows.
-- [ ] Port all legacy controls, updater, progress, drag-and-drop, accessibility and About icon to GPUI before promoting it to the default release.
+- [x] GPUI About icon and shared update-via-github UI with separate Studio asset/checksum names; package Studio EXE with checksum and docs in CI.
+- [ ] Private feed/authentication and stable Studio releases, verify updater, port remaining legacy controls, drag-and-drop, accessibility, promotion to default.
 - [ ] Run real Durst ICC v2/v4 regression tests and print/firing checks. Proprietary customer ICCs must stay out of the repository.
 - [ ] Add independent LCMS transform checks for generated profiles; enforce numerical bounds through the strict LUT validator as well as sampled transforms.
 
@@ -74,7 +75,9 @@
 - [x] Argyll colprof integration for an actual supplied CMYK TI3; independent new printer ICC output and LCMS class check.
 - [x] Whole-profile bounded ink optimization using original LCMS B2A and A2B1 pipelines, lower relative weighted cost subject to predicted per-node ΔE00 tolerance; v4 mBA, 17/33 grid, preserve source caps and refuse source over selected TAC.
 - [ ] CI and real print trials, validate measuring instrument workflow, output profile quality, black generation control, numerical drift between optimized nodes and real ink cost. Measured compensation/machine matching requires real datasets and validation; comparison alone is not compensation.
-- [ ] Profile library metadata, workflow persistence, direct instrument acquisition, certified device limits and UI migration completion.
+- [x] Local profile library with CSV line/printer/glaze/ink batch/firing/notes metadata; browse reference/candidate without modifying ICCs; template export and rescan.
+- [x] CSV export of profile comparison and gradient analysis.
+- [ ] Full workflow persistence, direct instrument acquisition, certified device limits and UI migration completion.
 
 ## Next milestones
 
