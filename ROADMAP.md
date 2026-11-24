@@ -20,7 +20,8 @@
 - [x] Profile Comparison page in experimental GPUI frontend; background analysis and selectable 9/17/33 RGB cube.
 - [x] Reference CIEDE2000 test pair and ink-statistics tests added.
 - [x] CI compiled comparison and passed its unit tests at 9b264922.
-- [ ] Compare real printer profiles; add export, intent selector, complete neutral curves, measured validation and gamut visualization.
+- [x] Four separation rendering intents, complete 33-point neutral-axis L*/four-ink plots and rows, CSV including intent, TAC and all neutral ink percentages. Self-comparison integration test added; CI pending.
+- [ ] Compare real printer profiles and measured validation.
 
 ## v0.5 — profile editing (source implementation started)
 

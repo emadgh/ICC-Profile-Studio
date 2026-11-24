@@ -27,15 +27,39 @@ const PAGES: [(Page,&str);21] = [
 enum Event { Progress(String), Done(Result<String,String>) }
 struct Studio {
  page:Page, source:Option<PathBuf>, profile:Option<Profile>, report:Option<Inspection>, error:Option<String>,
- caps:[f64;4],tac:f64,grid:usize,mode:Mode,status:String,busy:bool, candidate:Option<PathBuf>,comparison:Option<Comparison>,compare_error:Option<String>,compare_grid:usize,gamma:[f64;4],order:[usize;4], preview_open:bool, preview:Option<Overlay>, preview_options:ViewOptions, gamut_grid:usize,gradient:Option<GradientReport>,gradient_error:Option<String>,coverage_threshold:f64, selective:[f64;5], correction_grid:usize, correction_tac:f64, smoothing:f64, smoothing_passes:usize,orbit_last:Option<Point<Pixels>>,image_files:Vec<PathBuf>,image_root:Option<PathBuf>,image_options:ImageOptions,image_results:Vec<ImageOutput>,image_errors:Vec<String>,image_preview:usize,proof_source:Option<PathBuf>,monitor_profile:Option<PathBuf>,proof_media:bool,proof_bpc:bool,proof_output:Option<PathBuf>,stream_options:StreamOptions,stream_enabled:bool,batch_cancel:Option<Arc<AtomicBool>>,recipe_target:[f64;3],recipe_settings:RecipeSettings,recipe_result:Option<RecipeReport>,lab_levels:usize,measured:[Option<PathBuf>;2],measurement_result:Option<MeasuredComparison>,black:BlackGeneration,curve_points:[[f64;5];4],library_root:Option<PathBuf>,library_entries:Vec<library::Entry>,logo:std::sync::Arc<gpui::Image>,#[cfg(windows)] updater:UpdateManager,
+ caps:[f64;4],tac:f64,grid:usize,mode:Mode,status:String,busy:bool, candidate:Option<PathBuf>,comparison:Option<Comparison>,compare_error:Option<String>,compare_grid:usize,compare_intent:lcms2::Intent,gamma:[f64;4],order:[usize;4], preview_open:bool, preview:Option<Overlay>, preview_options:ViewOptions, gamut_grid:usize,gradient:Option<GradientReport>,gradient_error:Option<String>,coverage_threshold:f64, selective:[f64;5], correction_grid:usize, correction_tac:f64, smoothing:f64, smoothing_passes:usize,orbit_last:Option<Point<Pixels>>,image_files:Vec<PathBuf>,image_root:Option<PathBuf>,image_options:ImageOptions,image_results:Vec<ImageOutput>,image_errors:Vec<String>,image_preview:usize,proof_source:Option<PathBuf>,monitor_profile:Option<PathBuf>,proof_media:bool,proof_bpc:bool,proof_output:Option<PathBuf>,stream_options:StreamOptions,stream_enabled:bool,batch_cancel:Option<Arc<AtomicBool>>,recipe_target:[f64;3],recipe_settings:RecipeSettings,recipe_result:Option<RecipeReport>,lab_levels:usize,measured:[Option<PathBuf>;2],measurement_result:Option<MeasuredComparison>,black:BlackGeneration,curve_points:[[f64;5];4],library_root:Option<PathBuf>,library_entries:Vec<library::Entry>,logo:std::sync::Arc<gpui::Image>,#[cfg(windows)] updater:UpdateManager,
 }
 impl Default for Studio {
- fn default()->Self{Self{page:Page::Dashboard,source:None,profile:None,report:None,error:None,caps:[100.,100.,100.,0.],tac:240.,grid:33,mode:Mode::Custom,status:"Open an ICC or ICM profile to start.".into(),busy:false,candidate:None,comparison:None,compare_error:None,compare_grid:17,gamma:[1.;4],order:[0,1,2,3],preview_open:true,preview:None,preview_options:ViewOptions::default(),gamut_grid:17,gradient:None,gradient_error:None,coverage_threshold:2.,selective:[135.,45.,0.,0.,0.],correction_grid:33,correction_tac:400.,smoothing:0.20,smoothing_passes:1,orbit_last:None,image_files:vec![],image_root:None,image_options:ImageOptions::default(),image_results:vec![],image_errors:vec![],image_preview:0,proof_source:None,monitor_profile:None,proof_media:true,proof_bpc:false,proof_output:None,stream_options:StreamOptions::default(),stream_enabled:false,batch_cancel:None,recipe_target:[50.,0.,0.],recipe_settings:RecipeSettings::default(),recipe_result:None,lab_levels:5,measured:[None,None],measurement_result:None,black:BlackGeneration::default(),curve_points:IDENTITY_POINTS,library_root:None,library_entries:vec![],logo:std::sync::Arc::new(gpui::Image::from_bytes(gpui::ImageFormat::Png,include_bytes!("../../assets/icon.png").to_vec())),#[cfg(windows)] updater:UpdateManager::new(UpdateConfig::new("emadgh/color-convert-rust","ICC-Profile-Studio.exe",STUDIO_VERSION.trim()).with_app_name("ICC Profile Studio").with_checksum_asset("ICC-Profile-Studio.exe.sha256").with_required_checksum(true))}}
+ fn default()->Self{Self{page:Page::Dashboard,source:None,profile:None,report:None,error:None,caps:[100.,100.,100.,0.],tac:240.,grid:33,mode:Mode::Custom,status:"Open an ICC or ICM profile to start.".into(),busy:false,candidate:None,comparison:None,compare_error:None,compare_grid:17,compare_intent:lcms2::Intent::RelativeColorimetric,gamma:[1.;4],order:[0,1,2,3],preview_open:true,preview:None,preview_options:ViewOptions::default(),gamut_grid:17,gradient:None,gradient_error:None,coverage_threshold:2.,selective:[135.,45.,0.,0.,0.],correction_grid:33,correction_tac:400.,smoothing:0.20,smoothing_passes:1,orbit_last:None,image_files:vec![],image_root:None,image_options:ImageOptions::default(),image_results:vec![],image_errors:vec![],image_preview:0,proof_source:None,monitor_profile:None,proof_media:true,proof_bpc:false,proof_output:None,stream_options:StreamOptions::default(),stream_enabled:false,batch_cancel:None,recipe_target:[50.,0.,0.],recipe_settings:RecipeSettings::default(),recipe_result:None,lab_levels:5,measured:[None,None],measurement_result:None,black:BlackGeneration::default(),curve_points:IDENTITY_POINTS,library_root:None,library_entries:vec![],logo:std::sync::Arc::new(gpui::Image::from_bytes(gpui::ImageFormat::Png,include_bytes!("../../assets/icon.png").to_vec())),#[cfg(windows)] updater:UpdateManager::new(UpdateConfig::new("emadgh/color-convert-rust","ICC-Profile-Studio.exe",STUDIO_VERSION.trim()).with_app_name("ICC Profile Studio").with_checksum_asset("ICC-Profile-Studio.exe.sha256").with_required_checksum(true))}}
 }
 fn button(id: impl Into<ElementId>,label:impl Into<SharedString>)->Stateful<Div>{
  div().id(id).px_3().py_2().rounded_md().bg(rgb(0x263449)).text_color(rgb(0xe6eefb)).cursor_pointer().hover(|s|s.bg(rgb(0x354963))).child(label.into())
 }
 fn heading(title:&str,sub:&str)->Div{div().flex().flex_col().gap_1().child(div().text_2xl().child(title.to_owned())).child(div().text_sm().text_color(rgb(0x94a3b8)).child(sub.to_owned()))}
+fn neutral_plot(samples:&[comparison::NeutralSample],metric:usize)->impl IntoElement{
+ let points:Vec<_>=samples.iter().map(|n|{
+  let (a,b)=if metric==0{(n.reference_lab[0],n.candidate_lab[0])}else{(n.reference_ink[metric-1],n.candidate_ink[metric-1])};
+  (n.rgb as f32/255.,(a/100.).clamp(0.,1.) as f32,(b/100.).clamp(0.,1.) as f32)
+ }).collect();
+ canvas(move|_,_,_|{},move|bounds,_,window,_|{
+  window.paint_quad(fill(bounds,rgb(0x0b1220)));
+  for i in 0..=4{
+   let y=bounds.origin.y+(bounds.size.height-px(4.))*i as f32/4.;
+   window.paint_quad(fill(Bounds{origin:point(bounds.origin.x,y),size:size(bounds.size.width,px(1.))},rgb(0x283a51)));
+  }
+  for (index,color) in [(1,0x60a5fa),(2,0xfbbf24)]{
+   for pair in points.windows(2){
+    let a=pair[0];let b=pair[1];let (ay,by)=if index==1{(a.1,b.1)}else{(a.2,b.2)};
+    for i in 0..=24{
+     let t=i as f32/24.;let x=a.0+(b.0-a.0)*t;let y=ay+(by-ay)*t;
+     let p=point(bounds.origin.x+px(2.)+(bounds.size.width-px(4.))*x,bounds.origin.y+px(2.)+(bounds.size.height-px(4.))*(1.-y));
+     window.paint_quad(fill(Bounds{origin:p,size:size(px(1.6),px(1.6))},rgb(color)));
+    }
+   }
+  }
+ }).w_full().h(px(92.))
+}
+
 impl Studio {
  fn open(&mut self,cx:&mut Context<Self>) {
   if self.busy{return}
@@ -90,10 +114,10 @@ impl Studio {
  fn compare_profiles(&mut self,cx:&mut Context<Self>){
   if self.busy{return}
   let (Some(a),Some(b))=(self.source.clone(),self.candidate.clone())else{return};
-  let grid=self.compare_grid;
+  let grid=self.compare_grid;let intent=self.compare_intent;
   self.busy=true;self.comparison=None;self.compare_error=None;self.status="Comparing profile predictions with LittleCMS...".into();cx.notify();
   cx.spawn(async move |this,cx|{
-   let result=cx.background_spawn(async move{comparison::compare(&a,&b,grid,lcms2::Intent::RelativeColorimetric)}).await;
+   let result=cx.background_spawn(async move{comparison::compare(&a,&b,grid,intent)}).await;
    let _=this.update(cx,|view,cx|{
     match result{Ok(r)=>{view.status=format!("Compared {} sRGB samples and 33 neutrals.",r.count);view.comparison=Some(r)},Err(e)=>{view.status="Comparison failed".into();view.compare_error=Some(e)}}
     view.busy=false;cx.notify();
@@ -108,6 +132,7 @@ impl Studio {
    })))
    .child(format!("Candidate: {}",self.candidate.as_ref().map(|p|p.display().to_string()).unwrap_or("Not selected".into())))
    .child(div().flex().items_center().gap_2().child(format!("RGB sample grid: {}³",self.compare_grid)).children([9usize,17,33].into_iter().map(|v|button(("compare-grid",v),v.to_string()).on_click(cx.listener(move|this,_,_,cx|{if !this.busy{this.compare_grid=v;this.comparison=None;cx.notify();}})))))
+   .child(div().flex().flex_wrap().gap_1().children([("Relative",lcms2::Intent::RelativeColorimetric),("Perceptual",lcms2::Intent::Perceptual),("Saturation",lcms2::Intent::Saturation),("Absolute",lcms2::Intent::AbsoluteColorimetric)].into_iter().enumerate().map(|(i,(n,intent))|button(("compare-intent",i),if self.compare_intent==intent{format!("{n} ✓")}else{n.to_owned()}).on_click(cx.listener(move|v,_,_,cx|{if !v.busy{v.compare_intent=intent;v.comparison=None;v.compare_error=None;cx.notify();}})))))
    .child(button("compare-run",if self.busy{"Working…"}else{"Compare profiles"}).on_click(cx.listener(|this,_,_,cx|this.compare_profiles(cx))));
   if let Some(e)=&self.compare_error{p=p.child(div().text_color(rgb(0xfca5a5)).child(e.clone()));}
   if let Some(r)=&self.comparison{
@@ -122,9 +147,17 @@ impl Studio {
    p=p.child(div().text_lg().child("Ink distribution (sampled)"));
    for j in 0..4{p=p.child(format!("{} — mean {:.2}% → {:.2}% | max {:.2}% → {:.2}%",["C","M","Y","K"][j],r.reference.mean[j],r.candidate.mean[j],r.reference.max[j],r.candidate.max[j]));}
    p=p.child(format!("Mean TAC {:.2}% → {:.2}%  |  Max sampled TAC {:.2}% → {:.2}%",r.reference.mean_tac,r.candidate.mean_tac,r.reference.max_tac,r.candidate.max_tac))
-    .child(div().text_lg().child("Neutral axis (selected samples)"));
-   for n in r.neutral.iter().step_by(4){p=p.child(format!("Gray {:3} | L* {:.2} → {:.2} | ΔE00 {:.2} | K {:.1}% → {:.1}%",n.rgb,n.reference_lab[0],n.candidate_lab[0],n.delta_e,n.reference_ink[3],n.candidate_ink[3]));}
-   p=p.child("Relative Colorimetric, no black-point compensation. Predicted profile differences only; not measured print differences, gamut volume or production ink averages.");
+    .child(div().text_lg().child("Neutral axis — all 33 samples"))
+    .child("Blue = before; amber = after. L* and ink bars use fixed 0–100 scales.")
+    .child(neutral_plot(&r.neutral,0))
+    .child("L* (input gray 0 → 255)");
+   for j in 0..4{p=p.child(neutral_plot(&r.neutral,j+1)).child(format!("Ink {} (%)",j+1));}
+   for n in &r.neutral{
+    p=p.child(div().p_2().rounded_md().bg(rgb(0x1b2637))
+     .child(format!("Gray {:3} | ΔE00 {:.3} | L*a*b* {:.2?} → {:.2?}",n.rgb,n.delta_e,n.reference_lab,n.candidate_lab))
+     .child(format!("Ink % {:.2?} → {:.2?}",n.reference_ink,n.candidate_ink)));
+   }
+   p=p.child(format!("Separation intent: {:?}; predicted appearance evaluated media-relative D50; no BPC. Predicted differences only, not measured print, physical gamut or production ink averages.",r.intent));
   }
   p
  }

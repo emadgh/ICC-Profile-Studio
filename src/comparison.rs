@@ -6,7 +6,7 @@ use std::path::Path;
 pub struct InkStats { pub mean:[f64;4],pub max:[f64;4],pub mean_tac:f64,pub max_tac:f64 }
 #[derive(Debug, Clone)]
 pub struct Comparison {
- pub count:usize,pub mean_de:f64,pub p95_de:f64,pub max_de:f64,pub worst_rgb:[u8;3],
+ pub intent:Intent,pub count:usize,pub mean_de:f64,pub p95_de:f64,pub max_de:f64,pub worst_rgb:[u8;3],
  pub reference:InkStats,pub candidate:InkStats,pub neutral:Vec<NeutralSample>,
  pub histogram:[usize;5],
 }
@@ -60,7 +60,7 @@ pub fn compare(reference:&Path,candidate:&Path,grid:usize,intent:Intent)->Result
  let mean_de=distances.iter().sum::<f64>()/count as f64;
  let mut histogram=[0;5];for &v in &distances{histogram[if v<1.{0}else if v<2.{1}else if v<3.{2}else if v<5.{3}else{4}]+=1;}
  distances.sort_by(f64::total_cmp);
- Ok(Comparison{count,mean_de,p95_de:distances[((count as f64*0.95).ceil() as usize).saturating_sub(1)],max_de:distances[count-1],worst_rgb,
+ Ok(Comparison{intent,count,mean_de,p95_de:distances[((count as f64*0.95).ceil() as usize).saturating_sub(1)],max_de:distances[count-1],worst_rgb,
  reference:ink_stats(&a[..count]),candidate:ink_stats(&b[..count]),neutral,histogram})
 }
 #[cfg(test)]
@@ -71,5 +71,11 @@ mod tests{
   assert!((x.cie2000_delta_e(&y,1.,1.,1.)-2.0425).abs()<0.0001);
  }
  #[test]fn ink_statistics(){let s=ink_stats(&[[65535,0,0,0],[0,65535,65535,0]]);assert_eq!(s.mean,[50.,50.,50.,0.]);assert_eq!(s.mean_tac,150.);assert_eq!(s.max_tac,200.);}
+ #[test]fn self_comparison_all_intents(){
+  let d=tempfile::tempdir().unwrap();let p=d.path().join("fixture.icc");crate::synthetic_cmyk_v4(false).save_new(&p).unwrap();
+  for i in [Intent::RelativeColorimetric,Intent::Perceptual,Intent::Saturation,Intent::AbsoluteColorimetric]{
+   let r=compare(&p,&p,9,i).unwrap();assert_eq!(r.intent,i);assert_eq!(r.count,729);assert_eq!(r.neutral.len(),33);assert!(r.max_de<1e-8);
+  }
+ }
  #[test]fn rejects_rgb(){let d=tempfile::tempdir().unwrap();let p=d.path().join("rgb.icc");std::fs::write(&p,Profile::new_srgb().icc().unwrap()).unwrap();assert!(compare(&p,&p,9,Intent::RelativeColorimetric).is_err());}
 }
