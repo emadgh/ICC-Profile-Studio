@@ -182,7 +182,8 @@ pub fn convert_file(source:&Path,destination:&Path,target:u8,allow_omit:bool,max
   assert!(v4.tags[b"A2B1"].starts_with(b"mAB "));assert!(v4.tags[b"B2A1"].starts_with(b"mBA "));
   assert_eq!(v4.verify([1.,1.,1.,0.]).unwrap()[3],0.);
   let native=Native::new_icc(&v2.bytes().unwrap()).unwrap();assert!(native.version()<3.);
-  let report=check(&p,&v2,2,vec![],0.5,0.5,true).unwrap();assert_eq!(report.checks.len(),4);
+  assert!(check(&p,&v2,2,vec![],0.5,0.5,false).is_err());
+  let report=check(&p,&v2,2,vec![],0.5,0.5,true).unwrap();assert_eq!(report.checks.len(),4);assert!(report.checks.iter().filter(|i|i.required).all(|i|i.passed));assert!(report.checks.iter().any(|i|!i.required&&!i.passed));
   let report=check(&v2,&v4,4,vec![],0.5,0.5,true).unwrap();assert_eq!(report.checks.len(),4);
  }
  #[test]fn unknown_tags_require_permission(){

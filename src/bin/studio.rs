@@ -278,7 +278,7 @@ impl Studio {
    .child(button("convert-icc-version",if self.busy{"Working…"}else{"Convert & validate new ICC"}).on_click(cx.listener(move|v,_,_,cx|{
     if v.busy{return}let Some(source)=v.source.clone()else{return};
     if !omitted.is_empty()&&!v.version_allow_omit{v.status="Review listed tags and explicitly allow omission, or keep the original ICC.".into();cx.notify();return}
-    let name=format!("{}_v{target}.icc",source.file_stem().unwrap_or_default().to_string_lossy());
+    let name=format!("{}_v{target}{}.icc",source.file_stem().unwrap_or_default().to_string_lossy(),if v.version_relative_only{"_REL_ABS_ONLY"}else{""});
     let Some(mut dest)=rfd::FileDialog::new().add_filter("ICC",&["icc","icm"]).set_file_name(name).save_file()else{return};
     if dest.extension().is_none(){dest.set_extension("icc");}
     let (omit,de,ink,rel)=(v.version_allow_omit,v.version_de,v.version_ink,v.version_relative_only);
