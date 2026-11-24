@@ -250,7 +250,7 @@ impl Studio {
     let fraction=r.histogram[i] as f32/r.count as f32;
     p=p.child(div().flex().items_center().gap_2().child(div().w(px(55.)).child(label)).child(div().w(px(200.)).h(px(9.)).rounded_md().bg(rgb(0x3b3b3b)).child(div().w(px(200.*fraction)).h_full().rounded_md().bg(rgb(0x60a5fa)))).child(format!("{:.1}%",100.*fraction)));
    }
-   p=p.child(div().text_lg().child(tr("Ink distribution (sampled)")));
+   p=p.child(div().text_lg().child(tr("Ink distribution (sampled)"))).child(div().text_xs().child("Names follow reference channel indices; candidate order may differ."));
    for j in 0..4{p=p.child(format!("{} — mean {:.2}% → {:.2}% | max {:.2}% → {:.2}%",self.ink_name(j),r.reference.mean[j],r.candidate.mean[j],r.reference.max[j],r.candidate.max[j]));}
    p=p.child(format!("Mean TAC {:.2}% → {:.2}%  |  Max sampled TAC {:.2}% → {:.2}%",r.reference.mean_tac,r.candidate.mean_tac,r.reference.max_tac,r.candidate.max_tac))
     .child(div().text_lg().child(tr("Neutral axis — all 33 samples")))
@@ -648,7 +648,12 @@ impl Studio {
    })));
   if let Some(r)=&self.recipe_result{
    for (label,recipe) in [("Original separation",Some(&r.baseline)),("Closest feasible",Some(&r.closest)),("Lowest cost found within tolerance",r.cheapest.as_ref())]{
-    p=p.child(div().p_3().rounded_md().bg(rgb(0x292929)).flex().flex_col().gap_1().child(label).child(match recipe{Some(v)=>format!("Ink {:.2?}% · Lab {:.2?} · ΔE00 {:.3} · cost index {:.2}",v.ink,v.lab,v.delta_e,v.cost),None=>"No solution found within tolerance".into()}).when_some(recipe,|p,v|p.child(swatch(lab_swatch(v.lab),40.)).children((0..4).map(|j|div().flex().items_center().gap_2().child(div().w(px(90.)).child(self.ink_name(j))).child(div().flex_1().child(bar(v.ink[j]/100.,self.ink_color(j),10.))).child(format!("{:.1}%",v.ink[j]))))));
+    let mut card=div().p_3().rounded_md().bg(rgb(0x292929)).flex().flex_col().gap_1().child(label);
+    if let Some(v)=recipe{
+     card=card.child(format!("Ink {:.2?}% · Lab {:.2?} · ΔE00 {:.3} · cost index {:.2}",v.ink,v.lab,v.delta_e,v.cost)).child(swatch(lab_swatch(v.lab),40.))
+      .children((0..4).map(|j|div().flex().items_center().gap_2().child(div().w(px(90.)).child(self.ink_name(j))).child(div().flex_1().child(bar(v.ink[j]/100.,self.ink_color(j),10.))).child(format!("{:.1}%",v.ink[j]))));
+    }else{card=card.child("No solution found within tolerance");}
+    p=p.child(card);
    }
   }
   p.child(div().text_lg().child("Whole-profile ink optimization (ICC v4 / mBA)"))
@@ -834,6 +839,7 @@ impl Studio {
     .child(format!("Class: {}  |  {:.2} MiB",r.device_class,r.size as f64/1048576.))
     .child(format!("Estimated total ink: {}",r.tac.map(|v|format!("{v:.1}%")).unwrap_or("Not available".into())))
     .child(format!("{} channels: {}",r.channel_names.len(),self.ink_names().join(" · ")))
+    .child(div().flex().flex_wrap().gap_2().children((0..r.channel_names.len()).map(|j|div().flex().items_center().gap_1().child(swatch(self.ink_color(j),16.)).child(div().text_xs().child(self.ink_name(j))))))
     ;
    let mut white=div().flex().flex_col().gap_2().p_3().rounded_md().bg(rgb(0x292929))
     .child(div().text_lg().child(if r.is_output{tr("Paper / Substrate Color")}else{tr("Media White Point")}))
@@ -887,19 +893,24 @@ impl Studio {
  fn rebuilder(&self,cx:&mut Context<Self>)->Div{
   let mut panel=div().flex().flex_col().gap_3().child(heading("Profile Rebuilder","Limit individual inks without changing the channel count."));
   let Some(profile)=&self.profile else{return panel.child("Open a supported four-channel printer profile.")};
-  for i in 0..4 {
+  for row in 0..2 {
+   let mut line=div().flex().gap_2().w_full();
+   for col in 0..2{
+   let i=row*2+col;
    let name=self.ink_name(i);
-   panel=panel.child(div().flex().flex_col().gap_2().p_3().rounded_md().bg(rgb(0x292929))
+   line=line.child(div().flex().flex_col().flex_1().min_w(px(0.)).gap_2().p_3().rounded_md().bg(rgb(0x292929))
     .child(div().flex().items_center().gap_2().child(swatch(self.ink_color(i),22.)).child(div().flex_1().child(name)).child(div().text_xs().child(tr(if self.caps[i]==0.{"Closed"}else{"Open"}))))
     .child(bar(self.caps[i]/100.,self.ink_color(i),18.))
-    .child(div().flex().items_center().gap_2()
-    .child(button(("minus",i),"−").on_click(cx.listener(move|this,_,_,cx|{if !this.busy{this.caps[i]=(this.caps[i]-5.).max(0.);cx.notify();}})))
+    .child(div().flex().flex_wrap().items_center().gap_1()
+    .child(seg(("minus",i),"−",false).on_click(cx.listener(move|this,_,_,cx|{if !this.busy{this.caps[i]=(this.caps[i]-5.).max(0.);cx.notify();}})))
     .child(div().w(px(60.)).child(format!("{:.0}%",self.caps[i])))
-    .child(button(("plus",i),"+").on_click(cx.listener(move|this,_,_,cx|{if !this.busy{this.caps[i]=(this.caps[i]+5.).min(100.);cx.notify();}})))
-    .child(button(("off",i),"0%").on_click(cx.listener(move|this,_,_,cx|{if !this.busy{this.caps[i]=0.;cx.notify();}})))
-    .child(button(("full",i),"100%").on_click(cx.listener(move|this,_,_,cx|{if !this.busy{this.caps[i]=100.;cx.notify();}})))));
+    .child(seg(("plus",i),"+",false).on_click(cx.listener(move|this,_,_,cx|{if !this.busy{this.caps[i]=(this.caps[i]+5.).min(100.);cx.notify();}})))
+    .child(seg(("off",i),"0%",self.caps[i]==0.).on_click(cx.listener(move|this,_,_,cx|{if !this.busy{this.caps[i]=0.;cx.notify();}})))
+    .child(seg(("full",i),"100%",self.caps[i]==100.).on_click(cx.listener(move|this,_,_,cx|{if !this.busy{this.caps[i]=100.;cx.notify();}})))));
+   }
+   panel=panel.child(line);
   }
-  panel=panel.when(profile.cmyk(),|p|p.child(div().flex().gap_2().items_center().child(tr("K presets:")).children([0,5,10].into_iter().map(|v|button(("k-preset",v as usize),format!("{v}%")).on_click(cx.listener(move|this,_,_,cx|{if !this.busy{this.caps[3]=v as f64;cx.notify();}}))))))
+  panel=panel.child(div().text_xs().text_color(rgb(0xa1a1aa)).child("Channel bars use independent 0–100% scales. TAC constrains combined ink, not each individual maximum.")).when(profile.cmyk(),|p|p.child(div().flex().gap_2().items_center().child(tr("K presets:")).children([0,5,10,25,50,100].into_iter().map(|v|seg(("k-preset",v as usize),format!("{v}%"),self.caps[3]==v as f64).on_click(cx.listener(move|this,_,_,cx|{if !this.busy{this.caps[3]=v as f64;cx.notify();}}))))))
    .child(div().flex().items_center().gap_2().child(format!("TAC: {:.0}%",self.tac))
     .child(button("tac-down","−5").on_click(cx.listener(|this,_,_,cx|{if !this.busy{this.tac=(this.tac-5.).max(0.);cx.notify();}})))
     .child(button("tac-up","+5").on_click(cx.listener(|this,_,_,cx|{if !this.busy{this.tac=(this.tac+5.).min(400.);cx.notify();}}))))

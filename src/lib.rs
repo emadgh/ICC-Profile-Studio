@@ -57,7 +57,7 @@ impl Profile {
  pub fn cmyk(&self)->bool{&self.header[16..20]==b"CMYK"}
  pub fn standard_channels(&self)->Vec<String>{
   let s=self.space();
-  let mut names:Vec<String>=match s.as_str(){
+  let names:Vec<String>=match s.as_str(){
    "CMYK"=>["Cyan","Magenta","Yellow","Black"].iter().map(|s|s.to_string()).collect(),
    "CMY "=>["Cyan","Magenta","Yellow"].iter().map(|s|s.to_string()).collect(),
    "RGB "=>["Red","Green","Blue"].iter().map(|s|s.to_string()).collect(),
