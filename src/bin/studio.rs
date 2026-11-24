@@ -30,10 +30,10 @@ enum Event { Progress(String), Done(Result<String,String>) }
 struct Studio {
  embedded_names:bool,display_profile:Option<Profile>,language:Language,nav_collapsed:[bool;5],picker:Option<Picker>,system_catalog:Option<system_profiles::Catalog>,system_error:Option<String>,system_loading:bool,
  version_allow_omit:bool,version_relative_only:bool,version_de:f64,version_ink:f64,version_report:Option<versioning::Report>,page:Page, source:Option<PathBuf>, profile:Option<Profile>, report:Option<Inspection>, error:Option<String>,
- multi_caps:Vec<f64>,multi_tac:f64,caps:[f64;4],tac:f64,grid:usize,mode:Mode,status:String,busy:bool, candidate:Option<PathBuf>,comparison:Option<Comparison>,compare_error:Option<String>,compare_grid:usize,compare_intent:lcms2::Intent,gamma:[f64;4],order:[usize;4], preview_open:bool, preview:Option<Overlay>, preview_revision:u64, preview_width:f32,preview_fullscreen:bool,resize_last:Option<Pixels>,gamut_advanced:bool,curve_drag:Option<(usize,usize,Pixels)>, preview_cache:std::cell::RefCell<gamut_view::PreviewCache>, preview_options:ViewOptions, gamut_grid:usize,gradient:Option<GradientReport>,gradient_detail:Option<usize>,gradient_error:Option<String>,coverage_threshold:f64, regions:[Selective;MAX_REGIONS],region_count:usize,region_selected:usize, correction_grid:usize, correction_tac:f64, smoothing:f64, smoothing_passes:usize,orbit_last:Option<Point<Pixels>>,chart_dpi:u32,recipe_target:[f64;3],recipe_settings:RecipeSettings,recipe_result:Option<RecipeReport>,lab_levels:usize,measured:[Option<PathBuf>;2],measurement_result:Option<MeasuredComparison>,black:BlackGeneration,curve_points:[[f64;5];4],logo:std::sync::Arc<gpui::Image>,#[cfg(windows)] updater:UpdateManager,
+ multi_caps:Vec<f64>,multi_tac:f64,caps:[f64;4],tac:f64,grid:usize,mode:Mode,status:String,busy:bool, candidate:Option<PathBuf>,comparison:Option<Comparison>,compare_error:Option<String>,compare_grid:usize,compare_intent:lcms2::Intent,gamma:Vec<f64>,order:Vec<usize>, preview_open:bool, preview:Option<Overlay>, preview_revision:u64, preview_width:f32,preview_fullscreen:bool,resize_last:Option<Pixels>,gamut_advanced:bool,curve_drag:Option<(usize,usize,Pixels)>, preview_cache:std::cell::RefCell<gamut_view::PreviewCache>, preview_options:ViewOptions, gamut_grid:usize,gradient:Option<GradientReport>,gradient_detail:Option<usize>,gradient_error:Option<String>,coverage_threshold:f64, regions:[Selective;MAX_REGIONS],region_count:usize,region_selected:usize, correction_grid:usize, correction_tac:f64, smoothing:f64, smoothing_passes:usize,orbit_last:Option<Point<Pixels>>,chart_dpi:u32,recipe_target:[f64;3],recipe_settings:RecipeSettings,recipe_result:Option<RecipeReport>,lab_levels:usize,measured:[Option<PathBuf>;2],measurement_result:Option<MeasuredComparison>,black:BlackGeneration,curve_points:[[f64;5];4],logo:std::sync::Arc<gpui::Image>,#[cfg(windows)] updater:UpdateManager,
 }
 impl Default for Studio {
- fn default()->Self{Self{embedded_names:true,display_profile:None,language:Language::En,nav_collapsed:[false;5],picker:None,system_catalog:None,system_error:None,system_loading:false,version_allow_omit:false,version_relative_only:false,version_de:0.5,version_ink:0.5,version_report:None,page:Page::Inspector,source:None,profile:None,report:None,error:None,multi_caps:vec![],multi_tac:0.,caps:[100.,100.,100.,0.],tac:240.,grid:33,mode:Mode::Custom,status:"Open an ICC or ICM profile to start.".into(),busy:false,candidate:None,comparison:None,compare_error:None,compare_grid:17,compare_intent:lcms2::Intent::RelativeColorimetric,gamma:[1.;4],order:[0,1,2,3],preview_open:true,preview:None,preview_revision:0,preview_width:360.,preview_fullscreen:false,resize_last:None,gamut_advanced:false,curve_drag:None,preview_cache:std::cell::RefCell::new(gamut_view::PreviewCache::default()),preview_options:ViewOptions::default(),gamut_grid:33,gradient:None,gradient_detail:None,gradient_error:None,coverage_threshold:2.,regions:[Selective::default();MAX_REGIONS],region_count:1,region_selected:0,correction_grid:33,correction_tac:400.,smoothing:0.20,smoothing_passes:1,orbit_last:None,chart_dpi:300,recipe_target:[50.,0.,0.],recipe_settings:RecipeSettings::default(),recipe_result:None,lab_levels:5,measured:[None,None],measurement_result:None,black:BlackGeneration::default(),curve_points:IDENTITY_POINTS,logo:std::sync::Arc::new(gpui::Image::from_bytes(gpui::ImageFormat::Png,include_bytes!("../../assets/icon.png").to_vec())),#[cfg(windows)] updater:UpdateManager::new(UpdateConfig::new("emadgh/color-convert-rust","ICC-Profile-Studio.exe",STUDIO_VERSION.trim()).with_app_name("ICC Profile Studio").with_checksum_asset("ICC-Profile-Studio.exe.sha256").with_required_checksum(true))}}
+ fn default()->Self{Self{embedded_names:true,display_profile:None,language:Language::En,nav_collapsed:[false;5],picker:None,system_catalog:None,system_error:None,system_loading:false,version_allow_omit:false,version_relative_only:false,version_de:0.5,version_ink:0.5,version_report:None,page:Page::Inspector,source:None,profile:None,report:None,error:None,multi_caps:vec![],multi_tac:0.,caps:[100.,100.,100.,0.],tac:240.,grid:33,mode:Mode::Custom,status:"Open an ICC or ICM profile to start.".into(),busy:false,candidate:None,comparison:None,compare_error:None,compare_grid:17,compare_intent:lcms2::Intent::RelativeColorimetric,gamma:vec![],order:vec![],preview_open:true,preview:None,preview_revision:0,preview_width:360.,preview_fullscreen:false,resize_last:None,gamut_advanced:false,curve_drag:None,preview_cache:std::cell::RefCell::new(gamut_view::PreviewCache::default()),preview_options:ViewOptions::default(),gamut_grid:33,gradient:None,gradient_detail:None,gradient_error:None,coverage_threshold:2.,regions:[Selective::default();MAX_REGIONS],region_count:1,region_selected:0,correction_grid:33,correction_tac:400.,smoothing:0.20,smoothing_passes:1,orbit_last:None,chart_dpi:300,recipe_target:[50.,0.,0.],recipe_settings:RecipeSettings::default(),recipe_result:None,lab_levels:5,measured:[None,None],measurement_result:None,black:BlackGeneration::default(),curve_points:IDENTITY_POINTS,logo:std::sync::Arc::new(gpui::Image::from_bytes(gpui::ImageFormat::Png,include_bytes!("../../assets/icon.png").to_vec())),#[cfg(windows)] updater:UpdateManager::new(UpdateConfig::new("emadgh/color-convert-rust","ICC-Profile-Studio.exe",STUDIO_VERSION.trim()).with_app_name("ICC Profile Studio").with_checksum_asset("ICC-Profile-Studio.exe.sha256").with_required_checksum(true))}}
 }
 fn button(id: impl Into<ElementId>,label:impl Into<SharedString>)->Stateful<Div>{
  let label:SharedString=label.into();
@@ -185,10 +185,11 @@ impl Studio {
  fn load_reference(&mut self,path:PathBuf,cx:&mut Context<Self>){
   if self.busy{return}
   self.picker=None;
-  self.source=Some(path.clone());self.version_report=None;self.version_allow_omit=false;self.version_relative_only=false;self.black=BlackGeneration::default();self.curve_points=IDENTITY_POINTS;self.recipe_result=None;self.regions=[Selective::default();MAX_REGIONS];self.region_count=1;self.region_selected=0;self.correction_grid=33;self.correction_tac=400.;self.smoothing=0.20;self.smoothing_passes=1;self.preview=None;self.candidate=None;self.gradient=None;self.gradient_detail=None;self.gradient_error=None;self.gamma=[1.;4];self.order=[0,1,2,3];self.comparison=None;self.compare_error=None;self.report=None;self.profile=None;self.display_profile=None;self.multi_caps.clear();self.multi_tac=0.;self.error=None;
+  self.source=Some(path.clone());self.version_report=None;self.version_allow_omit=false;self.version_relative_only=false;self.black=BlackGeneration::default();self.curve_points=IDENTITY_POINTS;self.recipe_result=None;self.regions=[Selective::default();MAX_REGIONS];self.region_count=1;self.region_selected=0;self.correction_grid=33;self.correction_tac=400.;self.smoothing=0.20;self.smoothing_passes=1;self.preview=None;self.candidate=None;self.gradient=None;self.gradient_detail=None;self.gradient_error=None;self.gamma.clear();self.order.clear();self.curve_drag=None;self.comparison=None;self.compare_error=None;self.report=None;self.profile=None;self.display_profile=None;self.multi_caps.clear();self.multi_tac=0.;self.error=None;
   match inspection::inspect(&path){Ok(r)=>self.report=Some(r),Err(e)=>self.error=Some(e)}
   if let Ok(p)=Profile::read(&path){
    self.display_profile=Some(p.clone());
+   if let Ok(n)=editing::editable_channel_count(&p){self.gamma=vec![1.;n];self.order=(0..n).collect();}
    if !p.cmyk(){if let Ok(n)=color_convert_rust::multichannel::channel_count(&p){if n!=4{self.multi_caps=vec![100.;n];self.multi_tac=self.report.as_ref().and_then(|r|r.tac).unwrap_or((n as f64*100.).min(240.)).clamp(0.,n as f64*100.);self.grid=17;}}}
    if p.check().is_ok(){
     self.caps=if p.cmyk(){[100.,100.,100.,0.]}else{[100.;4]};
@@ -364,7 +365,7 @@ impl Studio {
   let Some(mut destination)=rfd::FileDialog::new().add_filter("ICC profile",&["icc","icm"]).set_file_name(default_name).save_file()else{return};
   if destination.extension().is_none(){destination.set_extension("icc");}
   let output_path=destination.clone();
-  let edit=match kind{0=>Edit::Tone(self.gamma),1=>Edit::Reorder(self.order),3=>Edit::Correction(Operation::Regions{regions:self.regions,count:self.region_count},self.correction_grid,self.correction_tac),4=>Edit::Correction(Operation::Smooth{strength:self.smoothing,passes:self.smoothing_passes},self.correction_grid,self.correction_tac),5=>Edit::Correction(Operation::Optimize{weights:self.recipe_settings.weights,tolerance:self.recipe_settings.tolerance},self.correction_grid.min(33),self.correction_tac),6=>Edit::Correction(Operation::Black(self.black),self.correction_grid.min(33),self.correction_tac),7=>Edit::Correction(Operation::Points(self.curve_points),self.correction_grid,self.correction_tac),_=>Edit::Rename(destination.file_stem().unwrap_or_default().to_string_lossy().into_owned())};
+  let edit=match kind{0=>Edit::ToneMulti(self.gamma.clone()),1=>Edit::ReorderMulti(self.order.clone()),3=>Edit::Correction(Operation::Regions{regions:self.regions,count:self.region_count},self.correction_grid,self.correction_tac),4=>Edit::Correction(Operation::Smooth{strength:self.smoothing,passes:self.smoothing_passes},self.correction_grid,self.correction_tac),5=>Edit::Correction(Operation::Optimize{weights:self.recipe_settings.weights,tolerance:self.recipe_settings.tolerance},self.correction_grid.min(33),self.correction_tac),6=>Edit::Correction(Operation::Black(self.black),self.correction_grid.min(33),self.correction_tac),7=>Edit::Correction(Operation::Points(self.curve_points),self.correction_grid,self.correction_tac),_=>Edit::Rename(destination.file_stem().unwrap_or_default().to_string_lossy().into_owned())};
   self.busy=true;self.status="Editing ICC and validating with LittleCMS…".into();cx.notify();
   cx.spawn(async move |this,cx|{
    let result=cx.background_spawn(async move{editing::edit_file(&source,&destination,edit)}).await;
@@ -373,10 +374,11 @@ impl Studio {
  }
  fn curve_cards(&self,point_mode:bool,cx:&mut Context<Self>)->Div{
   let mut grid=div().flex().flex_col().gap_2();
-  for row in 0..2{
+  let count=if point_mode{4}else{self.gamma.len()};
+  for row in 0..(count+1)/2{
    let mut line=div().flex().gap_2().w_full();
    for col in 0..2{
-    let i=row*2+col;let name=self.ink_name(i);
+    let i=row*2+col;if i>=count{break}let name=self.ink_name(i);
     let color=self.ink_color(i);
     let samples:Vec<f64>=(0..=256).map(|n|{let x=n as f64/256.;if point_mode{curve_view::linear(self.curve_points[i],x)}else{x.powf(self.gamma[i])}}).collect();
     let mut graph=curve_view::graph(&samples,color);
@@ -419,22 +421,23 @@ impl Studio {
  }
  fn curves_page(&self,cx:&mut Context<Self>)->Div{
   let mut p=div().flex().flex_col().gap_3().child(heading("Tone Curves","Drag curve handles or use numeric steps. Curves represent corrections, not measured ink response."));
-  let Some(profile)=&self.profile else{return p.child(tr("Open a supported printer profile first."))};
-  if !profile.cmyk(){return p.child(tr("This editor supports four-channel CMYK printer profiles."))}
+  if self.gamma.is_empty(){return p.child(tr("Open a supported printer profile first."))}
   p=p.child(self.curve_cards(false,cx))
    .child("Gamma modifies output separations; A2B stays unchanged. Recheck TAC and channel limits.")
-   .child(button("save-curves","Save gamma ICC").on_click(cx.listener(|v,_,_,cx|v.save_edit(0,cx))))
-   .child(self.point_curves_page(cx));
+   .child(button("save-curves","Save gamma ICC").on_click(cx.listener(|v,_,_,cx|v.save_edit(0,cx))));
+  if self.profile.as_ref().is_some_and(|profile|profile.cmyk()){p=p.child(self.point_curves_page(cx));}else{p=p.child("Bounded multipoint correction is currently limited to CMYK; gamma supports nCLR.");}
   p
  }
  fn reorder_page(&self,cx:&mut Context<Self>)->Div{
   let mut p=div().flex().flex_col().gap_3().child(heading("Channel Reorder","New channel index → original physical ink."));
-  let Some(profile)=&self.profile else{return p.child(tr("Open a supported four-channel profile first."))};
-  p=p.child(div().flex().gap_2().children((0..4).map(|i|div().flex_1().min_w(px(0.)).flex().flex_col().gap_1().child(swatch(self.ink_color(self.order[i]),48.)).child(div().text_xs().child(format!("{} → {}",i+1,self.ink_name(self.order[i])))))));
-  for i in 0..4{p=p.child(div().flex().items_center().gap_2().child(swatch(self.ink_color(self.order[i]),24.)).child(div().w(px(200.)).child(format!("{} → {}",i+1,self.ink_name(self.order[i]))))
+  if self.order.is_empty(){return p.child(tr("Open a supported printer profile first."))}
+  for start in (0..self.order.len()).step_by(4){
+   p=p.child(div().flex().gap_2().children((start..(start+4).min(self.order.len())).map(|i|div().flex_1().min_w(px(0.)).flex().flex_col().gap_1().child(swatch(self.ink_color(self.order[i]),48.)).child(div().text_xs().child(format!("{} → {}",i+1,self.ink_name(self.order[i])))))));
+  }
+  for i in 0..self.order.len(){p=p.child(div().flex().items_center().gap_2().child(swatch(self.ink_color(self.order[i]),24.)).child(div().w(px(200.)).child(format!("{} → {}",i+1,self.ink_name(self.order[i]))))
    .child(button(("order-up",i),"↑").on_click(cx.listener(move|this,_,_,cx|{if !this.busy&&i>0{this.order.swap(i,i-1);cx.notify();}})))
-   .child(button(("order-down",i),"↓").on_click(cx.listener(move|this,_,_,cx|{if !this.busy&&i<3{this.order.swap(i,i+1);cx.notify();}}))));}
-  p.child(button("reset-order","Reset mapping").on_click(cx.listener(|this,_,_,cx|{if !this.busy{this.order=[0,1,2,3];cx.notify();}})))
+   .child(button(("order-down",i),"↓").on_click(cx.listener(move|this,_,_,cx|{if !this.busy&&i+1<this.order.len(){this.order.swap(i,i+1);cx.notify();}}))));}
+  p.child(button("reset-order","Reset mapping").on_click(cx.listener(|this,_,_,cx|{if !this.busy{this.order=(0..this.order.len()).collect();cx.notify();}})))
    .child("Changes both A2B input axes and B2A output channels. Unknown vendor tags or calibration data cause rejection. RIP channel order must match the new physical order.")
    .child(button("save-order","Save reordered ICC").on_click(cx.listener(|this,_,_,cx|this.save_edit(1,cx))))
  }
