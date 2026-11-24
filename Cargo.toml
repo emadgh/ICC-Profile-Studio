@@ -1,12 +1,20 @@
 [package]
 name = "color-convert-rust"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 
 [dependencies]
 eframe = "0.31.1"
 rfd = "0.15.3"
 tempfile = "3.15"
+
+image = { version = "0.25", default-features = false, features = ["png"] }
+
+[target.'cfg(windows)'.dependencies]
+update-via-github = { git = "https://github.com/emadgh/update-via-github.git", rev = "ec648957782ab800e14ddc6e0a15c694a46f1252" }
+
+[build-dependencies]
+winresource = "0.1"
 
 [profile.release]
 opt-level = 3

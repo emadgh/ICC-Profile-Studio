@@ -1,6 +1,8 @@
 #![cfg_attr(target_os = "windows", windows_subsystem = "windows")]
 use color_convert_rust::Profile;
 use eframe::egui;
+#[cfg(windows)] mod updates;
+const ICON: &[u8] = include_bytes!("../assets/icon.png");
 use std::{fs,path::{Path,PathBuf},process::Command,sync::mpsc,thread};
 #[cfg(windows)]use std::os::windows::process::CommandExt;
 type R<T>=Result<T,String>;
@@ -65,9 +67,9 @@ fn run(j:Job,progress:impl Fn(String))->R<String>{
 }
 enum Event{Progress(String),Done(R<String>)}
 struct App{
- source:Option<PathBuf>,destination:Option<PathBuf>,profile:Option<Profile>,names:Vec<String>,caps:[f64;4],tac:f64,estimate:bool,grid:usize,mode:Mode,status:String,busy:bool,rx:Option<mpsc::Receiver<Event>>
+ source:Option<PathBuf>,destination:Option<PathBuf>,profile:Option<Profile>,names:Vec<String>,caps:[f64;4],tac:f64,estimate:bool,grid:usize,mode:Mode,status:String,busy:bool,rx:Option<mpsc::Receiver<Event>>,about:bool,icon:Option<egui::TextureHandle>,#[cfg(windows)] updater:updates::Updates
 }
-impl Default for App{fn default()->Self{Self{source:None,destination:None,profile:None,names:vec![],caps:[100.,100.,100.,0.],tac:300.,estimate:true,grid:17,mode:Mode::Argyll,status:"Choose a reference ICC printer profile.".into(),busy:false,rx:None}}}
+impl Default for App{fn default()->Self{Self{source:None,destination:None,profile:None,names:vec![],caps:[100.,100.,100.,0.],tac:300.,estimate:true,grid:17,mode:Mode::Argyll,status:"Choose a reference ICC printer profile.".into(),busy:false,rx:None,about:false,icon:None,#[cfg(windows)] updater:updates::Updates::default()}}}
 impl App{
  fn open(&mut self,p:PathBuf){
   self.source=Some(p.clone());self.profile=None;self.destination=None;self.names.clear();
@@ -86,13 +88,20 @@ impl App{
 }
 impl eframe::App for App{
  fn update(&mut self,ctx:&egui::Context,_frame:&mut eframe::Frame){
+  #[cfg(windows)] self.updater.tick(ctx);
   let mut done=false;
   if let Some(rx)=&self.rx{loop{match rx.try_recv(){Ok(Event::Progress(s))=>self.status=s,Ok(Event::Done(r))=>{self.status=r.unwrap_or_else(|e|format!("Error: {e}"));done=true;break},Err(mpsc::TryRecvError::Empty)=>break,Err(mpsc::TryRecvError::Disconnected)=>{self.status="Worker disconnected.".into();done=true;break}}}}
   if done{self.rx=None;self.busy=false}
   if !self.busy{if let Some(p)=ctx.input(|i|i.raw.dropped_files.first().and_then(|f|f.path.clone())){self.open(p)}}
   egui::CentralPanel::default().show(ctx,|ui|{
-   ui.heading("ICC Profile Rebuilder");
-   ui.label("Portable ICC / ICM channel limiter for four-ink printers");
+   ui.horizontal(|ui|{
+    if let Some(icon)=&self.icon {ui.image((icon.id(),egui::vec2(42.,42.)));}
+    ui.vertical(|ui|{ui.heading("ICC Profile Rebuilder");ui.small("Portable color separation utility");});
+    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center),|ui|{
+      if ui.button("About / Updates").clicked(){self.about=true;}
+      ui.small(format!("v{}",env!("CARGO_PKG_VERSION")));
+    });
+   });
    ui.separator();
    ui.add_enabled_ui(!self.busy,|ui|{
     if ui.button("Open reference ICC / ICM").clicked(){if let Some(p)=rfd::FileDialog::new().add_filter("ICC Profile",&["icc","icm"]).pick_file(){self.open(p);}}
@@ -135,13 +144,50 @@ impl eframe::App for App{
     }
    });
    ui.separator();
-   if self.busy{ui.spinner();ctx.request_repaint_after(std::time::Duration::from_millis(250));}
+   if self.busy{
+    if let Some((n,total))=self.status.strip_prefix("Inverting A2B1: slice ").and_then(|s|s.split_once('/')).and_then(|(a,b)|Some((a.parse::<f32>().ok()?,b.parse::<f32>().ok()?))) {
+     ui.add(egui::ProgressBar::new(((n-1.)/total.max(1.)).clamp(0.,1.)).text(format!("Rebuilding slice {n:.0} of {total:.0}")));
+    } else {ui.horizontal(|ui|{ui.spinner();ui.label("Working — exact progress unavailable");});}
+    ctx.request_repaint_after(std::time::Duration::from_millis(250));
+   } else if self.status.starts_with("Saved:") {ui.add(egui::ProgressBar::new(1.).text("Complete — ICC verified"));}
    egui::ScrollArea::vertical().max_height(190.).show(ui,|ui|{ui.label(&self.status);});
    ui.label("Rebuilt intents use relative-colorimetric inversion. Real print color and firing must be tested.");
   });
+  let mut open=self.about;
+  if open {
+   egui::Window::new("About ICC Profile Rebuilder").open(&mut open).collapsible(false).resizable(true).default_width(420.).show(ctx,|ui|{
+    ui.vertical_centered(|ui|{
+     if let Some(icon)=&self.icon {ui.image((icon.id(),egui::vec2(88.,88.)));}
+     ui.heading("ICC Profile Rebuilder");
+     ui.label(format!("Version {}  ·  Windows x64  ·  Portable",env!("CARGO_PKG_VERSION")));
+     ui.small("Developed by emadgh");
+    });
+    ui.separator();
+    ui.label("Rebuild printer ICC profiles with constrained ink channels while preserving the original channel layout.");
+    ui.label("Processing engines: ArgyllCMS revfix and experimental constrained LUT.");
+    ui.hyperlink_to("Project on GitHub","https://github.com/emadgh/color-convert-rust");
+    ui.hyperlink_to("Shared updater — update-via-github","https://github.com/emadgh/update-via-github");
+    ui.hyperlink_to("ArgyllCMS documentation","https://www.argyllcms.com/doc/revfix.html");
+    ui.separator();
+    ui.heading("Software updates");
+    #[cfg(windows)] self.updater.show(ui,self.busy);
+    #[cfg(not(windows))] ui.label("Updater requires Windows.");
+    ui.separator();
+    ui.small("Validate real print results after firing before production use.");
+   });
+  }
+  self.about=open;
  }
 }
 fn main()->eframe::Result<()>{
- let options=eframe::NativeOptions{viewport:egui::ViewportBuilder::default().with_inner_size([780.,760.]).with_min_inner_size([620.,650.]),..Default::default()};
- eframe::run_native("ICC Profile Rebuilder",options,Box::new(|_cc|Ok(Box::new(App::default()))))
+ let img=image::load_from_memory(ICON).expect("Embedded icon must be valid").into_rgba8();
+ let (w,h)=img.dimensions();
+ let rgba=img.into_raw();
+ let icon=egui::IconData{rgba:rgba.clone(),width:w,height:h};
+ let options=eframe::NativeOptions{viewport:egui::ViewportBuilder::default().with_inner_size([780.,760.]).with_min_inner_size([620.,650.]).with_icon(icon),..Default::default()};
+ eframe::run_native("ICC Profile Rebuilder",options,Box::new(move|cc|{
+  let mut app=App::default();
+  app.icon=Some(cc.egui_ctx.load_texture("app-icon",egui::ColorImage::from_rgba_unmultiplied([w as usize,h as usize],&rgba),egui::TextureOptions::LINEAR));
+  Ok(Box::new(app))
+ }))
 }

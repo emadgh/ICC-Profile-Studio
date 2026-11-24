@@ -34,3 +34,9 @@ GitHub Actions builds the Windows x64 EXE and uploads the portable artifact with
 - https://www.argyllcms.com/downloadwin.html
 
 ArgyllCMS is a separately downloaded third-party program subject to its own license. No Argyll binaries are bundled in this repository.
+
+## About and updates (v0.2.0)
+
+About / Updates contains the version, icon, project links, and the shared emadgh/update-via-github updater (pinned git revision). Manual update checks, download progress, required SHA-256 verification, and restart/install are implemented. Installation is disabled during ICC generation. The current repository is private, and the upstream updater has no GitHub authentication; a 404 is shown as no accessible release, not confirmed up to date. Use signed-in GitHub Releases for manual downloads. Do not embed a personal access token in the application. A public update feed or authenticated upstream updater is necessary for automatic private-repository updates.
+
+Push a version tag matching Cargo.toml (e.g. v0.2.0) to publish the EXE, matching .sha256 and portable ZIP to Releases after tests. Artifact uploads remain best-effort because GitHub Actions storage quota may be exhausted. Releases preserve the repository's access controls. The app icon is embedded into the EXE and displayed in the About dialog. Custom LUT generation displays slice progress; external revfix and dependency download show an indeterminate indicator rather than fabricated percentages.
