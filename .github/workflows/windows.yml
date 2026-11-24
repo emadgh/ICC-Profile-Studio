@@ -1,0 +1,31 @@
+name: Windows x64 build
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+      - name: Test ICC engine
+        run: cargo test --release --target x86_64-pc-windows-msvc
+      - name: Build portable application
+        run: cargo build --release --target x86_64-pc-windows-msvc
+      - name: Stage portable files
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path dist -Force
+          Copy-Item target/x86_64-pc-windows-msvc/release/color-convert-rust.exe dist/ICC-Profile-Rebuilder.exe
+          Copy-Item README.md dist/
+          Get-FileHash dist/ICC-Profile-Rebuilder.exe -Algorithm SHA256 | Format-List | Out-File dist/SHA256.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ICC-Profile-Rebuilder-Windows-x64
+          path: dist/
+          if-no-files-found: error
