@@ -299,7 +299,23 @@ impl Profile{
 }
 
 #[derive(Clone,Debug)]
-pub enum DynamicCorrection{Points(Vec<[f64;5]>),Regions{regions:[Selective;MAX_REGIONS],count:usize}}
+pub enum DynamicCorrection{Points(Vec<[f64;5]>),Regions{regions:[Selective;MAX_REGIONS],count:usize},Smooth{strength:f64,passes:usize}}
+// Flat interleaved storage. Each pass is a Jacobi update from the previous
+// lattice, with a convex combination of the six axial neighbors.
+fn smooth_dynamic(values:&mut Vec<f64>,g:usize,n:usize,strength:f64,passes:usize){
+ let plane=g*g;
+ let mut next=values.clone();
+ for _ in 0..passes{
+  for l in 1..g-1{for a in 1..g-1{for b in 1..g-1{
+   let i=l*plane+a*g+b;
+   let neighbors=[i-plane,i+plane,i-g,i+g,i-1,i+1];
+   for j in 0..n{
+    next[i*n+j]=(1.-strength)*values[i*n+j]+strength*neighbors.iter().map(|&k|values[k*n+j]).sum::<f64>()/6.;
+   }
+  }}}
+  std::mem::swap(values,&mut next);
+ }
+}
 impl Profile{
  /// nCLR v4 Lab correction, with independent reverse intents and certified limits.
  /// No assumed black channel. Source forward LUTs stay byte-identical.
@@ -308,7 +324,8 @@ impl Profile{
   if self.version_major()!=4||![17,33].contains(&grid)||!tac_percent.is_finite()||!(0.0..=n as f64*100.).contains(&tac_percent){return Err("Requires nCLR ICC v4 Lab, grid 17/33 and valid TAC".into())}
   match &op{
    DynamicCorrection::Points(p)=>{if p.len()!=n{return Err("Point curve count must match channels".into())}for &row in p{validate_points([row;4])?;}},
-   DynamicCorrection::Regions{regions,count}=>{if *count>MAX_REGIONS{return Err("Too many correction regions".into())}validate_regions(&regions[..*count])?;}
+   DynamicCorrection::Regions{regions,count}=>{if *count>MAX_REGIONS{return Err("Too many correction regions".into())}validate_regions(&regions[..*count])?;},
+   DynamicCorrection::Smooth{strength,passes}=>{if !strength.is_finite()||!(0.05..=0.5).contains(strength)||!(1..=5).contains(passes){return Err("Smoothing strength 5–50%, passes 1–5".into())}}
   }
   let caps=crate::print_space::bounds(self)?.channels;
   let tac=tac_percent/100.;
@@ -321,20 +338,27 @@ impl Profile{
    if old.inputs!=3||old.outputs!=n{return Err("Unexpected B2A dimensions".into())}
    let Tag::Pipeline(pipe)=native.read_tag(sig)else{return Err("LittleCMS could not decode B2A".into())};
    if pipe.input_channels()!=3||pipe.output_channels() as usize!=n{return Err("Unexpected native pipeline dimensions".into())}
-   let mut result=vec![0f32;n];let mut values=Vec::with_capacity(grid.pow(3)*n);
+   let mut result=vec![0f32;n];let mut values=Vec::with_capacity(grid.pow(3)*n);let mut node=vec![0.;n];
    for l in 0..grid{for a in 0..grid{for b in 0..grid{
     let lab=lab_at(l,a,b,grid);
     let lab=match &op{DynamicCorrection::Regions{regions,count}=>corrected_regions(lab,&regions[..*count]),_=>lab};
     pipe.eval(&normalized(lab),&mut result);
     if result.iter().any(|v|!v.is_finite()||*v< -0.00002||*v>1.00002){return Err("Invalid native source separation".into())}
-    let mut node:Vec<f64>=result.iter().enumerate().map(|(j,&v)|{
+    for (j,&v) in result.iter().enumerate(){
      let v=f64::from(v).clamp(0.,1.);
      let v=match &op{DynamicCorrection::Points(p)=>super::interp(&p[j],v),_=>v};
-     v.clamp(0.,caps[j])
-    }).collect();
+     node[j]=v.clamp(0.,caps[j]);
+    }
     let sum=node.iter().sum::<f64>();if sum>tac&&sum>0.{for v in &mut node{*v*=tac/sum;}}
-    values.extend(node.into_iter().map(|v|(v*65535.).floor()/65535.));
+    values.extend_from_slice(&node);
    }}}
+   if let DynamicCorrection::Smooth{strength,passes}=&op{smooth_dynamic(&mut values,grid,n,*strength,*passes);}
+   // Reproject after smoothing to guard floating-point rounding; floor to 16-bit.
+   for row in values.chunks_exact_mut(n){
+    for (j,v) in row.iter_mut().enumerate(){*v=v.clamp(0.,caps[j]);}
+    let sum=row.iter().sum::<f64>();if sum>tac&&sum>0.{for v in row.iter_mut(){*v*=tac/sum;}}
+    for v in row{*v=(*v*65535.).floor()/65535.;}
+   }
    let lut=Lut{inputs:3,outputs:n,grid,in_curves:vec![vec![0.,1.];3],out_curves:vec![vec![0.,1.];n],clut:values};
    out.tags.insert(*key,crate::editing::encode(&lut,b"mBA ")?);
   }
@@ -357,5 +381,26 @@ mod dynamic_tests{
   let mut regions=[Selective::default();MAX_REGIONS];regions[0].light=10.;
   let q=p.bounded_correction_multi(DynamicCorrection::Regions{regions,count:1},17,50.).unwrap();
   let b=crate::print_space::bounds(&q).unwrap();assert_eq!(b.channels[5],0.);assert!(b.tac<=0.5+1e-10);
+ }
+}
+
+#[cfg(test)]
+mod dynamic_smoothing_tests{
+ use super::*;
+ #[test]fn impulse_smoothing_preserves_boundary_and_closed_channel(){
+  let n=6;let g=3;let mut v=vec![0.;g*g*g*n];v[13*n]=0.8;v[0]=0.3;
+  smooth_dynamic(&mut v,g,n,0.5,2);
+  assert_eq!(v[0],0.3);assert!((v[13*n]-0.2).abs()<1e-12);
+  assert!(v.chunks_exact(n).all(|x|x[5]==0.&&x.iter().sum::<f64>()<=0.8));
+ }
+ #[test]fn nclr_smoothing_keeps_native_caps_and_forward(){
+  let p=crate::print_space::fixture(6);
+  let q=p.bounded_correction_multi(DynamicCorrection::Smooth{strength:0.3,passes:3},17,35.).unwrap();
+  for k in [b"A2B0",b"A2B1",b"A2B2"]{assert_eq!(p.tags[k],q.tags[k]);}
+  let before=crate::print_space::bounds(&p).unwrap();let after=crate::print_space::bounds(&q).unwrap();
+  assert_eq!(after.channels[5],0.);assert!(after.tac<=0.35+1e-10);
+  assert!(after.channels.iter().zip(before.channels).all(|(&a,b)|a<=b+1e-10));
+  assert!(p.bounded_correction_multi(DynamicCorrection::Smooth{strength:f64::NAN,passes:1},17,35.).is_err());
+  assert!(p.bounded_correction_multi(DynamicCorrection::Smooth{strength:0.3,passes:0},17,35.).is_err());
  }
 }
