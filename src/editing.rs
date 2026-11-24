@@ -8,7 +8,7 @@ fn word(x:f64)->u16{(x.clamp(0.,1.)*65535.).round() as u16}
 fn curves(t:&mut Vec<u8>,set:&[Vec<f64>]){
  for c in set{t.extend(b"curv\0\0\0\0");put32(t,c.len() as u32);for &v in c{put16(t,word(v));}while t.len()%4!=0{t.push(0)}}
 }
-fn encode(l:&Lut,kind:&[u8;4])->R<Vec<u8>>{
+pub(crate) fn encode(l:&Lut,kind:&[u8;4])->R<Vec<u8>>{
  let mut t=Vec::new();
  if kind==b"mft2"{
   let ni=l.in_curves[0].len();let no=l.out_curves[0].len();

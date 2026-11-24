@@ -1,3 +1,4 @@
+pub mod versioning;
 pub mod gamut_surface;
 pub mod gamut_raster;
 pub mod validation;

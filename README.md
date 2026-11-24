@@ -42,3 +42,5 @@ See [ROADMAP.md](ROADMAP.md) for the active scope and remaining work, and [CERAM
 R5 adds a resizable preview, expanded in-window view, compact controls, quad-style surface section grid, 2D outline/fill opacity, one projected footprint per visible profile and reusable two-column draggable curve editors. The wire grid is not an all-quad remeshing of the solid triangles.
 
 Beta.7 adds up to six independent color regions, overlap-normalized original-Lab masks in a single edit, and a shared interactive black-preference graph. R5 plot return type compilation error is corrected; Windows CI and interactive checks remain pending.
+
+Beta.8: ICC Version Conversion builds actual v2.4 mft2 or v4.3 mAB/mBA LUTs for supported CMYK/Lab printers; compensates legacy Lab encoding, validates four intents via LCMS and preserves source channel/TAC bounds. Unsupported optional tags are listed and require explicit omission consent; unsupported transform structures fail closed. This is an independent compatibility copy, not a guarantee of Durst vendor/RIP compatibility.
