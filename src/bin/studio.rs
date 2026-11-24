@@ -8,21 +8,22 @@ use color_convert_rust::correction::{Operation,Selective};
 #[path = "../gamut_view.rs"] mod gamut_view;
 use color_convert_rust::gamut::{self,Overlay};
 use gamut_view::ViewOptions;
+use color_convert_rust::images::{self,Options as ImageOptions,Output as ImageOutput};
 use color_convert_rust::gradient::{self,GradientReport};
 
 #[derive(Clone,Copy,PartialEq,Eq)]
-enum Page { Dashboard, Inspector, Validator, Rebuilder, Comparison, Curves, Reorder, Metadata, Gamut, Gradient, Correction, Smoothing, Converter, Lab, Settings, About }
-const PAGES: [(Page,&str);16] = [
+enum Page { Dashboard, Inspector, Validator, Rebuilder, Comparison, Curves, Reorder, Metadata, Gamut, Gradient, Correction, Smoothing, Converter, DeviceLink, Lab, Settings, About }
+const PAGES: [(Page,&str);17] = [
  (Page::Dashboard,"Dashboard"),(Page::Inspector,"Profile Inspector"),(Page::Validator,"Profile Validator"),(Page::Rebuilder,"Profile Rebuilder"),
- (Page::Comparison,"Profile Comparison"),(Page::Curves,"Tone Curves"),(Page::Reorder,"Channel Reorder"),(Page::Metadata,"Profile Metadata"),(Page::Gamut,"Gamut Viewer"),(Page::Gradient,"Gradient Analyzer"),(Page::Correction,"Color Correction"),(Page::Smoothing,"LUT Smoothing"),(Page::Converter,"Image Converter"),(Page::Lab,"Profiling Lab"),(Page::Settings,"Settings"),(Page::About,"About & Updates")
+ (Page::Comparison,"Profile Comparison"),(Page::Curves,"Tone Curves"),(Page::Reorder,"Channel Reorder"),(Page::Metadata,"Profile Metadata"),(Page::Gamut,"Gamut Viewer"),(Page::Gradient,"Gradient Analyzer"),(Page::Correction,"Color Correction"),(Page::Smoothing,"LUT Smoothing"),(Page::Converter,"Image Converter"),(Page::DeviceLink,"DeviceLink"),(Page::Lab,"Profiling Lab"),(Page::Settings,"Settings"),(Page::About,"About & Updates")
 ];
 enum Event { Progress(String), Done(Result<String,String>) }
 struct Studio {
  page:Page, source:Option<PathBuf>, profile:Option<Profile>, report:Option<Inspection>, error:Option<String>,
- caps:[f64;4],tac:f64,grid:usize,mode:Mode,status:String,busy:bool, candidate:Option<PathBuf>,comparison:Option<Comparison>,compare_error:Option<String>,compare_grid:usize,gamma:[f64;4],order:[usize;4], preview_open:bool, preview:Option<Overlay>, preview_options:ViewOptions, gamut_grid:usize,gradient:Option<GradientReport>,gradient_error:Option<String>,coverage_threshold:f64, selective:[f64;5], correction_grid:usize, correction_tac:f64, smoothing:f64, smoothing_passes:usize,orbit_last:Option<Point<Pixels>>,
+ caps:[f64;4],tac:f64,grid:usize,mode:Mode,status:String,busy:bool, candidate:Option<PathBuf>,comparison:Option<Comparison>,compare_error:Option<String>,compare_grid:usize,gamma:[f64;4],order:[usize;4], preview_open:bool, preview:Option<Overlay>, preview_options:ViewOptions, gamut_grid:usize,gradient:Option<GradientReport>,gradient_error:Option<String>,coverage_threshold:f64, selective:[f64;5], correction_grid:usize, correction_tac:f64, smoothing:f64, smoothing_passes:usize,orbit_last:Option<Point<Pixels>>,image_files:Vec<PathBuf>,image_root:Option<PathBuf>,image_options:ImageOptions,image_results:Vec<ImageOutput>,image_errors:Vec<String>,image_preview:usize,
 }
 impl Default for Studio {
- fn default()->Self{Self{page:Page::Dashboard,source:None,profile:None,report:None,error:None,caps:[100.,100.,100.,0.],tac:240.,grid:33,mode:Mode::Custom,status:"Open an ICC or ICM profile to start.".into(),busy:false,candidate:None,comparison:None,compare_error:None,compare_grid:17,gamma:[1.;4],order:[0,1,2,3],preview_open:true,preview:None,preview_options:ViewOptions::default(),gamut_grid:17,gradient:None,gradient_error:None,coverage_threshold:2.,selective:[135.,45.,0.,0.,0.],correction_grid:33,correction_tac:400.,smoothing:0.20,smoothing_passes:1,orbit_last:None}}
+ fn default()->Self{Self{page:Page::Dashboard,source:None,profile:None,report:None,error:None,caps:[100.,100.,100.,0.],tac:240.,grid:33,mode:Mode::Custom,status:"Open an ICC or ICM profile to start.".into(),busy:false,candidate:None,comparison:None,compare_error:None,compare_grid:17,gamma:[1.;4],order:[0,1,2,3],preview_open:true,preview:None,preview_options:ViewOptions::default(),gamut_grid:17,gradient:None,gradient_error:None,coverage_threshold:2.,selective:[135.,45.,0.,0.,0.],correction_grid:33,correction_tac:400.,smoothing:0.20,smoothing_passes:1,orbit_last:None,image_files:vec![],image_root:None,image_options:ImageOptions::default(),image_results:vec![],image_errors:vec![],image_preview:0}}
 }
 fn button(id: impl Into<ElementId>,label:impl Into<SharedString>)->Stateful<Div>{
  div().id(id).px_3().py_2().rounded_md().bg(rgb(0x263449)).text_color(rgb(0xe6eefb)).cursor_pointer().hover(|s|s.bg(rgb(0x354963))).child(label.into())
@@ -324,6 +325,69 @@ impl Studio {
    .child("Lattice boundaries are not averaged; initial resampling and ink constraints can still change them. Use Gradient Analyzer and Profile Comparison after saving to check the trade-off between smoothness and color accuracy.")
    .child(button("save-smoothing","Generate smoothed ICC").on_click(cx.listener(|this,_,_,cx|this.save_edit(4,cx))))
  }
+ fn convert_images(&mut self,cx:&mut Context<Self>){
+  if self.busy{return}let (Some(reference),Some(root))=(self.source.clone(),self.image_root.clone())else{self.status="Choose reference ICC and output folder.".into();cx.notify();return};
+  if self.image_files.is_empty(){return}
+  let dest=self.candidate.clone().unwrap_or_else(||reference.clone());let files=self.image_files.clone();let options=self.image_options;
+  self.busy=true;self.image_results.clear();self.image_errors.clear();self.status="Converting image batch with LittleCMS…".into();cx.notify();
+  cx.spawn(async move|this,cx|{
+   let (tx,rx)=mpsc::channel();
+   std::thread::spawn(move||{
+    for path in files{let result=images::convert(&path,&reference,&dest,&root,options);let _=tx.send((path,result));}
+   });
+   loop{
+    match rx.try_recv(){
+     Ok((path,result))=>{if this.update(cx,|v,cx|{match result{Ok(r)=>v.image_results.push(r),Err(e)=>v.image_errors.push(format!("{}: {e}",path.display()))}v.status=format!("Converted {} / failed {}",v.image_results.len(),v.image_errors.len());cx.notify();}).is_err(){break}},
+     Err(mpsc::TryRecvError::Disconnected)=>{let _=this.update(cx,|v,cx|{v.busy=false;v.status=format!("Batch finished: {} succeeded, {} failed.",v.image_results.len(),v.image_errors.len());cx.notify();});break},
+     Err(mpsc::TryRecvError::Empty)=>cx.background_executor().timer(Duration::from_millis(70)).await,
+    }
+   }
+  }).detach();
+ }
+ fn image_page(&self,cx:&mut Context<Self>)->Div{
+  let mut p=div().flex().flex_col().gap_3().child(heading("Image Processing Studio","RGB PNG/JPEG, RGB/CMYK TIFF → tagged CMYK16 TIFF; batch processing."))
+   .child(button("image-files","Select images").on_click(cx.listener(|v,_,_,cx|{if !v.busy{if let Some(p)=rfd::FileDialog::new().add_filter("Images",&["png","jpg","jpeg","tif","tiff"]).pick_files(){v.image_files=p;v.image_results.clear();v.image_errors.clear();cx.notify();}}})))
+   .child(format!("{} image(s) selected",self.image_files.len()))
+   .child(button("image-root","Select output directory").on_click(cx.listener(|v,_,_,cx|{if !v.busy{if let Some(p)=rfd::FileDialog::new().pick_folder(){v.image_root=Some(p);cx.notify();}}})))
+   .child(self.image_root.as_ref().map(|p|p.display().to_string()).unwrap_or("No output folder".into()))
+   .child(format!("Destination: {}",self.candidate.as_ref().or(self.source.as_ref()).map(|p|p.display().to_string()).unwrap_or("Select a printer ICC".into())))
+   .child(button("assume-icc",if self.image_options.assume_untagged{"Untagged: assume sRGB / reference CMYK ✓"}else{"Untagged: reject (click to explicitly assume)"}).on_click(cx.listener(|v,_,_,cx|{if !v.busy{v.image_options.assume_untagged=!v.image_options.assume_untagged;cx.notify();}})))
+   .child(div().flex().gap_1().flex_wrap().children([("Relative",lcms2::Intent::RelativeColorimetric),("Perceptual",lcms2::Intent::Perceptual),("Saturation",lcms2::Intent::Saturation),("Absolute",lcms2::Intent::AbsoluteColorimetric)].into_iter().enumerate().map(|(i,(n,intent))|button(("image-intent",i),if self.image_options.intent==intent{format!("{n} ✓")}else{n.into()}).on_click(cx.listener(move|v,_,_,cx|{if !v.busy{v.image_options.intent=intent;cx.notify();}})))))
+   .child(div().flex().gap_1().items_center().child(format!("DPI {}",self.image_options.dpi))
+    .child(button("dpi-down","−10").on_click(cx.listener(|v,_,_,cx|{if !v.busy{v.image_options.dpi=v.image_options.dpi.saturating_sub(10).max(50);cx.notify();}})))
+    .child(button("dpi-up","+10").on_click(cx.listener(|v,_,_,cx|{if !v.busy{v.image_options.dpi=(v.image_options.dpi+10).min(2400);cx.notify();}}))))
+   .child(div().flex().gap_1().items_center().child(format!("Reject above TAC {:.0}%",self.image_options.tac))
+    .child(button("image-tac-down","−5").on_click(cx.listener(|v,_,_,cx|{if !v.busy{v.image_options.tac=(v.image_options.tac-5.).max(0.);cx.notify();}})))
+    .child(button("image-tac-up","+5").on_click(cx.listener(|v,_,_,cx|{if !v.busy{v.image_options.tac=(v.image_options.tac+5.).min(400.);cx.notify();}}))))
+   .child("Set physical DPI deliberately: source resolution/metadata is not copied. 24 MP limit, no alpha, no multi-page or planar TIFF. Destination ICC is embedded. Diagnostic images are thumbnails.")
+   .child(button("convert-batch",if self.busy{"Working…"}else{"Convert selected images"}).on_click(cx.listener(|v,_,_,cx|v.convert_images(cx))));
+  for e in &self.image_errors{p=p.child(div().text_color(rgb(0xfca5a5)).child(e.clone()));}
+  for (i,r) in self.image_results.iter().enumerate(){
+   p=p.child(div().p_3().rounded_md().bg(rgb(0x1b2637)).flex().flex_col().gap_1().child(r.directory.display().to_string()).child(format!("{} × {} · peak TAC {:.2}% · mean inks {:?}",r.width,r.height,r.peak_tac,r.mean))
+   .child(button(("pick-image-result",i),"Show image previews").on_click(cx.listener(move|v,_,_,cx|{v.image_preview=i;cx.notify();}))));
+  }
+  if let Some(r)=self.image_results.get(self.image_preview){
+   p=p.child(div().text_lg().child("Before / after — relative sRGB simulation"))
+    .child(div().flex().gap_2().children(["before.png","after.png"].map(|n|div().flex_1().min_w(px(0.)).child(n).child(img(r.directory.join(n)).w_full().h(px(200.))))))
+    .child(div().text_lg().child("Channel separations"))
+    .child(div().flex().gap_1().children((1..=4).map(|j|div().flex_1().min_w(px(0.)).child(format!("Ink {j}")).child(img(r.directory.join(format!("channel_{j}.png"))).w_full().h(px(100.))))))
+    .child("TAC coverage: blue = low, red = high").child(img(r.directory.join("coverage.png")).w_full().h(px(220.)));
+  }
+  p
+ }
+ fn link_page(&self,cx:&mut Context<Self>)->Div{
+  div().flex().flex_col().gap_3().child(heading("DeviceLink Generator","LittleCMS CMYK → CMYK ICC v4.3."))
+   .child("Reference is source CMYK and candidate is destination. Select the candidate in Gamut Preview or Profile Comparison. Relative colorimetric; no special black preservation or certified channel cap guarantee.")
+   .child(button("save-link","Generate DeviceLink").on_click(cx.listener(|v,_,_,cx|{
+    if v.busy{return}let (Some(a),Some(b))=(v.source.clone(),v.candidate.clone())else{v.status="Select two printer profiles.".into();cx.notify();return};
+    let Some(mut dest)=rfd::FileDialog::new().add_filter("ICC",&["icc"]).set_file_name("CMYK_to_CMYK.icc").save_file()else{return};if dest.extension().is_none(){dest.set_extension("icc");}
+    v.busy=true;v.status="Generating DeviceLink…".into();cx.notify();
+    cx.spawn(async move|this,cx|{
+     let result=cx.background_spawn(async move{images::device_link(&a,&b,&dest,lcms2::Intent::RelativeColorimetric).map(|_|format!("Saved {}",dest.display()))}).await;
+     let _=this.update(cx,|v,cx|{v.busy=false;v.status=result.unwrap_or_else(|e|format!("Error: {e}"));cx.notify();});
+    }).detach();
+   })))
+ }
  fn inspector(&self)->Div{
   let mut panel=div().flex().flex_col().gap_3().child(heading("Profile Inspector","ICC metadata decoded by LittleCMS 2."));
   if let Some(e)=&self.error{panel=panel.child(div().text_color(rgb(0xfca5a5)).child(e.clone()));}
@@ -399,6 +463,8 @@ impl Render for Studio {
    Page::Gradient=>self.gradient_page(cx),
    Page::Correction=>self.correction_page(cx),
    Page::Smoothing=>self.smoothing_page(cx),
+   Page::Converter=>self.image_page(cx),
+   Page::DeviceLink=>self.link_page(cx),
    Page::Settings=>div().flex().flex_col().gap_3().child(heading("Settings","Engine configuration")).child("LittleCMS is linked statically. ArgyllCMS is installed by the existing portable backend when required."),
    Page::About=>div().flex().flex_col().gap_3().child(heading("ICC Profile Studio","Experimental GPUI frontend")).child(format!("Core version {}",env!("CARGO_PKG_VERSION"))).child("Developed by emadgh. LittleCMS 2 · ArgyllCMS · Rust.").child("Updater integration is pending in this frontend. Use the stable executable for updates."),
    other=>div().flex().flex_col().gap_3().child(heading(PAGES.iter().find(|(p,_)|*p==other).map(|(_,n)|*n).unwrap_or("Tool"),"Planned module")).child("Not implemented yet. See ROADMAP.md."),

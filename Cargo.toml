@@ -16,12 +16,13 @@ required-features = ["studio"]
 [dependencies]
 gpui = { version = "=0.2.2", optional = true }
 parry3d = "0.31"
+tiff = "0.11"
 lcms2 = { version = "6.3", features = ["static"] }
 eframe = "0.31.1"
 rfd = "0.15.3"
 tempfile = "3.15"
 
-image = { version = "0.25", default-features = false, features = ["png"] }
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "tiff"] }
 
 [target.'cfg(windows)'.dependencies]
 update-via-github = { git = "https://github.com/emadgh/update-via-github.git", rev = "ec648957782ab800e14ddc6e0a15c694a46f1252" }

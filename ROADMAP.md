@@ -57,14 +57,23 @@
 - [x] GPUI mouse orbit and wheel zoom in the shared gamut preview; existing button controls retained.
 - [ ] Verify mouse interactions on Windows; ICC v2/other LUT structures, multiple selective masks.
 
+## v0.8 — image processing / v0.9 DeviceLink (source implementation)
+
+- [x] Batch RGB PNG/JPEG or interleaved RGB/CMYK TIFF 8/16 input to 16-bit CMYK TIFF using LCMS and tiff/image codecs; embed destination ICC, explicit DPI, four rendering intents, reject untagged input unless explicit assumption.
+- [x] Export relative sRGB before/after previews, four reduced-size separation PNGs and TAC heatmap; show in GPUI with sampled full-image ink stats and reject pixels over selected TAC without silent clipping.
+- [x] Native LCMS CMYK-to-CMYK DeviceLink v4.3 export, reopen and validate transform creation, no overwrite.
+- [x] Batch per-file error/progress and staged result directories, basic TIFF round-trip tests.
+- [ ] CI and real ICC/image regression; 24 MP preview limit, larger streaming/BigTIFF support, DPI metadata preservation, exact calibrated monitor proof, full-size separations, cancellation, alpha and multipage workflows.
+- [ ] DeviceLink numeric equivalence, strict caps/TAC, black-preserving link modes and direct DeviceLink image application.
+
 ## Next milestones
 
 - v0.4: Complete validation/export of Profile Comparison, Delta E2000, neutral axis and ink distribution.
 - v0.5: Complete runtime validation of Tone Curves, channel mapping/reordering, profile metadata editing.
 - v0.6: Validate new analytics and hull build; actual printer regression, richer controls and nonconvex gamut analysis.
 - v0.7: Verify selective Lab/LCh correction and smoothing, add multi-region controls and verify mouse orbit.
-- v0.8: ICC image conversion, batch conversion, separations, soft proof, ink coverage.
-- v0.9: DeviceLink generation, constrained ink saving and cost optimization.
+- v0.8: Verify image conversion and batch, calibrated proof, streaming and full-size separations.
+- v0.9: Verify DeviceLink, add constrained ink saving and cost optimization.
 - v1.0: Ceramic profiling, reference charts, measured glaze/firing/ink batch compensation, machine matching, profile library.
 
 ## Dependency-first architecture
