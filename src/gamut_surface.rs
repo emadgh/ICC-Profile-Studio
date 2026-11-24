@@ -4,16 +4,17 @@
 //! characterization of every physically attainable device color.
 pub const TOLERANCE:f64=2.;
 #[derive(Clone,Debug)]
-pub struct Surface{pub triangles:Vec<[[f32;3];3]>,pub resolution:usize}
+pub struct Surface{pub triangles:Vec<[[f32;3];3]>,pub resolution:usize,pub volume:f64}
 pub fn extract(field:&[f64],n:usize,lo:[f32;3],hi:[f32;3],threshold:f64)->Option<Surface>{
  if n<3||field.len()!=n.pow(3)||field.iter().any(|v|!v.is_finite()){return None}
  let idx=|x:usize,y:usize,z:usize|(x*n+y)*n+z;
  let position=|x:usize,y:usize,z:usize| -> [f32;3] {std::array::from_fn(|i|lo[i]+(hi[i]-lo[i])*[x,y,z][i] as f32/(n-1) as f32)};
  let corners=[[0,0,0],[1,0,0],[1,1,0],[0,1,0],[0,0,1],[1,0,1],[1,1,1],[0,1,1]];
  let tetra=[[0,5,1,6],[0,1,2,6],[0,2,3,6],[0,3,7,6],[0,7,4,6],[0,4,5,6]];
- let mut triangles=Vec::new();
+ let mut triangles=Vec::new();let mut occupancy=0.;
  for x in 0..n-1{for y in 0..n-1{for z in 0..n-1{
   let values=corners.map(|[a,b,c]|field[idx(x+a,y+b,z+c)]);
+  occupancy+=values.iter().filter(|&&v|v<=threshold).count() as f64/8.;
   if values.iter().all(|&v|v<=threshold)||values.iter().all(|&v|v>threshold){continue}
   let pos=corners.map(|[a,b,c]|position(x+a,y+b,z+c));
   let cross=|a:usize,b:usize|{let t=((threshold-values[a])/(values[b]-values[a])).clamp(0.,1.) as f32;std::array::from_fn(|i|pos[a][i]+(pos[b][i]-pos[a][i])*t)};
@@ -28,7 +29,7 @@ pub fn extract(field:&[f64],n:usize,lo:[f32;3],hi:[f32;3],threshold:f64)->Option
    }
   }
  }}}
- if triangles.is_empty(){None}else{Some(Surface{triangles,resolution:n})}
+ if triangles.is_empty(){None}else{Some(Surface{triangles,resolution:n,volume:occupancy*(0..3).map(|i|(hi[i]-lo[i]) as f64/(n-1) as f64).product::<f64>()})}
 }
 #[cfg(test)]mod tests{
  use super::*;
@@ -42,5 +43,6 @@ pub fn extract(field:&[f64],n:usize,lo:[f32;3],hi:[f32;3],threshold:f64)->Option
   assert!(s.triangles.len()>100);
   assert!(s.triangles.iter().all(|t|t.iter().all(|v|v[0]<9.)||t.iter().all(|v|v[0]>15.)));
  }
+ #[test]fn approximate_volume_is_positive_and_bounded(){let n=25usize;let f:Vec<_>=(0..n.pow(3)).map(|i|{let x=i/(n*n);let y=(i/n)%n;let z=i%n;((x as f64-12.).powi(2)+(y as f64-12.).powi(2)+(z as f64-12.).powi(2)).sqrt()}).collect();let v=extract(&f,n,[0.;3],[24.;3],6.).unwrap().volume;let exact=4./3.*std::f64::consts::PI*216.;assert!((v/exact-1.).abs()<0.15);}
  #[test]fn empty_has_no_surface(){assert!(extract(&vec![3.;27],3,[0.;3],[2.;3],2.).is_none());}
 }

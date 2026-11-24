@@ -25,6 +25,6 @@ pub fn plot(data:Option<&Overlay>,revision:u64,o:ViewOptions,cache:&mut PreviewC
  let mut frame=div().w(px(display)).h(px(display)).flex_shrink_0().overflow_hidden().bg(rgb(0x313337));
  if let Some(image)=cache.image.clone(){frame=frame.child(img(image).w(px(display)).h(px(display)).flex_shrink_0());}
  div().flex().flex_col().items_center().gap_1().w_full().flex_shrink_0()
-  .child(div().p(px(1.)).bg(rgb(0x536780)).flex_shrink_0().child(frame))
-  .child(div().text_xs().text_color(rgb(0x94a3b8)).child(cache.label.clone()))
+  .child(div().p(px(1.)).bg(rgb(0x555555)).flex_shrink_0().child(frame))
+  .child(div().text_xs().text_color(rgb(0xa1a1aa)).child(cache.label.clone()))
 }

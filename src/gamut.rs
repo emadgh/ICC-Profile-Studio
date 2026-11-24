@@ -3,9 +3,7 @@
 use lcms2::{Profile,PixelFormat,Transform,Intent,CIELab,CIELabExt,CIEXYZ,CIEXYZExt,ColorSpaceSignature,ProfileClassSignature};
 use std::path::Path;
 #[derive(Clone,Debug)]
-pub struct Cloud {pub points:Vec<[f32;3]>,pub sampled:usize,pub errors:Vec<f64>,pub hull:Option<Hull>,pub surface:Option<crate::gamut_surface::Surface>}
-#[derive(Clone,Debug)]
-pub struct Hull{pub vertices:Vec<[f32;3]>,pub edges:Vec<[usize;2]>,pub faces:Vec<[usize;3]>,pub volume:f64}
+pub struct Cloud {pub points:Vec<[f32;3]>,pub sampled:usize,pub errors:Vec<f64>,pub surface:Option<crate::gamut_surface::Surface>}
 #[derive(Clone,Debug)]
 pub struct Overlay {pub reference:Result<Cloud,String>,pub candidate:Option<Result<Cloud,String>>}
 fn targets(grid:usize)->Vec<[f64;3]>{
@@ -44,7 +42,6 @@ pub fn sample(path:&Path,grid:usize)->Result<Cloud,String>{
  let mut seen=std::collections::HashSet::new();
  points.retain(|p|seen.insert(p.map(|v|(v*4.).round() as i32)));
  if points.is_empty(){return Err("LittleCMS produced no usable gamut points".into())}
- let hull=convex_mesh(&points);
  // Adaptive Lab box concentrates samples on the actual ceramic gamut.
  // Padding allows tolerance contours to extend beyond sampled extrema.
  let mut lo=[f32::INFINITY;3];let mut hi=[f32::NEG_INFINITY;3];
@@ -70,27 +67,7 @@ pub fn sample(path:&Path,grid:usize)->Result<Cloud,String>{
   }
  }
  let surface=crate::gamut_surface::extract(&field,n,lo,hi,crate::gamut_surface::TOLERANCE);
- Ok(Cloud{points,sampled:values.len(),errors,hull,surface})
-}
-/// Convex envelope of sampled points. It may enclose unattainable colors;
-/// never interpret this volume as exact physical gamut volume.
-fn convex_mesh(points:&[[f32;3]])->Option<Hull>{
- if points.len()<4{return None}
- let points:Vec<_>=points.iter().map(|v|parry3d::math::Vector::new(v[0],v[1],v[2])).collect();
- let (vertices,faces)=parry3d::transformation::try_convex_hull(&points).ok()?;
- if vertices.len()<4||faces.len()<4{return None}
- let vertices:Vec<[f32;3]>=vertices.into_iter().map(|v|[v.x,v.y,v.z]).collect();
- let mut edges=std::collections::BTreeSet::new();
- let mut center=[0f64;3];for v in &vertices{for j in 0..3{center[j]+=v[j] as f64/vertices.len() as f64;}}
- let mut volume=0.;let mut triangles=Vec::new();
- for face in faces{
-  let [a,b,c]=face.map(|v|v as usize);triangles.push([a,b,c]);
-  for (x,y) in [(a,b),(b,c),(c,a)]{edges.insert([x.min(y),x.max(y)]);}
-  let [u,v,w]=[a,b,c].map(|i|{let p=vertices[i];[p[0] as f64-center[0],p[1] as f64-center[1],p[2] as f64-center[2]]});
-  volume+=(u[0]*(v[1]*w[2]-v[2]*w[1])+u[1]*(v[2]*w[0]-v[0]*w[2])+u[2]*(v[0]*w[1]-v[1]*w[0])).abs()/6.;
- }
- if !volume.is_finite()||volume<=0.{return None}
- Some(Hull{vertices,edges:edges.into_iter().collect(),faces:triangles,volume})
+ Ok(Cloud{points,sampled:values.len(),errors,surface})
 }
 #[derive(Debug,Clone,Copy,PartialEq,Eq)]
 pub struct Coverage{pub total:usize,pub both:usize,pub lost:usize,pub gained:usize,pub neither:usize}
@@ -111,8 +88,7 @@ pub fn project(lab:[f32;3],yaw:f32,pitch:f32)->[f32;3]{
 }
 #[cfg(test)]mod tests{
  use super::*;
- #[test]fn tetrahedron_volume(){let h=convex_mesh(&[[0.,0.,0.],[1.,0.,0.],[0.,1.,0.],[0.,0.,1.]]).unwrap();assert!((h.volume-1./6.).abs()<1e-6);assert_eq!(h.edges.len(),6);}
- #[test]fn coverage_partitions(){let a=Cloud{points:vec![],sampled:4,errors:vec![1.,1.,3.,3.],hull:None,surface:None};let b=Cloud{errors:vec![1.,3.,1.,3.],..a.clone()};assert_eq!(coverage(&a,&b,2.).unwrap(),Coverage{total:4,both:1,lost:1,gained:1,neither:1});}
+ #[test]fn coverage_partitions(){let a=Cloud{points:vec![],sampled:4,errors:vec![1.,1.,3.,3.],surface:None};let b=Cloud{errors:vec![1.,3.,1.,3.],..a.clone()};assert_eq!(coverage(&a,&b,2.).unwrap(),Coverage{total:4,both:1,lost:1,gained:1,neither:1});}
  #[test]fn grid_endpoints(){let t=targets(9);assert_eq!(t.len(),729);assert_eq!(t[0],[0.,-128.,-128.]);assert_eq!(t[728],[100.,127.,127.]);}
  #[test]fn projection_origin(){assert_eq!(project([50.,0.,0.],0.7,0.5),[0.,0.,0.]);}
  #[test]fn rotation_preserves_length(){let q=project([80.,30.,-20.],1.2,0.8);assert!((q.iter().map(|v|v*v).sum::<f32>()-2200.).abs()<0.01);}

@@ -19,7 +19,7 @@ Lean, vendor-independent GPUI application for CMYK and multichannel output ICCs 
 1. Broaden supported printer LUT structures: sampled/parametric curves, mft1/mft2, mAB/mBA, varying CLUT axes and supported mpet elements. Reject unsupported transformations explicitly, preserve unknown tags safely. Test native interpolation and round-trip accuracy.
 2. Multichannel output profiles: dynamic channel count and names, 2–15 channels where supported by ICC and the underlying engine; generalize device sampling, bounds, TAC, curves, comparison, gamut, rebuilding and constrained correction in stages. Avoid treating arbitrary inks as CMYK or assuming a black channel.
 3. Advanced print DeviceLink generation: black preservation where black is defined, multichannel links where supported, numerical validation.
-4. Gamut nonconvex volume, sampling convergence, rendering performance, Windows interactive checks.
+4. Validate nonconvex volume estimate convergence, rendering performance and Windows interactive checks.
 5. Measured profile correction and general characterization using real matched measurements. No brand or industry-specific workflow modules.
 6. Streamline controls, drag/drop ICC, improve responsiveness, update feed integrity, release packaging and license/checksum review.
 7. Release candidate: broad real-profile regressions, interactive Windows smoke tests, physical validation where needed and documentation. No unsupported accuracy claims.
@@ -30,3 +30,9 @@ Lean, vendor-independent GPUI application for CMYK and multichannel output ICCs 
 - beta.11: remove library, project/session and tag manager code and UI, retire standalone Dashboard and merge simple rename into Inspector. Remove direct sha2 dependency used by projects; package generic characterization documentation instead of ceramic-specific guide. Existing user project/checkpoint/library files are not touched; old preference keys are ignored. CI pending.
 - Previous tracker and retired modules recoverable in Git history at https://github.com/emadgh/color-convert-rust/tree/2707bbe3f0572a5a8d3654cee9c5b5567ede2c67.
 - Current computational support is primarily four-channel. CI results do not guarantee real-profile color equivalence, physical print accuracy or visual interaction.
+
+## beta.12 — neutral UI and high-quality gamut
+- Grouped collapsible sidebar (Inspection, Editing, Separation, Analysis, Application), monochrome navigation symbols, charcoal UI and orange accent, by emadghasemi.ir and reorganized About with links/technology/version/update section.
+- Five-language UI dictionary: English, Persian, Italian, Arabic, Russian, persisted language; translated navigation, headings and mapped controls, English fallback for unmapped descriptions and engine diagnostics. RTL navigation order only; complete RTL layout and translation coverage pending.
+- Removed convex hull renderer, report and dependency. Fixed high quality 33³ target grid / 57³ adaptive field. Approximate nonconvex Lab³ volume via cell-corner occupancy at ΔE00 ≤ 2, not exact mesh or physical volume. Test sphere approximation; convergence and runtime verification pending.
+- beta.11 prior CI status to be confirmed; beta.12 CI pending. Next: parametric curves and broader LUT structures, dynamic multichannel.

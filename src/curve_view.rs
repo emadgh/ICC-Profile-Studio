@@ -3,13 +3,13 @@
 use gpui::{prelude::*,*};
 pub const HEIGHT:f32=126.;
 pub fn graph(samples:&[f64],color:u32)->Div{
- let mut graph=div().relative().w_full().h(px(HEIGHT)).flex_shrink_0().bg(rgb(0x101a2a)).rounded_md().overflow_hidden();
+ let mut graph=div().relative().w_full().h(px(HEIGHT)).flex_shrink_0().bg(rgb(0x191919)).rounded_md().overflow_hidden();
  for i in 0..=4{
   let t=i as f32/4.;
-  graph=graph.child(div().absolute().left(relative(t)).top(px(0.)).w(px(1.)).h_full().bg(rgb(0x2c3b50)))
-   .child(div().absolute().left(px(0.)).top(px(t*(HEIGHT-1.))).h(px(1.)).w_full().bg(rgb(0x2c3b50)));
+  graph=graph.child(div().absolute().left(relative(t)).top(px(0.)).w(px(1.)).h_full().bg(rgb(0x393939)))
+   .child(div().absolute().left(px(0.)).top(px(t*(HEIGHT-1.))).h(px(1.)).w_full().bg(rgb(0x393939)));
  }
- for i in 0..=100{let t=i as f32/100.;graph=graph.child(div().absolute().left(relative(t)).top(px((1.-t)*(HEIGHT-3.))).size(px(2.)).bg(rgb(0x526175)));}
+ for i in 0..=100{let t=i as f32/100.;graph=graph.child(div().absolute().left(relative(t)).top(px((1.-t)*(HEIGHT-3.))).size(px(2.)).bg(rgb(0x666666)));}
  // Dense samples form a continuous visible stroke at ordinary card widths.
  for (i,&v) in samples.iter().enumerate(){
   let t=i as f32/(samples.len()-1).max(1) as f32;

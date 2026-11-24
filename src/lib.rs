@@ -1,3 +1,4 @@
+pub mod i18n;
 pub mod system_profiles;
 pub mod versioning;
 pub mod gamut_surface;

@@ -6,8 +6,8 @@ use image::{Rgb,RgbImage,ImageEncoder};
 #[derive(Clone,Copy,Debug,PartialEq,Eq,serde::Serialize,serde::Deserialize,Default)]
 pub enum CompareLayout{#[default] ReferenceSolidCandidateWire,ReferenceWireCandidateSolid,Shared}
 #[derive(Clone,Copy,Debug,PartialEq,serde::Serialize,serde::Deserialize)]
-pub struct ViewOptions{pub three_d:bool,pub reference:bool,pub candidate:bool,pub slice:bool,pub light:f32,pub yaw:f32,pub pitch:f32,pub zoom:f32,pub wireframe:bool,pub solid:bool,pub profile_colors:bool,pub convex:bool,pub layout:CompareLayout,pub floor_contour:bool,pub opacity_2d:u8}
-impl Default for ViewOptions{fn default()->Self{Self{three_d:true,reference:true,candidate:true,slice:false,light:50.,yaw:0.65,pitch:0.45,zoom:1.,wireframe:false,solid:true,profile_colors:true,convex:false,layout:CompareLayout::default(),floor_contour:true,opacity_2d:100}}}
+pub struct ViewOptions{pub three_d:bool,pub reference:bool,pub candidate:bool,pub slice:bool,pub light:f32,pub yaw:f32,pub pitch:f32,pub zoom:f32,pub wireframe:bool,pub solid:bool,pub profile_colors:bool,pub layout:CompareLayout,pub floor_contour:bool,pub opacity_2d:u8}
+impl Default for ViewOptions{fn default()->Self{Self{three_d:true,reference:true,candidate:true,slice:false,light:50.,yaw:0.65,pitch:0.45,zoom:1.,wireframe:false,solid:true,profile_colors:true,layout:CompareLayout::default(),floor_contour:true,opacity_2d:100}}}
 impl ViewOptions{
  pub fn style(self,i:usize)->(bool,bool){
   match self.layout{
@@ -58,10 +58,7 @@ pub fn lab_rgb(v:[f32;3])->[u8;3]{
  let rgb=[3.1338561*x-1.6168667*y-0.4906146*z,-0.9787684*x+1.9161415*y+0.0334540*z,0.0719453*x-0.2289914*y+1.4052427*z];
  rgb.map(|v|{let v=v.clamp(0.,1.);let s=if v<=0.0031308{12.92*v}else{1.055*v.powf(1./2.4)-0.055};(255.*s).round() as u8})
 }
-fn triangles(c:&Cloud,convex:bool)->Vec<[[f32;3];3]>{
- if convex{c.hull.as_ref().map(|h|h.faces.iter().map(|f|f.map(|i|h.vertices[i])).collect()).unwrap_or_default()}
- else{c.surface.as_ref().map(|s|s.triangles.clone()).unwrap_or_default()}
-}
+fn triangles(c:&Cloud)->Vec<[[f32;3];3]>{c.surface.as_ref().map(|s|s.triangles.clone()).unwrap_or_default()}
 fn slice_segment(t:[[f32;3];3],light:f32)->Option<[[f32;3];2]>{
  let mut points=Vec::new();
  for (a,b) in [(t[0],t[1]),(t[1],t[2]),(t[2],t[0])]{
@@ -253,7 +250,7 @@ pub fn render(data:Option<&Overlay>,o:ViewOptions)->Rendered{
   let screen=|v:[f32;3]|{let q=projected(v,o);let xy=at(q);[xy[0],xy[1],if o.three_d{q[2]}else{v[0]}]};
   let points:Vec<_>=c.points.iter().copied().filter(|v|v.iter().all(|v|v.is_finite())&&in_slice(*v,o)).collect();
   visible[i]=points.len();let mut layer=Layer::new();
-  let mesh=if solid||wire||o.floor_contour&&o.three_d{triangles(c,o.convex)}else{Vec::new()};
+  let mesh=if solid||wire||o.floor_contour&&o.three_d{triangles(c)}else{Vec::new()};
   // One union projection per visible profile. A disconnected footprint may
   // still have several components, but there are no stacked L* contours.
   if o.three_d&&o.floor_contour&&!mesh.is_empty(){
@@ -322,11 +319,11 @@ pub fn render(data:Option<&Overlay>,o:ViewOptions)->Rendered{
  use super::*;
  fn example()->Overlay{
   let points=vec![[30.,-4.,-40.],[50.,12.,20.],[98.,0.,0.],[70.,22.,-25.]];
-  Overlay{reference:Ok(Cloud{points:points.clone(),sampled:4,errors:vec![0.;4],hull:None,surface:None}),candidate:Some(Ok(Cloud{points,sampled:4,errors:vec![0.;4],hull:None,surface:None}))}
+  Overlay{reference:Ok(Cloud{points:points.clone(),sampled:4,errors:vec![0.;4],surface:None}),candidate:Some(Ok(Cloud{points,sampled:4,errors:vec![0.;4],surface:None}))}
  }
  #[test]fn mixed_layout_preserves_solid_and_wire_overlay(){
   let mut d=example();
-  let t=crate::gamut_surface::Surface{triangles:vec![[[50.,-20.,-20.],[50.,20.,-20.],[50.,0.,20.]]],resolution:25};
+  let t=crate::gamut_surface::Surface{triangles:vec![[[50.,-20.,-20.],[50.,20.,-20.],[50.,0.,20.]]],resolution:25,volume:0.};
   d.reference.as_mut().unwrap().surface=Some(t.clone());
   d.candidate.as_mut().unwrap().as_mut().unwrap().surface=Some(t);
   let o=ViewOptions{three_d:false,profile_colors:false,..Default::default()};
@@ -338,7 +335,7 @@ pub fn render(data:Option<&Overlay>,o:ViewOptions)->Rendered{
   assert_eq!(render(Some(&d),reverse).image.get_pixel(SIZE/2,SIZE/2).0,AFTER);
  }
  #[test]fn floor_contours_toggle(){
-  let mut d=example();d.reference.as_mut().unwrap().surface=Some(crate::gamut_surface::Surface{triangles:vec![[[10.,-10.,-10.],[90.,20.,-20.],[90.,0.,20.]]],resolution:25});
+  let mut d=example();d.reference.as_mut().unwrap().surface=Some(crate::gamut_surface::Surface{triangles:vec![[[10.,-10.,-10.],[90.,20.,-20.],[90.,0.,20.]]],resolution:25,volume:0.});
   let o=ViewOptions{candidate:false,..Default::default()};
   assert_ne!(render(Some(&d),o).image.as_raw(),render(Some(&d),ViewOptions{floor_contour:false,..o}).image.as_raw());
  }
@@ -354,7 +351,7 @@ pub fn render(data:Option<&Overlay>,o:ViewOptions)->Rendered{
  #[test]fn solid_surface_fills_interior(){
   let mut d=example();
   let c=d.reference.as_mut().unwrap();
-  c.surface=Some(crate::gamut_surface::Surface{triangles:vec![[[50.,-20.,-20.],[50.,20.,-20.],[50.,0.,20.]]],resolution:25});
+  c.surface=Some(crate::gamut_surface::Surface{triangles:vec![[[50.,-20.,-20.],[50.,20.,-20.],[50.,0.,20.]]],resolution:25,volume:0.});
   let o=ViewOptions{three_d:false,candidate:false,profile_colors:false,solid:true,..Default::default()};
   let result=render(Some(&d),o);
   assert_eq!(result.image.get_pixel(SIZE/2,SIZE/2).0,BEFORE);
@@ -371,7 +368,7 @@ pub fn render(data:Option<&Overlay>,o:ViewOptions)->Rendered{
   assert!(grid.iter().any(|s|(s[0][0]-s[1][0]).abs()<0.001));
  }
  #[test]fn outline_and_opacity_2d(){
-  let mut d=example();d.reference.as_mut().unwrap().surface=Some(crate::gamut_surface::Surface{triangles:vec![[[50.,-20.,-20.],[50.,20.,-20.],[50.,0.,20.]]],resolution:25});
+  let mut d=example();d.reference.as_mut().unwrap().surface=Some(crate::gamut_surface::Surface{triangles:vec![[[50.,-20.,-20.],[50.,20.,-20.],[50.,0.,20.]]],resolution:25,volume:0.});
   let o=ViewOptions{three_d:false,candidate:false,profile_colors:false,..Default::default()};
   let solid=render(Some(&d),o);let clear=render(Some(&d),ViewOptions{opacity_2d:0,..o});
   let outline=render(Some(&d),ViewOptions{layout:CompareLayout::Shared,solid:false,wireframe:true,..o});
