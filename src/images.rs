@@ -130,6 +130,54 @@ pub fn device_link(reference:&Path,candidate:&Path,destination:&Path,intent:Inte
  use std::io::Write;staged.write_all(&bytes).map_err(err)?;staged.as_file().sync_all().map_err(err)?;
  staged.persist_noclobber(destination).map_err(err)?;Ok(report)
 }
+
+/// Export monitor-encoded before/after previews, embedded with the exact
+/// selected RGB display ICC. Use a color-managed external viewer, not raw GPUI
+/// texture display. This is a prediction; the monitor must be calibrated.
+#[derive(Clone,Copy,Debug)]
+pub struct ProofOptions{pub intent:Intent,pub simulate_media:bool,pub bpc:bool,pub assume_untagged:bool}
+fn proof_pixels(input:&Input,monitor:&Profile,printer:&Profile,indices:&[usize],options:ProofOptions)->R<Vec<u8>>{
+ let proof_intent=if options.simulate_media{Intent::AbsoluteColorimetric}else{Intent::RelativeColorimetric};
+ let flags=if options.bpc&&!options.simulate_media{Flags::SOFTPROOFING|Flags::BLACKPOINT_COMPENSATION}else{Flags::SOFTPROOFING};
+ let mut out=vec![[0u8;3];indices.len()];
+ match &input.pixels{
+  Pixels::Rgb(p)=>{
+   let t:Transform<[u16;3],[u8;3]>=Transform::new_proofing(&input.profile,PixelFormat::RGB_16,monitor,PixelFormat::RGB_8,printer,options.intent,proof_intent,flags).map_err(err)?;
+   let v:Vec<_>=indices.iter().map(|&i|p[i]).collect();t.transform_pixels(&v,&mut out);
+  }
+  Pixels::Cmyk(p)=>{
+   let t:Transform<[u16;4],[u8;3]>=Transform::new_proofing(&input.profile,PixelFormat::CMYK_16,monitor,PixelFormat::RGB_8,printer,options.intent,proof_intent,flags).map_err(err)?;
+   let v:Vec<_>=indices.iter().map(|&i|p[i]).collect();t.transform_pixels(&v,&mut out);
+  }
+ }
+ Ok(out.into_iter().flatten().collect())
+}
+fn tagged_png(path:&Path,w:u32,h:u32,rgb:&[u8],icc:&[u8])->R<()>{
+ use image::ImageEncoder;
+ let mut encoder=image::codecs::png::PngEncoder::new(BufWriter::new(File::create(path).map_err(err)?));
+ encoder.set_icc_profile(icc.to_vec()).map_err(err)?;
+ encoder.write_image(rgb,w,h,image::ExtendedColorType::Rgb8).map_err(err)
+}
+pub fn export_proof(source:&Path,reference:&Path,candidate:&Path,display:&Path,root:&Path,options:ProofOptions)->R<PathBuf>{
+ let a=crate::comparison::open_printer(reference)?;let b=crate::comparison::open_printer(candidate)?;
+ if fs::metadata(display).map_err(err)?.len()>128*1024*1024{return Err("Monitor ICC exceeds 128 MiB".into())}
+ let display_data=fs::read(display).map_err(err)?;
+ let monitor=Profile::new_icc(&display_data).map_err(err)?;
+ if monitor.color_space()!=ColorSpaceSignature::RgbData||monitor.device_class()!=lcms2::ProfileClassSignature::DisplayClass{return Err("Choose an RGB display/monitor ICC profile, not a printer or DeviceLink profile".into())}
+ let input=load(source,&a,options.assume_untagged)?;
+ let (tw,th,idx)=thumb_indices(input.width,input.height);
+ let stage=tempfile::tempdir_in(root).map_err(err)?;
+ for (name,printer) in [("before_monitor.png",&a),("after_monitor.png",&b)]{
+  let pixels=proof_pixels(&input,&monitor,printer,&idx,options)?;
+  tagged_png(&stage.path().join(name),tw,th,&pixels,&display_data)?;
+ }
+ fs::write(stage.path().join("proof_settings.txt"),format!("Source: {}\nReference: {}\nCandidate: {}\nMonitor: {}\nIntent: {:?}\nSimulate media: {}\nBlack point compensation requested: {} (disabled for absolute media simulation)\n{} x {} preview\nOpen in a color-managed application on the calibrated monitor. PNG contains the chosen monitor ICC. Do not assign sRGB or use this file as print separations. Predicted appearance, not a physical measurement.",source.display(),reference.display(),candidate.display(),display.display(),options.intent,options.simulate_media,options.bpc,tw,th)).map_err(err)?;
+ let name=source.file_stem().ok_or("Missing filename")?.to_string_lossy();
+ let dest=root.join(format!("{name}_SoftProof"));
+ if dest.exists(){return Err("Soft proof directory already exists".into())}
+ fs::rename(stage.path(),&dest).map_err(err)?;Ok(dest)
+}
+
 #[cfg(test)]mod tests{
  use super::*;
  #[test]fn native_device_link_samples(){
@@ -138,6 +186,15 @@ pub fn device_link(reference:&Path,candidate:&Path,destination:&Path,intent:Inte
  let r=device_link(&a,&b,&out,Intent::RelativeColorimetric).unwrap();
  assert_eq!(r.sample_count,6561);assert!(r.maxima[3]<=0.01);assert!(r.max_channel_difference.is_finite());
  assert!(device_link(&a,&b,&out,Intent::RelativeColorimetric).is_err());
+ }
+ #[test]fn monitor_proof_embeds_display_profile(){
+ let d=tempfile::tempdir().unwrap();let a=d.path().join("a.icc");let b=d.path().join("b.icc");let monitor=d.path().join("display.icc");let source=d.path().join("input.png");
+ crate::synthetic_cmyk_v4(false).save_new(&a).unwrap();crate::synthetic_cmyk_v4(true).save_new(&b).unwrap();
+ let data=Profile::new_srgb().icc().unwrap();std::fs::write(&monitor,&data).unwrap();
+ tagged_png(&source,2,1,&[80,100,120,120,180,210],&data).unwrap();
+ let out=export_proof(&source,&a,&b,&monitor,d.path(),ProofOptions{intent:Intent::RelativeColorimetric,simulate_media:false,bpc:false,assume_untagged:false}).unwrap();
+ let mut decoder=image::ImageReader::open(out.join("after_monitor.png")).unwrap().into_decoder().unwrap();
+ assert_eq!(decoder.dimensions(),(2,1));assert_eq!(decoder.icc_profile().unwrap().unwrap(),data);
  }
  #[test]fn thumbnails(){let (w,h,i)=thumb_indices(1280,640);assert_eq!((w,h,i.len()),(640,320,204800));assert!(i.iter().all(|&v|v<1280*640));}
  #[test]fn rejects_huge(){assert!(check_size(10000,10000).is_err());}

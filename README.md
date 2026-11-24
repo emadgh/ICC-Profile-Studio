@@ -94,3 +94,7 @@ Streaming is selectable for interleaved strip-based TIFF, with up to 2 million p
 ### Paper / Substrate Color
 
 Profile Inspector reads the stored ICC mediaWhitePointTag (`wtpt`) with LittleCMS and shows normalized XYZ, derived D50 Lab, and an approximate sRGB swatch if conversion succeeds. Missing or invalid values are shown as unavailable, never replaced with the header illuminant. A stored D50 white is not proof of the physical substrate color. Direct instrument connection/live acquisition is out of scope; external CSV/TI3 import remains supported.
+
+### Monitor Soft Proof
+
+Select a source image, printer reference/candidate and actual RGB monitor ICC. LittleCMS native proofing exports before/after monitor-encoded previews with the display ICC embedded, plus settings. Absolute mode simulates media white; optional BPC applies only to relative mode. Use an external color-managed viewer on the calibrated display. GPUI itself is not asserted to be color-managed. Preview generation retains the 24 MP input limit and 640 px longest-side output. CI pending.

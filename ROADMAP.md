@@ -94,6 +94,12 @@
 - [x] Synthetic native ICC/BigTIFF integration tests added (not yet run in CI), plus native selective correction and DeviceLink tests.
 - [ ] CI and end-to-end real large-file/RIP regression; tiled TIFF, planar input, metadata preservation and calibrated monitor proof. No claim of unrestricted file-size support.
 
+## Monitor proofing
+
+- [x] LittleCMS native proofing transform with explicitly selected RGB display ICC, relative/absolute media simulation, optional relative BPC, RGB/CMYK source ICC handling and paired tagged PNG exports. Proof viewed externally in a color-managed application; GPUI raw texture preview is not calibrated.
+- [x] Test of monitor ICC embedding and proof pipeline added.
+- [ ] CI, real calibrated monitor visual comparison, large-file proof sampling, integrated color-managed GPUI display and out-of-gamut overlay.
+
 ## Release engineering
 
 - [x] Studio-specific version file (0.9.0-beta.1), immutable separate Studio prerelease packaging with EXE, SHA256 and ZIP; legacy release kept independent.
