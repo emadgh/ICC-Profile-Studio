@@ -1,6 +1,6 @@
 //! Sample the effective separation gamut via LittleCMS, not only the
 //! unchanged physical A2B model. Both profiles use the same D50 Lab targets.
-use lcms2::{Profile,PixelFormat,Transform,Intent,CIELab,CIELabExt,CIEXYZ,CIEXYZExt,ColorSpaceSignature,ProfileClassSignature};
+use lcms2::{Profile,Intent,CIELab,CIELabExt,CIEXYZ,CIEXYZExt};
 use std::path::Path;
 #[derive(Clone,Debug)]
 pub struct Cloud {pub points:Vec<[f32;3]>,pub sampled:usize,pub errors:Vec<f64>,pub surface:Option<crate::gamut_surface::Surface>}
@@ -17,18 +17,15 @@ pub fn sample(path:&Path,grid:usize)->Result<Cloud,String>{
  if !(5..=33).contains(&grid){return Err("Grid must be 5..33".into())}
  if std::fs::metadata(path).map_err(|e|e.to_string())?.len()>128*1024*1024{return Err("ICC exceeds 128 MiB".into())}
  let p=Profile::new_icc(&std::fs::read(path).map_err(|e|e.to_string())?).map_err(|e|e.to_string())?;
- if p.color_space()!=ColorSpaceSignature::CmykData||p.device_class()!=ProfileClassSignature::OutputClass{return Err("Gamut preview requires a CMYK printer ICC.".into())}
- let xyz=Profile::new_xyz();let white=CIEXYZ{X:0.9642,Y:1.,Z:0.8249};
+ let native=crate::print_space::Roundtrip::new(&p,Intent::RelativeColorimetric)?;
+ let white=CIEXYZ{X:0.9642,Y:1.,Z:0.8249};
  let values:Vec<[f64;3]>=targets(grid).into_iter().filter_map(|v|{
   let t=CIELab{L:v[0],a:v[1],b:v[2]}.to_xyz(&white);
   let xyz=[t.X,t.Y,t.Z];
   xyz.iter().all(|v|v.is_finite()&&*v>=0.&&*v<2.).then_some(xyz)
  }).collect();
  if values.is_empty(){return Err("No valid PCS targets".into())}
- let separation:Transform<[f64;3],[u16;4]>=Transform::new(&xyz,PixelFormat::XYZ_DBL,&p,PixelFormat::CMYK_16,Intent::RelativeColorimetric).map_err(|e|e.to_string())?;
- let appearance:Transform<[u16;4],[f64;3]>=Transform::new(&p,PixelFormat::CMYK_16,&xyz,PixelFormat::XYZ_DBL,Intent::RelativeColorimetric).map_err(|e|e.to_string())?;
- let mut device=vec![[0u16;4];values.len()];let mut result=vec![[0f64;3];values.len()];
- separation.transform_pixels(&values,&mut device);appearance.transform_pixels(&device,&mut result);
+ let result=native.apply(&values)?;
  let mut points=Vec::with_capacity(result.len());let mut errors=Vec::with_capacity(result.len());
  for (v,target) in result.into_iter().zip(&values){
   let l=CIEXYZ{X:v[0],Y:v[1],Z:v[2]}.to_lab(&white);
@@ -42,7 +39,7 @@ pub fn sample(path:&Path,grid:usize)->Result<Cloud,String>{
  let mut seen=std::collections::HashSet::new();
  points.retain(|p|seen.insert(p.map(|v|(v*4.).round() as i32)));
  if points.is_empty(){return Err("LittleCMS produced no usable gamut points".into())}
- // Adaptive Lab box concentrates samples on the actual ceramic gamut.
+ // Adaptive Lab box concentrates samples on the actual printer gamut.
  // Padding allows tolerance contours to extend beyond sampled extrema.
  let mut lo=[f32::INFINITY;3];let mut hi=[f32::NEG_INFINITY;3];
  for v in &points{for j in 0..3{lo[j]=lo[j].min(v[j]);hi[j]=hi[j].max(v[j]);}}
@@ -59,8 +56,7 @@ pub fn sample(path:&Path,grid:usize)->Result<Cloud,String>{
   }
  }}}
  if !sample_xyz.is_empty(){
-  let mut dev=vec![[0u16;4];sample_xyz.len()];let mut actual=vec![[0f64;3];sample_xyz.len()];
-  separation.transform_pixels(&sample_xyz,&mut dev);appearance.transform_pixels(&dev,&mut actual);
+  let actual=native.apply(&sample_xyz)?;
   for ((i,lab),v) in sample_indices.into_iter().zip(target_lab).zip(actual){
    let l=CIEXYZ{X:v[0],Y:v[1],Z:v[2]}.to_lab(&white);
    let e=l.cie2000_delta_e(&lab,1.,1.,1.);if e.is_finite()&&e>=0.{field[i]=e.min(20.);}
@@ -92,5 +88,9 @@ pub fn project(lab:[f32;3],yaw:f32,pitch:f32)->[f32;3]{
  #[test]fn grid_endpoints(){let t=targets(9);assert_eq!(t.len(),729);assert_eq!(t[0],[0.,-128.,-128.]);assert_eq!(t[728],[100.,127.,127.]);}
  #[test]fn projection_origin(){assert_eq!(project([50.,0.,0.],0.7,0.5),[0.,0.,0.]);}
  #[test]fn rotation_preserves_length(){let q=project([80.,30.,-20.],1.2,0.8);assert!((q.iter().map(|v|v*v).sum::<f32>()-2200.).abs()<0.01);}
+ #[test]fn six_channel_gamut(){
+  let d=tempfile::tempdir().unwrap();let p=d.path().join("six.icc");crate::print_space::fixture(6).save_new(&p).unwrap();
+  let r=sample(&p,9).unwrap();assert!(r.sampled>0);assert!(!r.points.is_empty());assert!(r.errors.iter().all(|e|e.is_finite()));
+ }
  #[test]fn rejects_rgb(){let d=tempfile::tempdir().unwrap();let p=d.path().join("rgb.icc");std::fs::write(&p,Profile::new_srgb().icc().unwrap()).unwrap();assert!(sample(&p,9).is_err());}
 }

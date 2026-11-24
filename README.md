@@ -35,3 +35,5 @@ Download the [Windows artifact](https://github.com/emadgh/color-convert-rust/act
 Default and sole executable: icc-profile-studio. Manual prerelease publishing is immutable. See [ROADMAP.md](ROADMAP.md) and [PROFILE_WORKFLOW.md](PROFILE_WORKFLOW.md). CI success does not establish Windows interaction or physical print accuracy.
 
 Beta.12: grouped navigation, neutral charcoal/orange theme, developer credit and About, five-language UI dictionary with English fallback. High-quality nonconvex gamut only; approximate sampled occupancy volume. Full translation/RTL and multichannel expansion remain in development.
+
+Beta.13: native LittleCMS forward pipeline inversion in the four-channel Rebuilder supports native-decoded parametric and nonuniform A2B LUTs, preserving original A2B bytes. CMYK and nCLR output profiles can use dynamic 16-bit native gamut and inspection, and simple-LUT mathematical channel/TAC bounds. Full multichannel editing and unsupported reverse structures are not yet supported.

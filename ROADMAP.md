@@ -38,3 +38,9 @@ Lean, vendor-independent GPUI application for CMYK and multichannel output ICCs 
 - beta.11 Windows GPUI CI passed (45476241161); beta.12 CI pending. Next: parametric curves and broader LUT structures, dynamic multichannel.
 
 - Expanded locale tables to additional editing/analysis labels and descriptions; detailed diagnostics and some dynamic strings remain English. Navigation and key action icons use lightweight monochrome glyphs; no icon-font dependency.
+
+## beta.13 — native LUT support and multichannel analysis
+- beta.12 Windows GPUI CI successful (45477839103), 72 tests.
+- Custom CMYK/4CLR Rebuilder evaluates native A2B1 pipeline (LCMS) without re-encoding it. Supports valid parametric curves, single-gamma curves, nonuniform CLUT axes and supported mAB stages in native forward pipeline; v2 mft1/mft2 input. Rebuilds B2A as bounded identity-curve tables. Original A2B payloads remain unchanged. Existing strict parser still rejects unsupported reverse curve/axis structures; standalone Tone/Reorder/Version editors not generalized. Regression tests cover parametric forward and nonuniform axes. Native interpolation is used rather than custom multilinear forward prediction.
+- Dynamic native 16-bit CMYK/nCLR format mapping (2–15 channels), gamut roundtrip for supported printer profiles and four-intent inspection with dynamic ink maxima, channel names, simple equal-grid sampled-LUT strict mathematical bounds. Multichannel bounds use conservative global envelope for nonlinear curves; no guessed black channel. Tests exercise 6CLR native transforms, zero channel, bounds and gamut. Other counts mapped but not transform-tested individually; LCMS can reject unsupported structures. Comparison/gradient/editing and multichannel Rebuilder remain pending. Full i18n/RTL and Windows runtime checks pending.
+- References: https://www.color.org/icc-1_specification/ and https://docs.rs/lcms2/latest/lcms2/struct.PixelFormat.html. CI pending.

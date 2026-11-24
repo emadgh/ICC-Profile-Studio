@@ -61,5 +61,5 @@ pub fn run(j:Job,progress:impl Fn(String))->R<String>{
  let name=j.destination.file_stem().unwrap_or_default().to_string_lossy();
  output.describe(&name);
  output.save_new(&j.destination)?;
- Ok(format!("Saved: {}\nVerified maxima (device values): {:.3}% / {:.3}% / {:.3}% / {:.3}%\nTAC upper bound: {:.3}% | LittleCMS: {} pipeline samples, peak {:.3}%\nTest a printed chart after firing before production.",j.destination.display(),max[0]*100.,max[1]*100.,max[2]*100.,max[3]*100.,bounds.tac*100.,native.count,native.tac*100.))
+ Ok(format!("Saved: {}\nVerified maxima (device values): {:.3}% / {:.3}% / {:.3}% / {:.3}%\nTAC upper bound: {:.3}% | LittleCMS: {} pipeline samples, peak {:.3}%\nTest a printed chart before production.",j.destination.display(),max[0]*100.,max[1]*100.,max[2]*100.,max[3]*100.,bounds.tac*100.,native.count,native.tac*100.))
 }

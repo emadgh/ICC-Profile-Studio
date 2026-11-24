@@ -1,3 +1,4 @@
+pub mod print_space;
 pub mod i18n;
 pub mod system_profiles;
 pub mod versioning;
@@ -132,15 +133,25 @@ impl Profile {
   self.check()?;
   if self.pcs()!="Lab " || !(self.header[8]==2||self.header[8]==4){return Err("Custom engine requires ICC v2/v4 Lab PCS".into())}
   let forward=self.tags.get(b"A2B1").ok_or("Custom engine requires A2B1")?;
-  if self.header[8]==4 && !forward.starts_with(b"mAB "){return Err("ICC v4 custom engine requires A2B1 mAB (lutAToBType); v4 legacy LUT encoding is not supported".into())}
-  if self.header[8]==2 && !forward.starts_with(b"mft2"){return Err("ICC v2 custom engine requires A2B1 mft2".into())}
-  let lut=Lut::parse(forward)?;
-  if lut.inputs!=4 || lut.outputs!=3{return Err("Expected A2B1 4 -> 3".into())}
+  if self.tags.keys().any(|k|k.starts_with(b"D2B")){return Err("Alternate D2B transforms are not supported by rebuilding".into())}
+  if self.header[8]==4 && !forward.starts_with(b"mAB "){return Err("ICC v4 custom engine requires A2B1 mAB".into())}
+  if self.header[8]==2 && !forward.starts_with(b"mft2")&&!forward.starts_with(b"mft1"){return Err("ICC v2 custom engine requires A2B1 mft1 or mft2".into())}
+  // Evaluate the original native pipeline; retain its exact encoded curves,
+  // unequal CLUT axes and interpolation rather than sampling and re-encoding
+  // the forward model. The new reverse LUT remains bounded and independent.
+  let native=lcms2::Profile::new_icc(&self.bytes()?).map_err(|e|format!("LittleCMS: {e}"))?;
+  let lcms2::Tag::Pipeline(lut)=native.read_tag(lcms2::TagSignature::AToB1Tag)else{return Err("LittleCMS could not decode A2B1".into())};
+  if lut.input_channels()!=4||lut.output_channels()!=3{return Err("Expected A2B1 4 -> 3".into())}
+  let predict=|x:[f64;4]|->R<[f64;3]>{
+   let mut y=[0f32;3];lut.eval(&x.map(|v|v as f32),&mut y);
+   if y.iter().any(|v|!v.is_finite()||*v< -0.00002||*v>1.00002){return Err("Invalid native A2B1 normalized output".into())}
+   Ok(y.map(|v|f64::from(v).clamp(0.,1.)))
+  };
   if !(9..=33).contains(&grid) || !(0.0..=4.0).contains(&tac) || caps.iter().any(|v|!v.is_finite()||!(0.0..=1.0).contains(v)){return Err("Invalid settings".into())}
   let mut seeds=Vec::new();
   for i in 0..625usize{
    let mut q=i;let mut x=[0.;4];for j in (0..4).rev(){x[j]=caps[j]*(q%5) as f64/4.;q/=5;}
-   if valid(x,caps,tac){seeds.push((x,lut.eval4(x))); }
+   if valid(x,caps,tac){seeds.push((x,predict(x)?)); }
   }
   let mut table=Vec::with_capacity(grid.pow(3)*8);
   let denom=(grid-1) as f64;
@@ -158,11 +169,11 @@ impl Profile {
       let prev=best;
       for j in 0..4{for dir in [-1.,1.]{
        let mut x=best;x[j]=(x[j]+dir*step).clamp(0.,caps[j]);
-       if valid(x,caps,tac){let d=distance(lut.eval4(x),target);if d+1e-12<cost{best=x;cost=d;}}
+       if valid(x,caps,tac){let d=distance(predict(x)?,target);if d+1e-12<cost{best=x;cost=d;}}
       }}
       for j in 0..4{for k in j+1..4{for dir in [-1.,1.]{
        let mut x=best;let delta=dir*step;x[j]+=delta;x[k]-=delta;
-       if valid(x,caps,tac){let d=distance(lut.eval4(x),target);if d+1e-12<cost{best=x;cost=d;}}
+       if valid(x,caps,tac){let d=distance(predict(x)?,target);if d+1e-12<cost{best=x;cost=d;}}
       }}}
       if prev==best{break}
      }
@@ -196,7 +207,7 @@ impl Lut{
   if t.len()<52{return Err("Truncated LUT".into())}
   let (width,mut off,ni,no)=match &t[..4]{b"mft1"=>(1,48,256,256),b"mft2"=>(2,52,u16at(t,48)? as usize,u16at(t,50)? as usize),_=>return Err("Only mft1/mft2 output LUTs can be verified".into())};
   let (inputs,outputs,grid)=(t[8] as usize,t[9] as usize,t[10] as usize);
-  if inputs==0||inputs>4||outputs==0||outputs>4||grid<2||ni<2||no<2{return Err("Invalid LUT dimensions".into())}
+  if inputs==0||inputs>15||outputs==0||outputs>15||grid<2||ni<2||no<2{return Err("Invalid LUT dimensions".into())}
   // Matrix must be identity: we only support plain CLUT tables here.
   for i in 0..9{if u32at(t,12+i*4)?!=if i%4==0{65536}else{0}{return Err("Nonidentity LUT matrix is unsupported".into())}}
   let count=grid.checked_pow(inputs as u32).and_then(|v|v.checked_mul(outputs)).ok_or("LUT overflow")?;
@@ -211,7 +222,7 @@ impl Lut{
  fn parse_v4(t:&[u8])->R<Self>{
   if t.len()<32{return Err("Truncated ICC v4 LUT".into())}
   let inputs=t[8] as usize;let outputs=t[9] as usize;
-  if !(1..=4).contains(&inputs)||!(1..=4).contains(&outputs){return Err("Invalid v4 LUT channel count".into())}
+  if !(1..=15).contains(&inputs)||!(1..=15).contains(&outputs){return Err("Invalid v4 LUT channel count".into())}
   let b=u32at(t,12)? as usize;let matrix=u32at(t,16)? as usize;
   let m=u32at(t,20)? as usize;let cl=u32at(t,24)? as usize;let a=u32at(t,28)? as usize;
   if matrix!=0||m!=0{return Err("v4 LUT with matrix/M curves is not supported by this engine".into())}
@@ -296,6 +307,32 @@ mod tests{
   let caps=[1.,1.,1.,0.];let result=p.custom_rebuild(caps,3.,9,|_|{}).unwrap();
   assert_eq!(result.version_major(),4);assert!(result.tags[b"B2A1"].starts_with(b"mBA "));
   assert_eq!(Profile::parse(&result.bytes().unwrap()).unwrap().verify(caps).unwrap()[3],0.);
+ }
+ #[test]fn native_rebuild_keeps_parametric_forward(){
+  let mut p=synthetic_cmyk_v4(true);
+  let mut a=p.tags[b"A2B1"].clone();
+  let offset=a.len() as u32;a[28..32].copy_from_slice(&offset.to_be_bytes());
+  for _ in 0..4{a.extend(b"para\0\0\0\0");put16(&mut a,0);put16(&mut a,0);put32(&mut a,2*65536);}
+  p.tags.insert(*b"A2B1",a.clone());
+  assert!(Lut::parse(&a).is_err()); // old strict sampled parser intentionally does not approximate
+  let out=p.custom_rebuild([1.,1.,1.,0.],1.,9,|_|{}).unwrap();
+  assert_eq!(out.tags[b"A2B1"],a);
+  let (b,n)=crate::validation::verify_output(&out,[1.,1.,1.,0.],Some(1.)).unwrap();
+  assert_eq!(b.channels[3],0.);assert_eq!(n.channels[3],0.);
+ }
+ #[test]fn native_rebuild_keeps_unequal_forward_axes(){
+  let mut p=synthetic_cmyk_v4(true);
+  let mut a=b"mAB \0\0\0\0".to_vec();a.extend([4,3,0,0]);
+  let cl=32+3*16;let data=2*3*2*2*3*2;
+  for v in [32,0,0,cl as u32,(cl+20+data) as u32]{put32(&mut a,v);}
+  identity_curves(&mut a,3);a.extend([2,3,2,2]);a.extend([0;12]);a.extend([2,0,0,0]);
+  for c in 0..2{for m in 0..3{for y in 0..2{for k in 0..2{
+   for v in [1.-0.15*(c as f64+m as f64/2.+y as f64+k as f64),0.4+0.1*m as f64,0.4+0.1*y as f64]{put16(&mut a,(v*65535.).round() as u16);}
+  }}}}
+  identity_curves(&mut a,4);p.tags.insert(*b"A2B1",a.clone());
+  assert!(Lut::parse(&a).is_err());
+  let out=p.custom_rebuild([1.,1.,1.,0.],1.,9,|_|{}).unwrap();
+  assert_eq!(out.tags[b"A2B1"],a);assert_eq!(out.verify([1.,1.,1.,0.]).unwrap()[3],0.);
  }
  #[test]fn rejects_bad_header(){assert!(Profile::parse(&[0;132]).is_err());}
  #[test]fn channel_names(){assert_eq!(fixture().channels(),vec!["Cyan","Magenta","Yellow","Black"]);}

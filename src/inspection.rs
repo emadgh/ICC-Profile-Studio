@@ -6,7 +6,7 @@ use std::path::Path;
 #[derive(Debug, Clone)]
 pub struct IntentResult {
     pub name: &'static str,
-    pub result: Result<[f64; 4], String>,
+    pub result: Result<Vec<f64>, String>,
 }
 /// Stored media white point, not the ICC header illuminant or a new measurement.
 #[derive(Debug, Clone)]
@@ -42,6 +42,8 @@ pub struct Inspection {
     pub tac: Option<f64>,
     pub media_white: Option<MediaWhite>,
     pub is_output: bool,
+    pub channel_names: Vec<String>,
+    pub multichannel_bounds: Option<Result<crate::print_space::Bounds,String>>,
     pub strict_bounds: Option<Result<crate::validation::Bounds,String>>,
     pub intents: Vec<IntentResult>,
 }
@@ -53,37 +55,24 @@ pub fn inspect(path: &Path) -> Result<Inspection, String> {
     let color_space = format!("{:?}", profile.color_space());
     let mut intents = Vec::new();
     let mut tac = None;
-    if profile.color_space() == lcms2::ColorSpaceSignature::CmykData {
+    let parsed=crate::Profile::parse(&data);
+    let channel_names=parsed.as_ref().map(|p|p.channels()).unwrap_or_default();
+    if let Ok(f)=crate::print_space::for_profile(&profile) {
         let estimate = profile.detect_tac();
-        if estimate.is_finite() && estimate > 0.0 && estimate <= 400.0 {
-            tac = Some(estimate);
-        }
-        let srgb = Profile::new_srgb();
-        let mut samples = Vec::<[u8;3]>::with_capacity(729);
-        for r in 0..=8 { for g in 0..=8 { for b in 0..=8 {
-            samples.push([(r*255/8) as u8,(g*255/8) as u8,(b*255/8) as u8]);
-        }}}
+        if estimate.is_finite() && estimate > 0.0 && estimate <= 100.0*f.channels as f64 { tac=Some(estimate); }
+        let mut samples=Vec::<[u8;3]>::with_capacity(729);
+        for r in 0..=8 { for g in 0..=8 { for b in 0..=8 { samples.push([(r*255/8) as u8,(g*255/8) as u8,(b*255/8) as u8]); }}}
         for (name,intent) in [("Perceptual",Intent::Perceptual),("Relative colorimetric",Intent::RelativeColorimetric),("Saturation",Intent::Saturation),("Absolute colorimetric",Intent::AbsoluteColorimetric)] {
-            let result = (|| -> Result<[f64;4],String> {
-                let to_device: Transform<[u8;3],[u16;4]> = Transform::new(&srgb,PixelFormat::RGB_8,&profile,PixelFormat::CMYK_16,intent).map_err(|e|e.to_string())?;
-                let to_rgb: Transform<[u16;4],[u8;3]> = Transform::new(&profile,PixelFormat::CMYK_16,&srgb,PixelFormat::RGB_8,intent).map_err(|e|e.to_string())?;
-                let mut device = vec![[0u16;4];samples.len()];
-                let mut roundtrip = vec![[0u8;3];samples.len()];
-                to_device.transform_pixels(&samples,&mut device);
-                to_rgb.transform_pixels(&device,&mut roundtrip);
-                let mut max = [0.0_f64;4];
-                for pixel in device { for j in 0..4 { max[j] = max[j].max(pixel[j] as f64 * 100.0 / 65535.0); }}
-                Ok(max)
-            })();
-            intents.push(IntentResult{name,result});
+            intents.push(IntentResult{name,result:crate::print_space::sample_rgb(&profile,&samples,intent)});
         }
     }
     let media_white=media_white(&profile);
     let is_output=profile.device_class()==ProfileClassSignature::OutputClass;
-    let strict_bounds=if is_output {Some(crate::Profile::parse(&data).and_then(|p|crate::validation::bounds(&p)))}else{None};
+    let strict_bounds=if is_output&&profile.color_space()==lcms2::ColorSpaceSignature::CmykData {Some(parsed.as_ref().map_err(Clone::clone).and_then(crate::validation::bounds))}else{None};
+    let multichannel_bounds=if is_output&&profile.color_space()!=lcms2::ColorSpaceSignature::CmykData&&crate::print_space::for_profile(&profile).is_ok(){Some(parsed.as_ref().map_err(Clone::clone).and_then(crate::print_space::bounds))}else{None};
     Ok(Inspection{
         version:profile.version(),device_class:format!("{:?}",profile.device_class()),
-        color_space,pcs:format!("{:?}",profile.pcs()),size,media_white,is_output,strict_bounds,
+        color_space,pcs:format!("{:?}",profile.pcs()),size,media_white,is_output,channel_names,multichannel_bounds,strict_bounds,
         tags:profile.tag_signatures().iter().map(|s|format!("{s:?}")).collect(),tac,intents,
     })
 }

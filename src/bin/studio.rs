@@ -496,7 +496,7 @@ impl Studio {
     if let (Some(a),Some(b))=(&a.surface,&b.surface){
      p=p.child(format!("Estimated nonconvex volume (Lab³): {:.0} → {:.0} ({:+.2}%)",a.volume,b.volume,if a.volume>0.{100.*(b.volume/a.volume-1.)}else{0.}));
     }
-   }else{p=p.child("Select two valid CMYK printer profiles to calculate target coverage differences.");}
+   }else{p=p.child("Select two valid CMYK or nCLR printer profiles to calculate target coverage differences.");}
   }
   p.child("Coverage is a sampled round-trip reproduction test, not proof of physical achievability. Volume estimates integrate sampled cell occupancy at ΔE00 ≤ 2; resolution dependent, not a measured physical gamut.")
  }
@@ -775,6 +775,7 @@ impl Studio {
    panel=panel.child(format!("ICC v{:.2}  |  {}  |  {}",r.version,r.color_space,r.pcs))
     .child(format!("Class: {}  |  {:.2} MiB",r.device_class,r.size as f64/1048576.))
     .child(format!("Estimated total ink: {}",r.tac.map(|v|format!("{v:.1}%")).unwrap_or("Not available".into())))
+    .child(format!("{} channels: {}",r.channel_names.len(),r.channel_names.join(" · ")))
     ;
    let mut white=div().flex().flex_col().gap_2().p_3().rounded_md().bg(rgb(0x292929))
     .child(div().text_lg().child(if r.is_output{tr("Paper / Substrate Color")}else{tr("Media White Point")}))
@@ -801,12 +802,20 @@ impl Studio {
   if let Some(e)=&self.error{panel=panel.child(format!("Open failed: {e}"));}
   if let Some(r)=&self.report{
    panel=panel.child("ICC opened by LittleCMS.");
-   if r.intents.is_empty(){panel=panel.child("CMYK-specific checks are not available for this color space.");}
+   if r.intents.is_empty(){panel=panel.child("Print-profile transform checks are not available for this color space.");}
    for check in &r.intents{
-    let line=match &check.result{Ok(max)=>format!("Transforms created • sampled maxima {:.2} / {:.2} / {:.2} / {:.2}%",max[0],max[1],max[2],max[3]),Err(e)=>format!("Failed: {e}")};
+    let line=match &check.result{Ok(max)=>format!("Transforms created • sampled maxima {}",max.iter().map(|v|format!("{v:.2}%")).collect::<Vec<_>>().join(" / ")),Err(e)=>format!("Failed: {e}")};
     panel=panel.child(div().flex().flex_col().gap_1().p_3().rounded_md().bg(rgb(0x292929)).child(check.name).child(div().text_sm().child(line)));
    }
    panel=panel.child("729 sRGB samples per intent. Sampled values are not exhaustive.");
+   if let Some(bounds)=&r.multichannel_bounds{
+    panel=panel.child(div().text_lg().child(tr("Strict LUT bounds")));
+    match bounds{
+     Ok(b)=>{for (j,v) in b.channels.iter().enumerate(){panel=panel.child(format!("{}: {:.4}%",r.channel_names.get(j).cloned().unwrap_or_else(||format!("Channel {}",j+1)),100.*v));}panel=panel.child(format!("TAC upper bound: {:.4}% ({})",100.*b.tac,if b.exact_node_tac{"affine output curves; exact node maximum"}else{"conservative global envelope; may overestimate"}));},
+     Err(e)=>panel=panel.child(format!("Not certifiable with supported LUT parser: {e}")),
+    }
+    panel=panel.child("Multichannel inspection and gamut supported; four-channel editing tools remain restricted.");
+   }
    if let Some(bounds)=&r.strict_bounds{
     panel=panel.child(div().text_lg().child(tr("Strict LUT bounds")));
     match bounds{
@@ -831,7 +840,7 @@ impl Studio {
     .child(button(("off",i),"0%").on_click(cx.listener(move|this,_,_,cx|{if !this.busy{this.caps[i]=0.;cx.notify();}})))
     .child(button(("full",i),"100%").on_click(cx.listener(move|this,_,_,cx|{if !this.busy{this.caps[i]=100.;cx.notify();}}))));
   }
-  panel=panel.child(div().flex().gap_2().items_center().child(tr("K presets:")).children([0,5,10].into_iter().map(|v|button(("k-preset",v as usize),format!("{v}%")).on_click(cx.listener(move|this,_,_,cx|{if !this.busy{this.caps[3]=v as f64;cx.notify();}})))))
+  panel=panel.when(profile.cmyk(),|p|p.child(div().flex().gap_2().items_center().child(tr("K presets:")).children([0,5,10].into_iter().map(|v|button(("k-preset",v as usize),format!("{v}%")).on_click(cx.listener(move|this,_,_,cx|{if !this.busy{this.caps[3]=v as f64;cx.notify();}}))))))
    .child(div().flex().items_center().gap_2().child(format!("TAC: {:.0}%",self.tac))
     .child(button("tac-down","−5").on_click(cx.listener(|this,_,_,cx|{if !this.busy{this.tac=(this.tac-5.).max(0.);cx.notify();}})))
     .child(button("tac-up","+5").on_click(cx.listener(|this,_,_,cx|{if !this.busy{this.tac=(this.tac+5.).min(400.);cx.notify();}}))))

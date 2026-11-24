@@ -4,7 +4,7 @@ use super::{Profile,Lut,R,interp};
 use lcms2::{Tag,TagSignature};
 #[derive(Debug,Clone)]
 pub struct Bounds{pub channels:[f64;4],pub tac:f64,pub exact_node_tac:bool}
-fn interval_peak(curve:&[f64],lo:f64,hi:f64)->f64{
+pub(crate) fn interval_peak(curve:&[f64],lo:f64,hi:f64)->f64{
  let mut peak=interp(curve,lo).max(interp(curve,hi));
  let scale=(curve.len()-1) as f64;
  let start=(lo*scale).ceil() as usize;let end=((hi*scale).floor() as usize).min(curve.len()-1);
