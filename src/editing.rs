@@ -266,6 +266,13 @@ mod reorder_verification_tests{
    assert!(r.checks.iter().all(|c|c.max_de<=0.5&&c.max_ink_pp<=0.5&&c.max_tac_pp<=0.5));
   }
  }
+ #[test]fn native_nonidentity_mapping(){
+  let p=crate::print_space::fixture(6);let order=[0,1,2,3,5,4];
+  let q=p.reorder_channels_multi(&order).unwrap();
+  let r=verify_reorder(&p,&q,&order).unwrap();
+  assert_eq!(r.checks.len(),4);
+  assert_eq!(crate::print_space::bounds(&q).unwrap().channels[4],0.);
+ }
  #[test]fn wrong_physical_mapping_rejected(){
   let p=crate::print_space::fixture(6);
   assert!(verify_reorder(&p,&p,&[5,1,2,3,4,0]).is_err());
