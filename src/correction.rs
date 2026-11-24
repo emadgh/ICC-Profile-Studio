@@ -297,3 +297,65 @@ impl Profile{
  }
  #[test]fn bounds_validation(){assert!(constrained([f64::NAN,0.,0.,0.],[1.;4],3.).is_err());assert_eq!(constrained([1.;4],[1.,1.,1.,0.],0.).unwrap(),[0.;4]);}
 }
+
+#[derive(Clone,Debug)]
+pub enum DynamicCorrection{Points(Vec<[f64;5]>),Regions{regions:[Selective;MAX_REGIONS],count:usize}}
+impl Profile{
+ /// nCLR v4 Lab correction, with independent reverse intents and certified limits.
+ /// No assumed black channel. Source forward LUTs stay byte-identical.
+ pub fn bounded_correction_multi(&self,op:DynamicCorrection,grid:usize,tac_percent:f64)->R<Self>{
+  let n=crate::multichannel::channel_count(self)?;
+  if self.version_major()!=4||![17,33].contains(&grid)||!tac_percent.is_finite()||!(0.0..=n as f64*100.).contains(&tac_percent){return Err("Requires nCLR ICC v4 Lab, grid 17/33 and valid TAC".into())}
+  match &op{
+   DynamicCorrection::Points(p)=>{if p.len()!=n{return Err("Point curve count must match channels".into())}for &row in p{validate_points([row;4])?;}},
+   DynamicCorrection::Regions{regions,count}=>{if *count>MAX_REGIONS{return Err("Too many correction regions".into())}validate_regions(&regions[..*count])?;}
+  }
+  let caps=crate::print_space::bounds(self)?.channels;
+  let tac=tac_percent/100.;
+  let native=lcms2::Profile::new_icc(&self.bytes()?).map_err(|e|e.to_string())?;
+  let mut out=self.clone();
+  for (key,sig) in [(b"B2A0",TagSignature::BToA0Tag),(b"B2A1",TagSignature::BToA1Tag),(b"B2A2",TagSignature::BToA2Tag)]{
+   let raw=self.tags.get(key).ok_or("All three B2A intents are required")?;
+   if !raw.starts_with(b"mBA "){return Err("Correction requires simple v4 mBA LUTs".into())}
+   let old=Lut::parse(raw)?;
+   if old.inputs!=3||old.outputs!=n{return Err("Unexpected B2A dimensions".into())}
+   let Tag::Pipeline(pipe)=native.read_tag(sig)else{return Err("LittleCMS could not decode B2A".into())};
+   if pipe.input_channels()!=3||pipe.output_channels() as usize!=n{return Err("Unexpected native pipeline dimensions".into())}
+   let mut result=vec![0f32;n];let mut values=Vec::with_capacity(grid.pow(3)*n);
+   for l in 0..grid{for a in 0..grid{for b in 0..grid{
+    let lab=lab_at(l,a,b,grid);
+    let lab=match &op{DynamicCorrection::Regions{regions,count}=>corrected_regions(lab,&regions[..*count]),_=>lab};
+    pipe.eval(&normalized(lab),&mut result);
+    if result.iter().any(|v|!v.is_finite()||*v< -0.00002||*v>1.00002){return Err("Invalid native source separation".into())}
+    let mut node:Vec<f64>=result.iter().enumerate().map(|(j,&v)|{
+     let v=f64::from(v).clamp(0.,1.);
+     let v=match &op{DynamicCorrection::Points(p)=>super::interp(&p[j],v),_=>v};
+     v.clamp(0.,caps[j])
+    }).collect();
+    let sum=node.iter().sum::<f64>();if sum>tac&&sum>0.{for v in &mut node{*v*=tac/sum;}}
+    values.extend(node.into_iter().map(|v|(v*65535.).floor()/65535.));
+   }}}
+   let lut=Lut{inputs:3,outputs:n,grid,in_curves:vec![vec![0.,1.];3],out_curves:vec![vec![0.,1.];n],clut:values};
+   out.tags.insert(*key,crate::editing::encode(&lut,b"mBA ")?);
+  }
+  out.clean_stale();crate::multichannel::verify(&out,&caps,tac)?;Ok(out)
+ }
+}
+#[cfg(test)]
+mod dynamic_tests{
+ use super::*;
+ #[test]fn nclr_points_preserve_forward_caps_and_tac(){
+  let p=crate::print_space::fixture(6);
+  let mut points=vec![[0.,0.25,0.5,0.75,1.];6];points[0]=[0.,0.6,0.8,0.9,1.];
+  let q=p.bounded_correction_multi(DynamicCorrection::Points(points),17,40.).unwrap();
+  assert_eq!(p.tags[b"A2B1"],q.tags[b"A2B1"]);
+  let b=crate::print_space::bounds(&q).unwrap();assert_eq!(b.channels[5],0.);assert!(b.tac<=0.4+1e-10);
+  assert!(p.bounded_correction_multi(DynamicCorrection::Points(vec![[0.,0.25,0.5,0.75,1.];4]),17,40.).is_err());
+ }
+ #[test]fn nclr_regions_preserve_limits(){
+  let p=crate::print_space::fixture(6);
+  let mut regions=[Selective::default();MAX_REGIONS];regions[0].light=10.;
+  let q=p.bounded_correction_multi(DynamicCorrection::Regions{regions,count:1},17,50.).unwrap();
+  let b=crate::print_space::bounds(&q).unwrap();assert_eq!(b.channels[5],0.);assert!(b.tac<=0.5+1e-10);
+ }
+}
