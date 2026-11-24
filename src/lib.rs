@@ -1,3 +1,4 @@
+pub mod rtl;
 pub mod print_space;
 pub mod i18n;
 pub mod system_profiles;
@@ -54,7 +55,7 @@ impl Profile {
  pub fn pcs(&self)->String{signature(&self.header[20..24])}
  pub fn version_major(&self)->u8{self.header[8]}
  pub fn cmyk(&self)->bool{&self.header[16..20]==b"CMYK"}
- pub fn channels(&self)->Vec<String>{
+ pub fn standard_channels(&self)->Vec<String>{
   let s=self.space();
   let mut names:Vec<String>=match s.as_str(){
    "CMYK"=>["Cyan","Magenta","Yellow","Black"].iter().map(|s|s.to_string()).collect(),
@@ -63,12 +64,45 @@ impl Profile {
    "GRAY"=>vec!["Gray".into()],
    _=>{let n=if s.ends_with("CLR"){s.chars().next().and_then(|c|c.to_digit(16)).unwrap_or(0)}else{0};(1..=n).map(|i|format!("Channel {i}")).collect()}
   };
+  names
+ }
+ /// Colorant table entries in device channel order; names are not inferred
+ /// from the displayed color. PCS coordinates are not measured ink spectra.
+ pub fn colorants(&self)->Vec<Option<(String,[u16;3])>>{
+  let n=self.standard_channels().len();let mut result=vec![None;n];
   if let Some(t)=self.tags.get(b"clrt"){
-   if t.starts_with(b"clrt") && u32at(t,8).ok()==Some(names.len() as u32) && t.len()>=12+38*names.len(){
-    for (i,name) in names.iter_mut().enumerate(){let v=&t[12+i*38..44+i*38];let end=v.iter().position(|&x|x==0).unwrap_or(v.len());let label=String::from_utf8_lossy(&v[..end]).trim().to_string();if !label.is_empty(){*name=label}}
+   if t.starts_with(b"clrt")&&u32at(t,8).ok()==Some(n as u32)&&t.len()>=12+38*n{
+    for (i,out) in result.iter_mut().enumerate(){
+     let o=12+i*38;let v=&t[o..o+32];let end=v.iter().position(|&x|x==0).unwrap_or(v.len());
+     let name=String::from_utf8_lossy(&v[..end]).trim().to_owned();
+     if !name.is_empty()&&!name.chars().any(char::is_control){
+      *out=Some((name,[u16at(t,o+32).unwrap(),u16at(t,o+34).unwrap(),u16at(t,o+36).unwrap()]));
+     }
+    }
    }
   }
-  names
+  result
+ }
+ pub fn channels(&self)->Vec<String>{
+  self.standard_channels().into_iter().zip(self.colorants()).map(|(fallback,v)|v.map(|(name,_)|name).unwrap_or(fallback)).collect()
+ }
+ /// The standard CMYK swatches are UI conventions. The optional v4
+ /// colorant-table swatch is a clipped sRGB rendering of stored PCS data.
+ /// No fabricated ink hues for unlabelled nCLR channels.
+ pub fn channel_swatch(&self,index:usize,embedded:bool)->u32{
+  if embedded&&self.version_major()==4&&&self.header[12..16]==b"prtr"{
+   if let Some(Some((_,v)))=self.colorants().get(index){
+    let lab=if self.pcs()=="Lab "{Some([v[0] as f32*100./65535.,v[1] as f32/257.-128.,v[2] as f32/257.-128.])}
+     else if self.pcs()=="XYZ "{
+      use lcms2::{CIEXYZ,CIEXYZExt};
+      let w=CIEXYZ{X:0.9642,Y:1.,Z:0.8249};
+      let c=CIEXYZ{X:v[0] as f64/32768.,Y:v[1] as f64/32768.,Z:v[2] as f64/32768.}.to_lab(&w);
+      Some([c.L as f32,c.a as f32,c.b as f32])
+     }else{None};
+    if let Some(l)=lab{let [r,g,b]=crate::gamut_raster::lab_rgb(l);return (u32::from(r)<<16)|(u32::from(g)<<8)|u32::from(b);}
+   }
+  }
+  if self.cmyk(){[0x00b7e5,0xe33b91,0xe8c44d,0x161616].get(index).copied().unwrap_or(0x858585)}else{0x858585}
  }
  pub fn check(&self)->R<()>{
   if &self.header[12..16]!=b"prtr" || self.channels().len()!=4{return Err("Only four-channel printer ICC profiles are supported".into())}
@@ -365,4 +399,15 @@ pub(crate) fn synthetic_cmyk_v4(k_zero:bool)->Profile{
  for key in [b"A2B0",b"A2B1",b"A2B2"]{p.tags.insert(*key,forward.clone());}
  for key in [b"B2A0",b"B2A1",b"B2A2"]{p.tags.insert(*key,reverse.clone());}
  p
+}
+
+#[cfg(test)]mod channel_display_tests{
+ use super::*;
+ #[test]fn stored_names_do_not_change_standard_mapping(){
+  let mut p=synthetic_cmyk_v4(true);let mut table=b"clrt\0\0\0\0".to_vec();put32(&mut table,4);
+  for name in ["Blue","Brown","Beige","Black"]{let mut v=name.as_bytes().to_vec();v.resize(32,0);table.extend(v);for x in [32768,32768,32768]{put16(&mut table,x);}}
+  p.tags.insert(*b"clrt",table);
+  assert_eq!(p.channels()[0],"Blue");assert_eq!(p.standard_channels()[0],"Cyan");assert_eq!(p.channel_swatch(0,false),0x00b7e5);assert_ne!(p.channel_swatch(0,true),0x00b7e5);
+  p.tags.remove(b"clrt");assert_eq!(p.channels(),p.standard_channels());
+ }
 }

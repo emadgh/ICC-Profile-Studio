@@ -6,11 +6,11 @@ type R<T>=Result<T,String>;
 #[derive(Debug,Clone,Serialize,Deserialize,PartialEq)]
 #[serde(default)] // Ignore retired library and image-workflow keys in older preferences.
 pub struct Preferences {
- pub schema:u32,pub preview_open:bool,pub three_d:bool,pub wireframe:bool,pub solid:bool,pub profile_colors:bool,pub language:crate::i18n::Language,pub preview_width:f32,pub opacity_2d:u8,pub layout:crate::gamut_raster::CompareLayout,pub floor_contour:bool,
+ pub schema:u32,pub preview_open:bool,pub three_d:bool,pub wireframe:bool,pub solid:bool,pub profile_colors:bool,pub language:crate::i18n::Language,pub embedded_names:bool,pub preview_width:f32,pub opacity_2d:u8,pub layout:crate::gamut_raster::CompareLayout,pub floor_contour:bool,
  pub gamut_grid:usize,pub compare_grid:usize,pub chart_dpi:u32,
 }
 impl Default for Preferences{
- fn default()->Self{Self{schema:1,preview_open:true,three_d:true,wireframe:false,solid:true,profile_colors:true,language:crate::i18n::Language::En,preview_width:360.,opacity_2d:100,layout:crate::gamut_raster::CompareLayout::default(),floor_contour:true,gamut_grid:33,compare_grid:17,chart_dpi:300}}
+ fn default()->Self{Self{schema:1,preview_open:true,three_d:true,wireframe:false,solid:true,profile_colors:true,language:crate::i18n::Language::En,embedded_names:true,preview_width:360.,opacity_2d:100,layout:crate::gamut_raster::CompareLayout::default(),floor_contour:true,gamut_grid:33,compare_grid:17,chart_dpi:300}}
 }
 impl Preferences{
  pub fn validate(&self)->R<()>{

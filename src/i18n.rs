@@ -6,7 +6,8 @@ pub enum Language{#[default] En,Fa,It,Ar,Ru}
 impl Language{pub const ALL:[Self;5]=[Self::En,Self::Fa,Self::It,Self::Ar,Self::Ru];pub fn name(self)->&'static str{match self{Self::En=>"English",Self::Fa=>"فارسی",Self::It=>"Italiano",Self::Ar=>"العربية",Self::Ru=>"Русский"}}pub fn rtl(self)->bool{matches!(self,Self::Fa|Self::Ar)}}
 thread_local!{static ACTIVE:Cell<Language>=const{Cell::new(Language::En)};}
 pub fn set_active(l:Language){ACTIVE.with(|v|v.set(l));}
-pub fn tr(s:&str)->String{let l=ACTIVE.with(Cell::get);let i=match l{Language::En=>0,Language::Fa=>1,Language::It=>2,Language::Ar=>3,Language::Ru=>4};if i==0{return s.into()}ROWS.iter().find(|r|r[0]==s).map(|r|r[i].to_owned()).unwrap_or_else(||s.into())}
+pub fn is_rtl()->bool{ACTIVE.with(|v|v.get().rtl())}
+pub fn tr(s:&str)->String{let l=ACTIVE.with(Cell::get);let i=match l{Language::En=>0,Language::Fa=>1,Language::It=>2,Language::Ar=>3,Language::Ru=>4};let value=ROWS.iter().find(|r|r[0]==s).map(|r|r[i]).unwrap_or(s);crate::rtl::visual(value)}
 const ROWS:&[[&str;5]]=&[
 ["Inspection","بازرسی","Ispezione","الفحص","Проверка"],
 ["Editing","ویرایش","Modifica","التحرير","Редактирование"],
@@ -162,6 +163,17 @@ const ROWS:&[[&str;5]]=&[
 ["Strict LUT bounds","حدود سخت‌گیرانه LUT","Limiti LUT rigorosi","حدود LUT الصارمة","Строгие границы LUT"],
 ["K presets:","پیش‌تنظیم‌های K:","Preimpostazioni K:","إعدادات K المسبقة:","Предустановки K:"],
 ["0% darkness","تیرگی ۰٪","0% oscurità","ظلام 0%","0% затемнения"],
-["100% darkness","تیرگی ۱۰۰٪","100% oscurità","ظلام 100%","100% затемнения"]
+["100% darkness","تیرگی ۱۰۰٪","100% oscurità","ظلام 100%","100% затемнения"],
+["Profile names","نام‌های پروفایل","Nomi profilo","أسماء الملف","Имена профиля"],
+["Standard names","نام‌های استاندارد","Nomi standard","الأسماء القياسية","Стандартные имена"],
+["Channel limits","محدودیت کانال‌ها","Limiti canali","حدود القنوات","Лимиты каналов"],
+["Total ink coverage (TAC)","مجموع پوشش جوهر (TAC)","Copertura totale inchiostro (TAC)","تغطية الحبر الكلية (TAC)","Суммарное покрытие (TAC)"],
+["Closed","بسته","Chiuso","مغلق","Закрыт"],
+["Open","باز","Aperto","مفتوح","Открыт"],
+["Before","قبل","Prima","قبل","До"],
+["After","بعد","Dopo","بعد","После"],
+["Lightness L*","روشنایی L*","Luminosità L*","الإضاءة L*","Светлота L*"],
+["Gradient step ΔE00","اختلاف رنگ گام گرادیان","Passo gradiente ΔE00","خطوة التدرج ΔE00","Шаг градиента ΔE00"],
+["LittleCMS is linked statically. Official ArgyllCMS tools are installed by the portable backend when required.","موتور LittleCMS به صورت استاتیک متصل است. ابزارهای ArgyllCMS در صورت نیاز نصب می‌شوند.","LittleCMS è collegato staticamente. ArgyllCMS viene installato quando necessario.","يتم ربط LittleCMS ثابتًا وتثبيت ArgyllCMS عند الحاجة.","LittleCMS связан статически. ArgyllCMS устанавливается при необходимости."]
 ];
-#[cfg(test)]mod tests{use super::*;#[test]fn five_languages_and_fallback(){for l in Language::ALL{set_active(l);assert!(!tr("Settings").is_empty());assert_eq!(tr("A2B1"),"A2B1");}set_active(Language::Fa);assert_eq!(tr("Settings"),"تنظیمات");assert!(Language::Ar.rtl());}}
+#[cfg(test)]mod tests{use super::*;#[test]fn five_languages_and_fallback(){for l in Language::ALL{set_active(l);assert!(!tr("Settings").is_empty());assert_eq!(tr("A2B1"),"A2B1");}set_active(Language::Fa);assert_eq!(tr("Settings"),crate::rtl::visual("تنظیمات"));assert!(Language::Ar.rtl());}}
