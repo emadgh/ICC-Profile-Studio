@@ -4,6 +4,9 @@ use color_convert_rust::{Profile, backend::{self,Job,Mode}, inspection::{self,In
 use std::{path::PathBuf,sync::mpsc,time::Duration};
 use color_convert_rust::comparison::{self,Comparison};
 use color_convert_rust::editing::{self,Edit};
+#[path = "../gamut_view.rs"] mod gamut_view;
+use color_convert_rust::gamut::{self,Overlay};
+use gamut_view::ViewOptions;
 
 #[derive(Clone,Copy,PartialEq,Eq)]
 enum Page { Dashboard, Inspector, Validator, Rebuilder, Comparison, Curves, Reorder, Metadata, Gamut, Correction, Converter, Lab, Settings, About }
@@ -14,20 +17,20 @@ const PAGES: [(Page,&str);14] = [
 enum Event { Progress(String), Done(Result<String,String>) }
 struct Studio {
  page:Page, source:Option<PathBuf>, profile:Option<Profile>, report:Option<Inspection>, error:Option<String>,
- caps:[f64;4],tac:f64,grid:usize,mode:Mode,status:String,busy:bool, candidate:Option<PathBuf>,comparison:Option<Comparison>,compare_error:Option<String>,compare_grid:usize,gamma:[f64;4],order:[usize;4],
+ caps:[f64;4],tac:f64,grid:usize,mode:Mode,status:String,busy:bool, candidate:Option<PathBuf>,comparison:Option<Comparison>,compare_error:Option<String>,compare_grid:usize,gamma:[f64;4],order:[usize;4], preview_open:bool, preview:Option<Overlay>, preview_options:ViewOptions, gamut_grid:usize,
 }
 impl Default for Studio {
- fn default()->Self{Self{page:Page::Dashboard,source:None,profile:None,report:None,error:None,caps:[100.,100.,100.,0.],tac:240.,grid:33,mode:Mode::Custom,status:"Open an ICC or ICM profile to start.".into(),busy:false,candidate:None,comparison:None,compare_error:None,compare_grid:17,gamma:[1.;4],order:[0,1,2,3]}}
+ fn default()->Self{Self{page:Page::Dashboard,source:None,profile:None,report:None,error:None,caps:[100.,100.,100.,0.],tac:240.,grid:33,mode:Mode::Custom,status:"Open an ICC or ICM profile to start.".into(),busy:false,candidate:None,comparison:None,compare_error:None,compare_grid:17,gamma:[1.;4],order:[0,1,2,3],preview_open:true,preview:None,preview_options:ViewOptions::default(),gamut_grid:17}}
 }
 fn button(id: impl Into<ElementId>,label:impl Into<SharedString>)->Stateful<Div>{
  div().id(id).px_3().py_2().rounded_md().bg(rgb(0x263449)).text_color(rgb(0xe6eefb)).cursor_pointer().hover(|s|s.bg(rgb(0x354963))).child(label.into())
 }
 fn heading(title:&str,sub:&str)->Div{div().flex().flex_col().gap_1().child(div().text_2xl().child(title.to_owned())).child(div().text_sm().text_color(rgb(0x94a3b8)).child(sub.to_owned()))}
 impl Studio {
- fn open(&mut self) {
+ fn open(&mut self,cx:&mut Context<Self>) {
   if self.busy{return}
   let Some(path)=rfd::FileDialog::new().add_filter("ICC profile",&["icc","icm"]).pick_file() else{return};
-  self.source=Some(path.clone());self.gamma=[1.;4];self.order=[0,1,2,3];self.comparison=None;self.compare_error=None;self.report=None;self.profile=None;self.error=None;
+  self.source=Some(path.clone());self.preview=None;self.candidate=None;self.gamma=[1.;4];self.order=[0,1,2,3];self.comparison=None;self.compare_error=None;self.report=None;self.profile=None;self.error=None;
   match inspection::inspect(&path){Ok(r)=>self.report=Some(r),Err(e)=>self.error=Some(e)}
   if let Ok(p)=Profile::read(&path){
    if p.check().is_ok(){
@@ -40,6 +43,7 @@ impl Studio {
   }
   self.status=if self.report.is_some(){"Profile loaded with LittleCMS.".into()}else{"Profile could not be opened.".into()};
   self.page=Page::Inspector;
+  if self.preview_open && self.report.is_some(){self.refresh_gamut(cx);}
  }
  fn generate(&mut self,cx:&mut Context<Self>){
   if self.busy||self.profile.is_none(){return}
@@ -47,6 +51,7 @@ impl Studio {
   let default_name=format!("{}_limited.icc",source.file_stem().unwrap_or_default().to_string_lossy());
   let Some(dest)=rfd::FileDialog::new().add_filter("ICC profile",&["icc"]).set_file_name(default_name).save_file()else{return};
   let mode=if self.caps[..3].iter().all(|&v|v==100.){self.mode}else{Mode::Custom};
+  let output_path=dest.clone();
   let job=Job{source,destination:dest,mode,caps:self.caps,tac:self.tac,estimate:false,grid:self.grid};
   let (tx,rx)=mpsc::channel();
   self.busy=true;self.status="Starting rebuild…".into();cx.notify();
@@ -59,7 +64,7 @@ impl Studio {
     let mut finished=false;
     match rx.try_recv(){
      Ok(Event::Progress(s))=>{if this.update(cx,|view,cx|{view.status=s;cx.notify();}).is_err(){break}}
-     Ok(Event::Done(result))=>{let _=this.update(cx,|view,cx|{view.status=result.unwrap_or_else(|e|format!("Error: {e}"));view.busy=false;cx.notify();});finished=true;}
+     Ok(Event::Done(result))=>{let _=this.update(cx,|view,cx|{view.busy=false;match result{Ok(s)=>{view.status=s;view.candidate=Some(output_path.clone());view.preview=None;view.comparison=None;if view.preview_open{view.refresh_gamut(cx);}},Err(e)=>view.status=format!("Error: {e}")}cx.notify();});finished=true;}
      Err(mpsc::TryRecvError::Disconnected)=>{let _=this.update(cx,|view,cx|{view.status="Worker disconnected".into();view.busy=false;cx.notify();});finished=true;}
      Err(mpsc::TryRecvError::Empty)=>{}
     }
@@ -85,7 +90,7 @@ impl Studio {
   let mut p=div().flex().flex_col().gap_3().child(heading("Profile Comparison","Predicted D50 media-relative Lab appearance and CMYK separation."));
   p=p.child(format!("Reference: {}",self.source.as_ref().map(|p|p.display().to_string()).unwrap_or("Not selected".into())))
    .child(button("pick-candidate","Select candidate ICC").on_click(cx.listener(|this,_,_,cx|{
-    if !this.busy{if let Some(path)=rfd::FileDialog::new().add_filter("ICC profile",&["icc","icm"]).pick_file(){this.candidate=Some(path);this.comparison=None;this.compare_error=None;cx.notify();}}
+    if !this.busy{if let Some(path)=rfd::FileDialog::new().add_filter("ICC profile",&["icc","icm"]).pick_file(){this.candidate=Some(path);this.preview=None;this.comparison=None;this.compare_error=None;if this.preview_open{this.refresh_gamut(cx);}cx.notify();}}
    })))
    .child(format!("Candidate: {}",self.candidate.as_ref().map(|p|p.display().to_string()).unwrap_or("Not selected".into())))
    .child(div().flex().items_center().gap_2().child(format!("RGB sample grid: {}³",self.compare_grid)).children([9usize,17,33].into_iter().map(|v|button(("compare-grid",v),v.to_string()).on_click(cx.listener(move|this,_,_,cx|{if !this.busy{this.compare_grid=v;this.comparison=None;cx.notify();}})))))
@@ -114,11 +119,12 @@ impl Studio {
   let default_name=format!("{}_{}.icc",source.file_stem().unwrap_or_default().to_string_lossy(),suffix);
   let Some(mut destination)=rfd::FileDialog::new().add_filter("ICC profile",&["icc","icm"]).set_file_name(default_name).save_file()else{return};
   if destination.extension().is_none(){destination.set_extension("icc");}
+  let output_path=destination.clone();
   let edit=match kind{0=>Edit::Tone(self.gamma),1=>Edit::Reorder(self.order),_=>Edit::Rename(destination.file_stem().unwrap_or_default().to_string_lossy().into_owned())};
   self.busy=true;self.status="Editing ICC and validating with LittleCMS…".into();cx.notify();
   cx.spawn(async move |this,cx|{
    let result=cx.background_spawn(async move{editing::edit_file(&source,&destination,edit)}).await;
-   let _=this.update(cx,|view,cx|{view.busy=false;view.status=result.unwrap_or_else(|e|format!("Error: {e}"));cx.notify();});
+   let _=this.update(cx,|view,cx|{view.busy=false;match result{Ok(s)=>{view.status=s;view.candidate=Some(output_path);view.preview=None;view.comparison=None;if view.preview_open{view.refresh_gamut(cx);}},Err(e)=>view.status=format!("Error: {e}")}cx.notify();});
   }).detach();
  }
  fn curves_page(&self,cx:&mut Context<Self>)->Div{
@@ -152,6 +158,59 @@ impl Studio {
   div().flex().flex_col().gap_3().child(heading("Profile Metadata","Create a copy with a new internal description."))
    .child("The selected output filename (without extension) becomes the ICC description. All transform tags are retained. The original file is never overwritten.")
    .child(button("save-rename","Save renamed ICC").on_click(cx.listener(|this,_,_,cx|this.save_edit(2,cx))))
+ }
+ fn refresh_gamut(&mut self,cx:&mut Context<Self>){
+  if self.busy{return}let Some(reference)=self.source.clone()else{return};
+  let candidate=self.candidate.clone();let grid=self.gamut_grid;
+  self.preview=None;self.busy=true;self.status="Sampling effective Lab gamut with LittleCMS…".into();cx.notify();
+  cx.spawn(async move |this,cx|{
+   let result=cx.background_spawn(async move{gamut::overlay(&reference,candidate.as_deref(),grid)}).await;
+   let _=this.update(cx,|view,cx|{
+    view.preview=Some(result);view.busy=false;view.status="Gamut analysis finished. See each profile's result in Preview.".into();cx.notify();
+   });
+  }).detach();
+ }
+ fn preview_panel(&self,cx:&mut Context<Self>)->Div{
+  let mut panel=div().flex().flex_col().w(px(360.)).flex_shrink_0().h_full().bg(rgb(0x101a2a))
+   .child(div().flex().items_center().justify_between().p_3().child(div().text_lg().child("Gamut Preview"))
+    .child(button("collapse-preview","»").on_click(cx.listener(|this,_,_,cx|{this.preview_open=false;cx.notify();}))));
+  panel=panel.child(div().id("preview-scroll").flex_1().overflow_y_scroll().p_3().child(self.gamut_controls(cx)));
+  panel
+ }
+ fn gamut_controls(&self,cx:&mut Context<Self>)->Div{
+  let o=self.preview_options;
+  let mut p=div().flex().flex_col().gap_3()
+   .child(div().flex().gap_2().child(button("view-2d",if o.three_d{"2D"}else{"2D ✓"}).on_click(cx.listener(|this,_,_,cx|{this.preview_options.three_d=false;cx.notify();})))
+    .child(button("view-3d",if o.three_d{"3D ✓"}else{"3D"}).on_click(cx.listener(|this,_,_,cx|{this.preview_options.three_d=true;cx.notify();}))))
+   .child(div().flex().gap_2().child(button("show-before",if o.reference{"Before ✓"}else{"Before"}).on_click(cx.listener(|this,_,_,cx|{this.preview_options.reference=!this.preview_options.reference;cx.notify();})))
+    .child(button("show-after",if o.candidate{"After ✓"}else{"After"}).on_click(cx.listener(|this,_,_,cx|{this.preview_options.candidate=!this.preview_options.candidate;cx.notify();}))))
+   .child(div().flex().gap_2().items_center().child(div().size(px(9.)).bg(rgb(0x60a5fa))).child("Reference").child(div().size(px(9.)).bg(rgb(0xfbbf24))).child("Candidate"))
+   .child(div().text_xs().child(format!("Before: {}",self.source.as_ref().and_then(|p|p.file_name()).map(|n|n.to_string_lossy().into_owned()).unwrap_or("Not selected".into()))))
+   .child(div().text_xs().child(format!("After: {}",self.candidate.as_ref().and_then(|p|p.file_name()).map(|n|n.to_string_lossy().into_owned()).unwrap_or("Not selected".into()))))
+   .child(button("preview-pick","Select comparison ICC").on_click(cx.listener(|this,_,_,cx|{if !this.busy{if let Some(path)=rfd::FileDialog::new().add_filter("ICC profile",&["icc","icm"]).pick_file(){this.candidate=Some(path);this.preview=None;this.comparison=None;this.refresh_gamut(cx);cx.notify();}}})))
+   .child(div().flex().items_center().gap_1().child("Grid").children([9usize,17,33].map(|v|button(("gamut-grid",v),if self.gamut_grid==v{format!("{v} ✓")}else{v.to_string()}).on_click(cx.listener(move|this,_,_,cx|{if !this.busy{this.gamut_grid=v;this.refresh_gamut(cx);cx.notify();}})))))
+   .child(button("refresh-gamut",if self.busy{"Working…"}else{"Refresh gamut"}).on_click(cx.listener(|this,_,_,cx|this.refresh_gamut(cx))));
+  if o.three_d{
+   p=p.child(div().flex().gap_1().child(button("yaw-left","↶").on_click(cx.listener(|this,_,_,cx|{this.preview_options.yaw-=0.20;cx.notify();})))
+    .child(button("yaw-right","↷").on_click(cx.listener(|this,_,_,cx|{this.preview_options.yaw+=0.20;cx.notify();})))
+    .child(button("pitch-up","↑").on_click(cx.listener(|this,_,_,cx|{this.preview_options.pitch=(this.preview_options.pitch+0.15).min(1.55);cx.notify();})))
+    .child(button("pitch-down","↓").on_click(cx.listener(|this,_,_,cx|{this.preview_options.pitch=(this.preview_options.pitch-0.15).max(-1.55);cx.notify();}))));
+  }else{
+   p=p.child(div().flex().gap_1().child(button("slice-toggle",if o.slice{"L* slice ✓"}else{"All L*"}).on_click(cx.listener(|this,_,_,cx|{this.preview_options.slice=!this.preview_options.slice;cx.notify();})))
+    .child(button("slice-down","−").on_click(cx.listener(|this,_,_,cx|{this.preview_options.light=(this.preview_options.light-5.).max(0.);cx.notify();})))
+    .child(format!("{:.0}",o.light))
+    .child(button("slice-up","+").on_click(cx.listener(|this,_,_,cx|{this.preview_options.light=(this.preview_options.light+5.).min(100.);cx.notify();}))));
+  }
+  p=p.child(div().flex().gap_1().child(button("zoom-out","− zoom").on_click(cx.listener(|this,_,_,cx|{this.preview_options.zoom=(this.preview_options.zoom/1.2).max(0.5);cx.notify();})))
+   .child(button("zoom-in","+ zoom").on_click(cx.listener(|this,_,_,cx|{this.preview_options.zoom=(this.preview_options.zoom*1.2).min(3.);cx.notify();})))
+   .child(button("reset-view","Reset").on_click(cx.listener(|this,_,_,cx|{this.preview_options=ViewOptions::default();cx.notify();}))));
+  if let Some(data)=&self.preview{
+   match &data.reference{Ok(c)=>p=p.child(format!("Before: {} distinct / {} targets",c.points.len(),c.sampled)),Err(e)=>p=p.child(format!("Before failed: {e}"))}
+   if let Some(c)=&data.candidate{match c{Ok(c)=>p=p.child(format!("After: {} distinct / {} targets",c.points.len(),c.sampled)),Err(e)=>p=p.child(format!("After failed: {e}"))}}
+   p=p.child(gamut_view::plot(data,o));
+   if o.three_d{p=p.child("Axes: red +a*, green +b*, white +L*");}else{p=p.child(if o.slice{format!("a* / b* | L* {:.0} ± 5",o.light)}else{"a* / b* | all lightness values".into()});}
+  }else{p=p.child("Open an ICC or refresh to calculate the preview.");}
+  p.child(div().text_xs().text_color(rgb(0x94a3b8)).child("Sampled effective separation gamut (Lab → B2A → device → A2B → Lab). Relative colorimetric, D50. Point cloud, not a measured or exact surface/volume."))
  }
  fn inspector(&self)->Div{
   let mut panel=div().flex().flex_col().gap_3().child(heading("Profile Inspector","ICC metadata decoded by LittleCMS 2."));
@@ -206,9 +265,9 @@ impl Studio {
 }
 impl Render for Studio {
  fn render(&mut self,_window:&mut Window,cx:&mut Context<Self>)->impl IntoElement{
-  let sidebar=div().flex().flex_col().w(px(224.)).flex_shrink_0().h_full().p_3().gap_1().bg(rgb(0x101a2a))
+  let sidebar=div().id("sidebar").flex().flex_col().w(px(224.)).flex_shrink_0().h_full().overflow_y_scroll().p_3().gap_1().bg(rgb(0x101a2a))
    .child(div().text_lg().mb_3().child("ICC Profile Studio"))
-   .child(button("open-profile","Open ICC / ICM").on_click(cx.listener(|this,_,_,cx|{this.open();cx.notify();})))
+   .child(button("open-profile","Open ICC / ICM").on_click(cx.listener(|this,_,_,cx|{this.open(cx);cx.notify();})))
    .children(PAGES.into_iter().enumerate().map(|(i,(page,label))|{
     let active=self.page==page;
     div().id(("page",i)).px_3().py_2().rounded_md().text_sm().cursor_pointer()
@@ -224,20 +283,22 @@ impl Render for Studio {
    Page::Curves=>self.curves_page(cx),
    Page::Reorder=>self.reorder_page(cx),
    Page::Metadata=>self.metadata_page(cx),
+   Page::Gamut=>div().flex().flex_col().gap_3().child(heading("Gamut Viewer","Compare the effective separation gamut before and after editing.")).child("The persistent preview is on the right. Use the 2D/3D, Before/After, grid, rotation and slice controls there.").child(button("open-gamut-page-preview","Show preview pane").on_click(cx.listener(|this,_,_,cx|{this.preview_open=true;if this.preview.is_none(){this.refresh_gamut(cx);}cx.notify();}))),
    Page::Settings=>div().flex().flex_col().gap_3().child(heading("Settings","Engine configuration")).child("LittleCMS is linked statically. ArgyllCMS is installed by the existing portable backend when required."),
    Page::About=>div().flex().flex_col().gap_3().child(heading("ICC Profile Studio","Experimental GPUI frontend")).child(format!("Core version {}",env!("CARGO_PKG_VERSION"))).child("Developed by emadgh. LittleCMS 2 · ArgyllCMS · Rust.").child("Updater integration is pending in this frontend. Use the stable executable for updates."),
    other=>div().flex().flex_col().gap_3().child(heading(PAGES.iter().find(|(p,_)|*p==other).map(|(_,n)|*n).unwrap_or("Tool"),"Planned module")).child("Not implemented yet. See ROADMAP.md."),
   };
   div().flex().size_full().bg(rgb(0x152031)).text_color(rgb(0xe2e8f0)).child(sidebar)
    .child(div().flex().flex_col().flex_1().min_w(px(0.)).h_full()
-    .child(div().px_5().py_3().bg(rgb(0x1b2637)).child(self.source.as_ref().map(|p|p.display().to_string()).unwrap_or("No profile selected".into())))
+    .child(div().flex().items_center().justify_between().px_5().py_3().bg(rgb(0x1b2637)).child(self.source.as_ref().and_then(|p|p.file_name()).map(|p|p.to_string_lossy().into_owned()).unwrap_or("No profile selected".into())).child(button("toggle-preview",if self.preview_open{"Hide preview"}else{"Show preview"}).on_click(cx.listener(|this,_,_,cx|{this.preview_open=!this.preview_open;if this.preview_open&&this.preview.is_none(){this.refresh_gamut(cx);}cx.notify();}))))
     .child(div().id("content-scroll").flex_1().overflow_y_scroll().p_5().child(content))
     .child(div().px_5().py_3().bg(rgb(0x101a2a)).text_sm().child(self.status.clone())))
+   .when(self.preview_open,|root|root.child(self.preview_panel(cx)))
  }
 }
 fn main(){
  Application::new().run(|cx:&mut App|{
-  let bounds=Bounds::centered(None,size(px(1120.),px(820.)),cx);
+  let bounds=Bounds::centered(None,size(px(1440.),px(880.)),cx);
   cx.open_window(WindowOptions{window_bounds:Some(WindowBounds::Windowed(bounds)),..Default::default()},|_,cx|cx.new(|_|Studio::default())).expect("Open Studio window");
   cx.activate(true);
  });

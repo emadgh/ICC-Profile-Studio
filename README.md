@@ -56,3 +56,7 @@ Select a reference and candidate CMYK printer ICC in GPUI Studio. LittleCMS pred
 ### Editing preview
 
 GPUI Studio now includes per-ink gamma curves, physical channel reordering and metadata renaming. The gamma editor modifies output separations rather than recalibrating the printer; previous TAC/caps must be revalidated. Channel reorder permutes both transform directions and rejects unknown vendor/calibration tags rather than risking corruption. Metadata rename uses the new file's stem as its internal description. All edits write a new file after LittleCMS opening and CMYK transform creation. These features are experimental pending CI and printer validation.
+
+### Persistent Gamut Preview
+
+The GPUI right pane is collapsible, available on every page and accepts a separate candidate ICC. Newly saved edits/rebuilds become the candidate. Use Before/After independently, 2D a*/b* projection or L* ±5 slice, or a rotatable 3D orthographic Lab point cloud with zoom. LittleCMS samples both effective separation transforms on the same grid of D50 Lab targets represented through XYZ, then plots round-trip Lab. The result is not an exact physical gamut boundary, a volume estimate, or a measured print test. Controls and build remain experimental pending Windows CI.

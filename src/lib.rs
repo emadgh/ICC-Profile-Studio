@@ -1,3 +1,4 @@
+pub mod gamut;
 pub mod editing;
 pub mod comparison;
 pub mod backend;

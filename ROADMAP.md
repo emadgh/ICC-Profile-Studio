@@ -29,11 +29,21 @@
 - [ ] Windows CI, real profile regression, full transform-equivalence testing, custom editable multi-point curves, strict TAC and prior cap revalidation after tone changes.
 - [ ] Add explicit adapters for Durst/vendor tags only after their structure is verified; current reorder can refuse proprietary profiles.
 
+## v0.6 — persistent gamut preview (source implementation started)
+
+- [x] Collapsible right-side preview shared across GPUI sections; opening a reference resets stale comparison data.
+- [x] Independent Before/After visibility and overlay, 2D a*/b* projection with optional L* ±5 slice, 3D orthographic Lab point cloud, yaw/pitch, zoom and reset.
+- [x] LittleCMS effective separation sampling (Lab targets → B2A → device → A2B → Lab), shared reference/candidate grid and axes. Sampled points, not exact surface or gamut volume.
+- [x] Auto-select newly saved ICC as candidate after rebuild/edit; refresh after file selection and saving when panel is open; manual refresh and 9/17/33 sampling.
+- [x] Grid/projection unit tests and RGB rejection test added.
+- [ ] Verify Windows CI and rendering; test actual printer files, add mouse drag/wheel, axis tick labels, surface mesh and volume estimation with a validated method.
+- [ ] Gradient Analyzer and gamut-loss quantitative analysis.
+
 ## Next milestones
 
 - v0.4: Complete validation/export of Profile Comparison, Delta E2000, neutral axis and ink distribution.
 - v0.5: Complete runtime validation of Tone Curves, channel mapping/reordering, profile metadata editing.
-- v0.6: Gamut analysis and 3D visualization, gradient continuity.
+- v0.6: Complete runtime validation of Gamut Preview, surface/volume analysis and gradient continuity.
 - v0.7: Selective Lab/LCh color correction, controlled LUT smoothing.
 - v0.8: ICC image conversion, batch conversion, separations, soft proof, ink coverage.
 - v0.9: DeviceLink generation, constrained ink saving and cost optimization.
