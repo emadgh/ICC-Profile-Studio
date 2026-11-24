@@ -594,6 +594,22 @@ impl Studio {
    panel=panel.child(format!("ICC v{:.2}  |  {}  |  {}",r.version,r.color_space,r.pcs))
     .child(format!("Class: {}  |  {:.2} MiB",r.device_class,r.size as f64/1048576.))
     .child(format!("Estimated total ink: {}",r.tac.map(|v|format!("{v:.1}%")).unwrap_or("Not available".into())))
+    ;
+   let mut white=div().flex().flex_col().gap_2().p_3().rounded_md().bg(rgb(0x1b2637))
+    .child(div().text_lg().child(if r.is_output{"Paper / Substrate Color"}else{"Media White Point"}))
+    .child(div().text_xs().text_color(rgb(0x94a3b8)).child("ICC mediaWhitePointTag (wtpt), D50 PCS; not the header illuminant."));
+   if let Some(w)=&r.media_white{
+    let mut details=div().flex().flex_col().gap_1()
+     .child(format!("XYZ (Y=1 reference): {:.5} / {:.5} / {:.5}",w.xyz[0],w.xyz[1],w.xyz[2]))
+     .child(format!("Lab D50: L* {:.2}  a* {:.2}  b* {:.2}",w.lab[0],w.lab[1],w.lab[2]));
+    if let Some([red,green,blue])=w.srgb{
+     let hex=(u32::from(red)<<16)|(u32::from(green)<<8)|u32::from(blue);
+     details=details.child(format!("Approx. sRGB #{hex:06X}"));
+     white=white.child(div().flex().items_center().gap_3().child(div().w(px(64.)).h(px(64.)).rounded_md().bg(rgb(hex))).child(details));
+    }else{white=white.child(details);}
+    white=white.child(div().text_xs().child("Stored tag only. Swatch is an approximate sRGB rendering, not a calibrated or measured sample. A normalized D50 value does not prove the substrate is physically neutral."));
+   }else{white=white.child("Not available: wtpt missing, unreadable or invalid. No substitute white is assumed.");}
+   panel=panel.child(white)
     .child(div().text_lg().child(format!("Tags ({})",r.tags.len())))
     .children(r.tags.iter().map(|tag|div().px_2().py_1().rounded_md().bg(rgb(0x1b2637)).child(tag.clone())));
   } else {panel=panel.child("Select a reference profile first.");}

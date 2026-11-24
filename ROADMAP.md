@@ -75,10 +75,10 @@
 - [x] Actual measured machine/glaze/firing/ink-batch comparison using matched patch IDs and recipes, ΔE00 mean/P95/max and signed mean Lab bias.
 - [x] Argyll colprof integration for an actual supplied CMYK TI3; independent new printer ICC output and LCMS class check.
 - [x] Whole-profile bounded ink optimization using original LCMS B2A and A2B1 pipelines, lower relative weighted cost subject to predicted per-node ΔE00 tolerance; v4 mBA, 17/33 grid, preserve source caps and refuse source over selected TAC.
-- [ ] CI and real print trials, validate measuring instrument workflow, output profile quality, black generation validation, numerical drift between optimized nodes and real ink cost. Measured compensation/machine matching requires real datasets and validation; comparison alone is not compensation.
+- [ ] CI and real print trials, validate imported measurement-file workflow, output profile quality, black generation validation, numerical drift between optimized nodes and real ink cost. Measured compensation/machine matching requires real datasets and validation; comparison alone is not compensation.
 - [x] Local profile library with CSV line/printer/glaze/ink batch/firing/notes metadata; browse reference/candidate without modifying ICCs; template export and rescan.
 - [x] CSV export of profile comparison and gradient analysis.
-- [ ] Full workflow persistence, direct instrument acquisition, certified device limits and UI migration completion.
+- [ ] Full workflow persistence, certified device limits and UI migration completion.
 
 ## v1.0 — advanced separation (source implementation)
 
@@ -118,6 +118,11 @@
 - **GPUI**: requested “pgui” interpreted as GPUI from Zed. New experimental frontend shares backend with egui; legacy release stays default until migration is verified. Prefer existing component crates where compatible.
 - **rfd**: native open/save dialogs. **update-via-github**: existing updater, private-repository limitation remains.
 - Physical print correction requires measured data. No claim that simulated color accuracy is verified by print tests.
+
+## Explicit scope exclusions
+
+- Direct connection to spectrophotometers/colorimeters, instrument drivers, SDKs and live measurement acquisition are out of scope by owner request. Retain external CSV/TI3 measurement import and chart generation.
+- Profile Inspector: display stored mediaWhitePointTag (wtpt) as XYZ, derived D50 Lab and approximate sRGB swatch; no fabricated white when missing. Output profiles use Paper / Substrate Color label. Source implementation and unit tests added; CI pending.
 
 ## Status rules
 

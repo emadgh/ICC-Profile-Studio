@@ -90,3 +90,7 @@ Streaming is selectable for interleaved strip-based TIFF, with up to 2 million p
 ### Studio preview releases
 
 `STUDIO_VERSION` is independent from the legacy Cargo version. The Studio workflow builds/tests Windows x64 and packages the EXE, SHA256, ZIP and documentation. To publish a private prerelease, run Studio GPUI preview on main using workflow_dispatch with publish_preview=true; the separate studio-v<version> tag is immutable and is not marked latest. The existing unauthenticated updater does not consume these private beta releases. No stable release is claimed until the interactive and real-printer release gates are met.
+
+### Paper / Substrate Color
+
+Profile Inspector reads the stored ICC mediaWhitePointTag (`wtpt`) with LittleCMS and shows normalized XYZ, derived D50 Lab, and an approximate sRGB swatch if conversion succeeds. Missing or invalid values are shown as unavailable, never replaced with the header illuminant. A stored D50 white is not proof of the physical substrate color. Direct instrument connection/live acquisition is out of scope; external CSV/TI3 import remains supported.
