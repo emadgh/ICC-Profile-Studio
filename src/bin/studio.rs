@@ -26,11 +26,11 @@ const PAGES: [(Page,&str);20] = [
 ];
 enum Event { Progress(String), Done(Result<String,String>) }
 struct Studio {
- version_allow_omit:bool,version_de:f64,version_ink:f64,version_report:Option<versioning::Report>,page:Page, source:Option<PathBuf>, profile:Option<Profile>, report:Option<Inspection>, error:Option<String>,
+ version_allow_omit:bool,version_relative_only:bool,version_de:f64,version_ink:f64,version_report:Option<versioning::Report>,page:Page, source:Option<PathBuf>, profile:Option<Profile>, report:Option<Inspection>, error:Option<String>,
  caps:[f64;4],tac:f64,grid:usize,mode:Mode,status:String,busy:bool, candidate:Option<PathBuf>,comparison:Option<Comparison>,compare_error:Option<String>,compare_grid:usize,compare_intent:lcms2::Intent,gamma:[f64;4],order:[usize;4], preview_open:bool, preview:Option<Overlay>, preview_revision:u64, preview_width:f32,preview_fullscreen:bool,resize_last:Option<Pixels>,gamut_advanced:bool,curve_drag:Option<(usize,usize,Pixels)>, preview_cache:std::cell::RefCell<gamut_view::PreviewCache>, preview_options:ViewOptions, gamut_grid:usize,gradient:Option<GradientReport>,gradient_error:Option<String>,coverage_threshold:f64, regions:[Selective;MAX_REGIONS],region_count:usize,region_selected:usize, correction_grid:usize, correction_tac:f64, smoothing:f64, smoothing_passes:usize,orbit_last:Option<Point<Pixels>>,chart_dpi:u32,recipe_target:[f64;3],recipe_settings:RecipeSettings,recipe_result:Option<RecipeReport>,lab_levels:usize,measured:[Option<PathBuf>;2],measurement_result:Option<MeasuredComparison>,black:BlackGeneration,curve_points:[[f64;5];4],library_root:Option<PathBuf>,library_entries:Vec<library::Entry>,logo:std::sync::Arc<gpui::Image>,#[cfg(windows)] updater:UpdateManager,
 }
 impl Default for Studio {
- fn default()->Self{Self{version_allow_omit:false,version_de:0.5,version_ink:0.5,version_report:None,page:Page::Dashboard,source:None,profile:None,report:None,error:None,caps:[100.,100.,100.,0.],tac:240.,grid:33,mode:Mode::Custom,status:"Open an ICC or ICM profile to start.".into(),busy:false,candidate:None,comparison:None,compare_error:None,compare_grid:17,compare_intent:lcms2::Intent::RelativeColorimetric,gamma:[1.;4],order:[0,1,2,3],preview_open:true,preview:None,preview_revision:0,preview_width:360.,preview_fullscreen:false,resize_last:None,gamut_advanced:false,curve_drag:None,preview_cache:std::cell::RefCell::new(gamut_view::PreviewCache::default()),preview_options:ViewOptions::default(),gamut_grid:17,gradient:None,gradient_error:None,coverage_threshold:2.,regions:[Selective::default();MAX_REGIONS],region_count:1,region_selected:0,correction_grid:33,correction_tac:400.,smoothing:0.20,smoothing_passes:1,orbit_last:None,chart_dpi:300,recipe_target:[50.,0.,0.],recipe_settings:RecipeSettings::default(),recipe_result:None,lab_levels:5,measured:[None,None],measurement_result:None,black:BlackGeneration::default(),curve_points:IDENTITY_POINTS,library_root:None,library_entries:vec![],logo:std::sync::Arc::new(gpui::Image::from_bytes(gpui::ImageFormat::Png,include_bytes!("../../assets/icon.png").to_vec())),#[cfg(windows)] updater:UpdateManager::new(UpdateConfig::new("emadgh/color-convert-rust","ICC-Profile-Studio.exe",STUDIO_VERSION.trim()).with_app_name("ICC Profile Studio").with_checksum_asset("ICC-Profile-Studio.exe.sha256").with_required_checksum(true))}}
+ fn default()->Self{Self{version_allow_omit:false,version_relative_only:false,version_de:0.5,version_ink:0.5,version_report:None,page:Page::Dashboard,source:None,profile:None,report:None,error:None,caps:[100.,100.,100.,0.],tac:240.,grid:33,mode:Mode::Custom,status:"Open an ICC or ICM profile to start.".into(),busy:false,candidate:None,comparison:None,compare_error:None,compare_grid:17,compare_intent:lcms2::Intent::RelativeColorimetric,gamma:[1.;4],order:[0,1,2,3],preview_open:true,preview:None,preview_revision:0,preview_width:360.,preview_fullscreen:false,resize_last:None,gamut_advanced:false,curve_drag:None,preview_cache:std::cell::RefCell::new(gamut_view::PreviewCache::default()),preview_options:ViewOptions::default(),gamut_grid:17,gradient:None,gradient_error:None,coverage_threshold:2.,regions:[Selective::default();MAX_REGIONS],region_count:1,region_selected:0,correction_grid:33,correction_tac:400.,smoothing:0.20,smoothing_passes:1,orbit_last:None,chart_dpi:300,recipe_target:[50.,0.,0.],recipe_settings:RecipeSettings::default(),recipe_result:None,lab_levels:5,measured:[None,None],measurement_result:None,black:BlackGeneration::default(),curve_points:IDENTITY_POINTS,library_root:None,library_entries:vec![],logo:std::sync::Arc::new(gpui::Image::from_bytes(gpui::ImageFormat::Png,include_bytes!("../../assets/icon.png").to_vec())),#[cfg(windows)] updater:UpdateManager::new(UpdateConfig::new("emadgh/color-convert-rust","ICC-Profile-Studio.exe",STUDIO_VERSION.trim()).with_app_name("ICC Profile Studio").with_checksum_asset("ICC-Profile-Studio.exe.sha256").with_required_checksum(true))}}
 }
 fn button(id: impl Into<ElementId>,label:impl Into<SharedString>)->Stateful<Div>{
  div().id(id).px_3().py_2().rounded_md().bg(rgb(0x263449)).text_color(rgb(0xe6eefb)).cursor_pointer().hover(|s|s.bg(rgb(0x354963))).child(label.into())
@@ -71,7 +71,7 @@ impl Studio {
  }
  fn load_reference(&mut self,path:PathBuf,cx:&mut Context<Self>){
   if self.busy{return}
-  self.source=Some(path.clone());self.version_report=None;self.version_allow_omit=false;self.black=BlackGeneration::default();self.curve_points=IDENTITY_POINTS;self.recipe_result=None;self.regions=[Selective::default();MAX_REGIONS];self.region_count=1;self.region_selected=0;self.correction_grid=33;self.correction_tac=400.;self.smoothing=0.20;self.smoothing_passes=1;self.preview=None;self.candidate=None;self.gradient=None;self.gradient_error=None;self.gamma=[1.;4];self.order=[0,1,2,3];self.comparison=None;self.compare_error=None;self.report=None;self.profile=None;self.error=None;
+  self.source=Some(path.clone());self.version_report=None;self.version_allow_omit=false;self.version_relative_only=false;self.black=BlackGeneration::default();self.curve_points=IDENTITY_POINTS;self.recipe_result=None;self.regions=[Selective::default();MAX_REGIONS];self.region_count=1;self.region_selected=0;self.correction_grid=33;self.correction_tac=400.;self.smoothing=0.20;self.smoothing_passes=1;self.preview=None;self.candidate=None;self.gradient=None;self.gradient_error=None;self.gamma=[1.;4];self.order=[0,1,2,3];self.comparison=None;self.compare_error=None;self.report=None;self.profile=None;self.error=None;
   match inspection::inspect(&path){Ok(r)=>self.report=Some(r),Err(e)=>self.error=Some(e)}
   if let Ok(p)=Profile::read(&path){
    if p.check().is_ok(){
@@ -270,20 +270,24 @@ impl Studio {
     .child(seg(("version-minus",i),"−",false).on_click(cx.listener(move|v,_,_,cx|{if !v.busy{change(v,-0.05);cx.notify();}}))).child(format!("{value:.2}"))
     .child(seg(("version-plus",i),"+",false).on_click(cx.listener(move|v,_,_,cx|{if !v.busy{change(v,0.05);cx.notify();}}))));
   }
-  p=p.child("Checks device→PCS color, PCS→device channel differences and TAC for all four intents. Preserves zero-ink channels and bounds; no new ICC saved if limits fail.")
+  p=p.child(div().flex().gap_1().flex_wrap()
+    .child(seg("version-all","Require all intents",!self.version_relative_only).on_click(cx.listener(|v,_,_,cx|{if !v.busy{v.version_relative_only=false;v.version_report=None;cx.notify();}})))
+    .child(seg("version-rel","Relative / Absolute only",self.version_relative_only).on_click(cx.listener(|v,_,_,cx|{if !v.busy{v.version_relative_only=true;v.version_report=None;cx.notify();}}))))
+   .when(self.version_relative_only,|p|p.child(div().text_sm().text_color(rgb(0xfbbf24)).child("Compatibility copy: Perceptual and Saturation may change substantially. Do not use those intents in the RIP. All four are measured and reported, but only Relative and Absolute must meet the selected tolerance.")))
+   .child("Checks device→PCS color, PCS→device channel differences and TAC for all four intents. Preserves zero-ink channels and bounds; no new ICC saved if required limits fail.")
    .child(button("convert-icc-version",if self.busy{"Working…"}else{"Convert & validate new ICC"}).on_click(cx.listener(move|v,_,_,cx|{
     if v.busy{return}let Some(source)=v.source.clone()else{return};
     if !omitted.is_empty()&&!v.version_allow_omit{v.status="Review listed tags and explicitly allow omission, or keep the original ICC.".into();cx.notify();return}
     let name=format!("{}_v{target}.icc",source.file_stem().unwrap_or_default().to_string_lossy());
     let Some(mut dest)=rfd::FileDialog::new().add_filter("ICC",&["icc","icm"]).set_file_name(name).save_file()else{return};
     if dest.extension().is_none(){dest.set_extension("icc");}
-    let (omit,de,ink)=(v.version_allow_omit,v.version_de,v.version_ink);
+    let (omit,de,ink,rel)=(v.version_allow_omit,v.version_de,v.version_ink,v.version_relative_only);
     v.version_report=None;v.busy=true;v.status="Converting LUT encoding and validating all intents…".into();cx.notify();
     cx.spawn(async move|this,cx|{
      let path=dest.clone();
-     let result=cx.background_spawn(async move{versioning::convert_file(&source,&dest,target,omit,de,ink)}).await;
+     let result=cx.background_spawn(async move{versioning::convert_file(&source,&dest,target,omit,de,ink,rel)}).await;
      let _=this.update(cx,|v,cx|{v.busy=false;match result{
-      Ok(r)=>{v.status=format!("Saved verified ICC v{}: {}",r.target,path.display());v.version_report=Some(r);v.candidate=Some(path);v.preview=None;v.comparison=None;v.gradient=None;v.gradient_error=None;if v.preview_open{v.refresh_gamut(cx);}},
+      Ok(r)=>{v.status=format!("Saved ICC v{} ({}): {}",r.target,if r.relative_absolute_only{"Relative/Absolute only"}else{"all intents validated"},path.display());v.version_report=Some(r);v.candidate=Some(path);v.preview=None;v.comparison=None;v.gradient=None;v.gradient_error=None;if v.preview_open{v.refresh_gamut(cx);}},
       Err(e)=>v.status=format!("Version conversion refused: {e}")
      }cx.notify();});
     }).detach();
@@ -292,7 +296,7 @@ impl Studio {
    p=p.child(div().text_lg().child("Validation report"))
     .child(format!("{} device + {} PCS samples per intent",r.forward_samples,r.reverse_samples))
     .child(format!("Channel bound {:?}% · TAC bound {:.3}%",r.bounds.channels.map(|x|100.*x),100.*r.bounds.tac));
-   for i in &r.checks{p=p.child(format!("{}: mean ΔE00 {:.4} · max {:.4} · channel Δ {:.4} pp · TAC Δ {:.4} pp",i.name,i.mean_de,i.max_de,i.max_ink_pp,i.max_tac_pp));}
+   for i in &r.checks{p=p.child(div().text_sm().text_color(rgb(if i.passed{0xa7f3d0}else{0xfbbf24})).child(format!("{} [{}]: mean ΔE00 {:.4} · max {:.4} · channel Δ {:.4} pp · TAC Δ {:.4} pp",i.name,if i.passed{"PASS"}else if i.required{"FAIL"}else{"OUTSIDE TOLERANCE — NOT CERTIFIED"},i.mean_de,i.max_de,i.max_ink_pp,i.max_tac_pp)));}
    if !r.omitted.is_empty(){p=p.child(format!("Omitted by consent: {}",r.omitted.join(", ")));}
   }
   p.child("Sampled equivalence, not a guarantee for all colors or vendor compatibility. Always validate in the target RIP and print-test.")

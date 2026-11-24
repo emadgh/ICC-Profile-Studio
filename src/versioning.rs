@@ -8,9 +8,9 @@ use std::path::Path;
 const LEGACY:f64=65280./65535.;
 const TRANSFORMS:[[u8;4];6]=[*b"A2B0",*b"A2B1",*b"A2B2",*b"B2A0",*b"B2A1",*b"B2A2"];
 #[derive(Debug,Clone)]
-pub struct IntentCheck{pub name:&'static str,pub max_de:f64,pub mean_de:f64,pub max_ink_pp:f64,pub max_tac_pp:f64}
+pub struct IntentCheck{pub name:&'static str,pub max_de:f64,pub mean_de:f64,pub max_ink_pp:f64,pub max_tac_pp:f64,pub passed:bool,pub required:bool}
 #[derive(Debug,Clone)]
-pub struct Report{pub target:u8,pub checks:Vec<IntentCheck>,pub omitted:Vec<String>,pub forward_samples:usize,pub reverse_samples:usize,pub bounds:crate::validation::Bounds}
+pub struct Report{pub target:u8,pub relative_absolute_only:bool,pub checks:Vec<IntentCheck>,pub omitted:Vec<String>,pub forward_samples:usize,pub reverse_samples:usize,pub bounds:crate::validation::Bounds}
 fn is_text(k:&[u8;4])->bool{matches!(k,b"desc"|b"cprt"|b"dmnd"|b"dmdd")}
 fn shared(k:&[u8;4],v:&[u8])->bool{
  let expected=match k{b"wtpt"|b"bkpt"|b"lumi"=>b"XYZ ",b"chad"=>b"sf32",b"view"=>b"view",b"tech"=>b"sig ",b"meas"=>b"meas",_=>return false};
@@ -63,13 +63,16 @@ fn text_tag(s:&str,target:u8,copyright:bool)->Vec<u8>{
  t
 }
 fn common_lengths(curves:&mut [Vec<f64>])->R<()>{
- let n=curves.iter().map(Vec::len).max().ok_or("No curves")?;
- if n>65535{return Err("Curve too large for lut16Type".into())}
- if curves.iter().any(|c|c.len()!=n){
-  // Reject unequal-length curves rather than approximating their breakpoints
-  // on a different shared grid. Existing Durst fixtures use equal lengths.
-  return Err("v2 requires equal curve table lengths; conversion of unequal lengths is unsupported".into())
+ // v2 requires a common table length. Use the least common multiple of
+ // segment counts so every original knot is retained; only final 16-bit
+ // quantization remains. Refuse if this exceeds the format limit.
+ fn gcd(mut a:usize,mut b:usize)->usize{while b!=0{let r=a%b;a=b;b=r;}a}
+ let mut segments=1usize;
+ for c in curves.iter(){
+  let n=c.len().checked_sub(1).filter(|&n|n>0).ok_or("Invalid curve")?;
+  segments=(segments/gcd(segments,n)).checked_mul(n).filter(|&x|x<=65534).ok_or("Cannot preserve all curve knots in a v2 common table")?;
  }
+ for c in curves.iter_mut(){if c.len()!=segments+1{*c=(0..=segments).map(|i|interp(c,i as f64/segments as f64)).collect();}}
  Ok(())
 }
 fn build(p:&Profile,target:u8,allow_omit:bool)->R<(Profile,Vec<String>)>{
@@ -115,7 +118,7 @@ fn build(p:&Profile,target:u8,allow_omit:bool)->R<(Profile,Vec<String>)>{
  if !out.tags.contains_key(b"wtpt")||!out.tags.contains_key(b"desc"){return Err("Media white and profile description are required".into())}
  Ok((out,omitted))
 }
-fn check(source:&Profile,out:&Profile,target:u8,omitted:Vec<String>,max_de:f64,max_ink:f64)->R<Report>{
+fn check(source:&Profile,out:&Profile,target:u8,omitted:Vec<String>,max_de:f64,max_ink:f64,relative_absolute_only:bool)->R<Report>{
  if !max_de.is_finite()||!(0.05..=2.).contains(&max_de)||!max_ink.is_finite()||!(0.05..=2.).contains(&max_ink){return Err("Validation limits must be 0.05–2 ΔE00 / percentage points".into())}
  let old=crate::validation::bounds(source)?;let bounds=crate::validation::bounds(out)?;
  // Preserve zero channels exactly; tolerate at most one 16-bit code for
@@ -139,7 +142,7 @@ fn check(source:&Profile,out:&Profile,target:u8,omitted:Vec<String>,max_de:f64,m
   let r=|p:&Native|Transform::<[f64;3],[u16;4]>::new_multiprofile(&[&xyz,p],PixelFormat::XYZ_DBL,PixelFormat::CMYK_16,intent,Flags::NO_OPTIMIZE).map_err(|e|e.to_string());
   let mut fa=vec![[0.;3];inks.len()];let mut fb=fa.clone();f(&a)?.transform_pixels(&inks,&mut fa);f(&b)?.transform_pixels(&inks,&mut fb);
   let mut ra=vec![[0u16;4];pcs.len()];let mut rb=ra.clone();r(&a)?.transform_pixels(&pcs,&mut ra);r(&b)?.transform_pixels(&pcs,&mut rb);
-  let mut row=IntentCheck{name,max_de:0.,mean_de:0.,max_ink_pp:0.,max_tac_pp:0.};
+  let mut row=IntentCheck{name,max_de:0.,mean_de:0.,max_ink_pp:0.,max_tac_pp:0.,passed:false,required:!relative_absolute_only||matches!(intent,Intent::RelativeColorimetric|Intent::AbsoluteColorimetric)};
   for (x,y) in fa.into_iter().zip(fb){
    if x.iter().chain(&y).any(|v|!v.is_finite()){return Err("Nonfinite forward conversion".into())}
    let lab=|v:[f64;3]|CIEXYZ{X:v[0],Y:v[1],Z:v[2]}.to_lab(&white);
@@ -151,14 +154,15 @@ fn check(source:&Profile,out:&Profile,target:u8,omitted:Vec<String>,max_de:f64,m
    let sum=|v:[u16;4]|v.iter().map(|&v|u32::from(v)).sum::<u32>();
    row.max_tac_pp=row.max_tac_pp.max(sum(x).abs_diff(sum(y)) as f64*100./65535.);
   }
-  if row.max_de>max_de||row.max_ink_pp>max_ink||row.max_tac_pp>4.*max_ink{return Err(format!("{name} intent equivalence failed: max ΔE00 {:.4} (limit {max_de:.2}), channel Δ {:.4} pp (limit {max_ink:.2}), TAC Δ {:.4} pp. No file saved.",row.max_de,row.max_ink_pp,row.max_tac_pp))}
+  row.passed=row.max_de<=max_de&&row.max_ink_pp<=max_ink&&row.max_tac_pp<=4.*max_ink;
+  if row.required&&!row.passed{return Err(format!("{name} intent equivalence failed: max ΔE00 {:.4} (limit {max_de:.2}), channel Δ {:.4} pp (limit {max_ink:.2}), TAC Δ {:.4} pp. No file saved.",row.max_de,row.max_ink_pp,row.max_tac_pp))}
   checks.push(row);
  }
- Ok(Report{target,checks,omitted,forward_samples:inks.len(),reverse_samples:pcs.len(),bounds})
+ Ok(Report{target,relative_absolute_only,checks,omitted,forward_samples:inks.len(),reverse_samples:pcs.len(),bounds})
 }
-pub fn convert_file(source:&Path,destination:&Path,target:u8,allow_omit:bool,max_de:f64,max_ink:f64)->R<Report>{
+pub fn convert_file(source:&Path,destination:&Path,target:u8,allow_omit:bool,max_de:f64,max_ink:f64,relative_absolute_only:bool)->R<Report>{
  let p=Profile::read(source)?;let (out,omitted)=build(&p,target,allow_omit)?;
- let report=check(&p,&out,target,omitted,max_de,max_ink)?;
+ let report=check(&p,&out,target,omitted,max_de,max_ink,relative_absolute_only)?;
  out.save_new(destination)?;Ok(report)
 }
 #[cfg(test)]mod tests{
@@ -172,8 +176,8 @@ pub fn convert_file(source:&Path,destination:&Path,target:u8,allow_omit:bool,max
   assert!(v4.tags[b"A2B1"].starts_with(b"mAB "));assert!(v4.tags[b"B2A1"].starts_with(b"mBA "));
   assert_eq!(v4.verify([1.,1.,1.,0.]).unwrap()[3],0.);
   let native=Native::new_icc(&v2.bytes().unwrap()).unwrap();assert!(native.version()<3.);
-  let report=check(&p,&v2,2,vec![],0.5,0.5).unwrap();assert_eq!(report.checks.len(),4);
-  let report=check(&v2,&v4,4,vec![],0.5,0.5).unwrap();assert_eq!(report.checks.len(),4);
+  let report=check(&p,&v2,2,vec![],0.5,0.5,true).unwrap();assert_eq!(report.checks.len(),4);
+  let report=check(&v2,&v4,4,vec![],0.5,0.5,true).unwrap();assert_eq!(report.checks.len(),4);
  }
  #[test]fn unknown_tags_require_permission(){
   let mut p=crate::synthetic_cmyk_v4(false);p.tags.insert(*b"DEVS",b"MSBN\0\0\0\0".to_vec());
@@ -181,11 +185,15 @@ pub fn convert_file(source:&Path,destination:&Path,target:u8,allow_omit:bool,max
   let (v,omitted)=build(&p,2,true).unwrap();assert_eq!(omitted,vec!["DEVS"]);assert!(!v.tags.contains_key(b"DEVS"));assert!(p.tags.contains_key(b"DEVS"));
   p.tags.insert(*b"D2B0",b"mpet\0\0\0\0".to_vec());assert!(build(&p,2,true).is_err());
  }
+ #[test]fn unequal_curve_lengths_retain_knots(){
+  let mut c=vec![vec![0.,0.1,1.],vec![0.,1.],vec![0.,0.2,0.8,1.]];
+  common_lengths(&mut c).unwrap();assert_eq!(c[0].len(),7);assert!((c[0][3]-0.1).abs()<1e-12);assert!((c[2][2]-0.2).abs()<1e-12);
+ }
  #[test]fn text_round_trip(){
   for copyright in [false,true]{let s="Copyright test";let v=text_tag(s,4,copyright);assert_eq!(ascii_text(&v).unwrap(),s);assert_eq!(ascii_text(&text_tag(s,2,copyright)).unwrap(),s);}
  }
  #[test]fn failed_validation_or_existing_path_does_not_publish(){
   let d=tempfile::tempdir().unwrap();let a=d.path().join("a.icc");let b=d.path().join("b.icc");crate::synthetic_cmyk_v4(true).save_new(&a).unwrap();
-  assert!(convert_file(&a,&b,2,false,0.,0.5).is_err());assert!(!b.exists());assert!(convert_file(&a,&a,2,false,0.5,0.5).is_err());
+  assert!(convert_file(&a,&b,2,false,0.,0.5,false).is_err());assert!(!b.exists());assert!(convert_file(&a,&a,2,false,0.5,0.5,true).is_err());
  }
 }
