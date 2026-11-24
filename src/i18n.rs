@@ -100,6 +100,14 @@ const ROWS:&[[&str;5]]=&[
 ["Validation report","گزارش اعتبارسنجی","Rapporto di validazione","تقرير التحقق","Отчёт проверки"],
 ["Build ICC from measured TI3","ساخت ICC از TI3","Crea ICC da TI3 misurato","إنشاء ICC من TI3","Создать ICC из TI3"],
 ["Compare measurements","مقایسه اندازه‌گیری‌ها","Confronta misure","مقارنة القياسات","Сравнить измерения"],
-["Local preferences and color engine configuration.","تنظیمات محلی و موتور رنگ.","Preferenze locali e motore colore.","التفضيلات المحلية ومحرك الألوان.","Локальные настройки и цветовой движок."]
+["Local preferences and color engine configuration.","تنظیمات محلی و موتور رنگ.","Preferenze locali e motore colore.","التفضيلات المحلية ومحرك الألوان.","Локальные настройки и цветовой движок."],
+["Reading Windows color directory…","در حال خواندن پوشه رنگ ویندوز…","Lettura cartella colori Windows…","جارٍ قراءة مجلد ألوان ويندوز…","Чтение папки цветовых профилей Windows…"],
+["No matching installed profiles.","پروفایل نصب‌شده سازگاری یافت نشد.","Nessun profilo installato compatibile.","لا توجد ملفات مثبتة مطابقة.","Нет подходящих установленных профилей."],
+["Open an ICC/ICM file or select an installed profile using System. Choose an editing or analysis tool from the sidebar.","یک فایل ICC/ICM یا پروفایل نصب‌شده را باز کنید و ابزار ویرایش یا تحلیل را انتخاب کنید.","Apri un ICC/ICM o seleziona un profilo di sistema. Scegli uno strumento di modifica o analisi.","افتح ملف ICC/ICM أو اختر ملفاً مثبتاً ثم اختر أداة تحرير أو تحليل.","Откройте ICC/ICM или выберите установленный профиль, затем инструмент редактирования или анализа."],
+["Media White Point","نقطه سفید رسانه","Punto di bianco del supporto","نقطة بياض الوسيط","Точка белого носителя"],
+["Paper / Substrate Color","رنگ بستر چاپ","Colore del supporto","لون الركيزة","Цвет носителя"],
+["Check for a compatible Studio release.","نسخه سازگار جدید را بررسی کنید.","Verifica una versione Studio compatibile.","تحقق من إصدار Studio متوافق.","Проверьте наличие совместимой версии."],
+["Checking GitHub Releases…","در حال بررسی نسخه‌های GitHub…","Verifica versioni GitHub…","جارٍ التحقق من إصدارات GitHub…","Проверка релизов GitHub…"],
+["Save preferences explicitly to restore gamut preview mode, analysis grids, characterization chart DPI next launch. No profile paths, TAC, ink caps or running jobs are restored automatically.","تنظیمات نمایش، شبکه تحلیل و DPI چارت را برای اجرای بعد ذخیره کنید. مسیر پروفایل، محدودیت جوهر و عملیات به‌طور خودکار بازیابی نمی‌شوند.","Salva le preferenze di visualizzazione, griglia e DPI. Percorsi, TAC, limiti e lavori non vengono ripristinati automaticamente.","احفظ إعدادات العرض والشبكة ودقة المخطط. لا تُستعاد المسارات أو حدود الحبر أو المهام تلقائياً.","Сохраните настройки просмотра, сетки и DPI. Пути, лимиты красок и задания автоматически не восстанавливаются."]
 ];
 #[cfg(test)]mod tests{use super::*;#[test]fn five_languages_and_fallback(){for l in Language::ALL{set_active(l);assert!(!tr("Settings").is_empty());assert_eq!(tr("A2B1"),"A2B1");}set_active(Language::Fa);assert_eq!(tr("Settings"),"تنظیمات");assert!(Language::Ar.rtl());}}

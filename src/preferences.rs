@@ -37,7 +37,7 @@ pub fn save(path:&Path,p:&Preferences)->R<()>{
 }
 #[cfg(test)]mod tests{
  use super::*;
- #[test]fn roundtrip_and_update(){let d=tempfile::tempdir().unwrap();let p=d.path().join("settings.json");assert_eq!(load(&p).unwrap(),Preferences::default());let mut v=Preferences::default();v.chart_dpi=600;v.preview_open=false;save(&p,&v).unwrap();assert_eq!(load(&p).unwrap(),v);v.chart_dpi=360;save(&p,&v).unwrap();assert_eq!(load(&p).unwrap(),v);}
+ #[test]fn roundtrip_and_update(){let d=tempfile::tempdir().unwrap();let p=d.path().join("settings.json");assert_eq!(load(&p).unwrap(),Preferences::default());let mut v=Preferences::default();v.chart_dpi=600;v.preview_open=false;v.language=crate::i18n::Language::Fa;save(&p,&v).unwrap();assert_eq!(load(&p).unwrap(),v);v.chart_dpi=360;save(&p,&v).unwrap();assert_eq!(load(&p).unwrap(),v);}
  #[test]fn retired_image_settings_are_ignored(){
  let d=tempfile::tempdir().unwrap();let p=d.path().join("settings.json");
  fs::write(&p,br#"{"schema":1,"preview_open":false,"dpi":2400,"stream_enabled":true,"bigtiff":true,"proof_media":false,"monitor":"old.icc","output":"old","library":"old"}"#).unwrap();

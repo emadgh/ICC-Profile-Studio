@@ -37,11 +37,13 @@ impl Default for Studio {
 }
 fn button(id: impl Into<ElementId>,label:impl Into<SharedString>)->Stateful<Div>{
  let label:SharedString=label.into();
- div().id(id).px_3().py_2().rounded_md().bg(rgb(0x333333)).text_color(rgb(0xf1f1f1)).cursor_pointer().hover(|s|s.bg(rgb(0x414141))).child(tr(label.as_ref()))
+ let icon=match label.as_ref(){"Open ICC"|"Select candidate ICC"=>"▱","Website"=>"↗","Source code"=>"⌘","Releases"|"Windows builds"=>"⇩","Check for updates"=>"⟳","Download verified update"=>"⇩","Restart and install"=>"↻","Compare profiles"=>"≍",_=>""};
+ let title=if icon.is_empty(){tr(label.as_ref())}else{format!("{icon}  {}",tr(label.as_ref()))};
+ div().id(id).px_3().py_2().rounded_md().bg(rgb(0x333333)).text_color(rgb(0xf1f1f1)).cursor_pointer().hover(|s|s.bg(rgb(0x414141))).child(title)
 }
 fn seg(id:impl Into<ElementId>,label:impl Into<SharedString>,active:bool)->Stateful<Div>{
  let label:SharedString=label.into();
- div().id(id).px_2().py_1().text_xs().rounded_md().bg(rgb(if active{0xb95b26}else{0x333333})).text_color(rgb(0xf1f1f1)).cursor_pointer().hover(|s|s.bg(rgb(0x4a4a4a))).child(label.into())
+ div().id(id).px_2().py_1().text_xs().rounded_md().bg(rgb(if active{0xb95b26}else{0x333333})).text_color(rgb(0xf1f1f1)).cursor_pointer().hover(|s|s.bg(rgb(0x4a4a4a))).child(tr(label.as_ref()))
 }
 fn heading(title:&str,sub:&str)->Div{div().flex().flex_col().gap_1().child(div().text_2xl().child(tr(title))).child(div().text_sm().text_color(rgb(0xa1a1aa)).child(tr(sub)))}
 fn neutral_plot(samples:&[comparison::NeutralSample],metric:usize)->impl IntoElement{
@@ -88,12 +90,12 @@ impl Studio {
    .child(div().flex().items_center().justify_between().child(div().text_xs().child(tr("System profiles")))
     .child(div().flex().gap_1().child(seg("sys-reload","↻",false).on_click(cx.listener(|v,_,_,cx|v.scan_system(cx))))
      .child(seg("sys-close","×",false).on_click(cx.listener(|v,_,_,cx|{v.picker=None;cx.notify();})))));
-  if self.system_loading{return p.child(div().text_xs().child("Reading Windows color directory…"))}
+  if self.system_loading{return p.child(div().text_xs().child(tr("Reading Windows color directory…")))}
   if let Some(e)=&self.system_error{return p.child(div().text_xs().child(e.clone()))}
   if let Some(c)=&self.system_catalog{
    let count=c.entries.iter().filter(|e|target==Picker::Reference||!e.device_link).count();
    p=p.child(div().text_xs().text_color(rgb(0xa1a1aa)).child(format!("{count} profiles · {} excluded · {} invalid",c.excluded,c.invalid)));
-   if count==0{return p.child(div().text_xs().child("No matching installed profiles."))}
+   if count==0{return p.child(div().text_xs().child(tr("No matching installed profiles.")))}
    p=p.child(div().id("sys-profile-list").max_h(px(250.)).overflow_y_scroll().flex().flex_col().gap_1()
     .children(c.entries.iter().enumerate().filter(|(_,e)|target==Picker::Reference||!e.device_link).map(|(i,e)|{
      let path=e.path.clone();
@@ -668,8 +670,8 @@ impl Studio {
    .child(div().text_lg().child(tr("Software updates")));
   #[cfg(windows)]{
    match self.updater.status(){
-    UpdateStatus::Idle=>p=p.child("Check for a compatible Studio release."),
-    UpdateStatus::Checking=>p=p.child("Checking GitHub Releases…"),
+    UpdateStatus::Idle=>p=p.child(tr("Check for a compatible Studio release.")),
+    UpdateStatus::Checking=>p=p.child(tr("Checking GitHub Releases…")),
     UpdateStatus::UpToDate=>p=p.child("No newer accessible release found; private releases may be invisible."),
     UpdateStatus::Available(info)=>p=p.child(format!("Version {} available",info.version)).child(button("download-studio","Download verified update").on_click(cx.listener(|v,_,_,cx|{if !v.busy{v.updater.start_download();v.update_poll(cx);cx.notify();}}))),
     UpdateStatus::Downloading{info,downloaded,total}=>{
@@ -755,7 +757,7 @@ impl Studio {
    .child(div().flex().flex_wrap().gap_1().children(Language::ALL.into_iter().enumerate().map(|(i,l)|seg(("language",i),l.name(),self.language==l).on_click(cx.listener(move|v,_,_,cx|{v.language=l;i18n::set_active(l);if let Err(e)=preferences::location().and_then(|p|{let mut current=preferences::load(&p)?;current.language=l;preferences::save(&p,&current)}){v.status=format!("Language preference not saved: {e}");}cx.notify();})))))
    .child("LittleCMS is linked statically. Official ArgyllCMS tools are installed by the portable backend when required.")
    .child(preferences::location().map(|p|p.display().to_string()).unwrap_or_else(|e|e))
-   .child("Save preferences explicitly to restore gamut preview mode, analysis grids, characterization chart DPI next launch. No profile paths, TAC, ink caps or running jobs are restored automatically.")
+   .child(tr("Save preferences explicitly to restore gamut preview mode, analysis grids, characterization chart DPI next launch. No profile paths, TAC, ink caps or running jobs are restored automatically."))
    .child(button("prefs-save","Save current preferences as defaults").on_click(cx.listener(|v,_,_,cx|{
     if !v.busy{v.status=preferences::location().and_then(|p|preferences::save(&p,&v.preference_snapshot()).map(|_|format!("Preferences saved: {}",p.display()))).unwrap_or_else(|e|format!("Error: {e}"));cx.notify();}
    })))
@@ -775,7 +777,7 @@ impl Studio {
     .child(format!("Estimated total ink: {}",r.tac.map(|v|format!("{v:.1}%")).unwrap_or("Not available".into())))
     ;
    let mut white=div().flex().flex_col().gap_2().p_3().rounded_md().bg(rgb(0x292929))
-    .child(div().text_lg().child(if r.is_output{"Paper / Substrate Color"}else{"Media White Point"}))
+    .child(div().text_lg().child(if r.is_output{tr("Paper / Substrate Color")}else{tr("Media White Point")}))
     .child(div().text_xs().text_color(rgb(0xa1a1aa)).child("ICC mediaWhitePointTag (wtpt), D50 PCS; not the header illuminant."));
    if let Some(w)=&r.media_white{
     let mut details=div().flex().flex_col().gap_1()
@@ -791,7 +793,7 @@ impl Studio {
    panel=panel.child(white)
     .child(div().text_xs().child(format!("{} ICC tags",r.tags.len())))
     .when(self.profile.is_some(),|p|p.child(button("save-rename","Save copy with new profile name").on_click(cx.listener(|v,_,_,cx|v.save_edit(2,cx)))));
-  } else {panel=panel.child("Open an ICC/ICM file or select an installed profile using System. Choose an editing or analysis tool from the sidebar.");}
+  } else {panel=panel.child(tr("Open an ICC/ICM file or select an installed profile using System. Choose an editing or analysis tool from the sidebar."));}
   panel
  }
  fn validator(&self)->Div{
@@ -870,11 +872,8 @@ impl Render for Studio {
      let mark=div().w(px(18.)).text_color(rgb(if active{0xfb923c}else{0xa1a1aa})).child(icon);
      let label=div().flex_1().child(tr(label));
      let row=div().id(("page",page as usize)).px_2().py_1().rounded_md().flex().items_center().gap_2().text_sm().cursor_pointer()
-      .bg(rgb(if active{0x443024}else{0x191919})).hover(|s|s.bg(rgb(0x303030)))
-      .when(self.language.rtl(),|r|r.child(label).child(mark))
-      ;
-     // Branch before consuming elements: RTL uses label followed by symbol.
-     let row=if self.language.rtl(){row}else{row.child(div().w(px(18.)).text_color(rgb(if active{0xfb923c}else{0xa1a1aa})).child(icon)).child(div().flex_1().child(tr(PAGES.iter().find(|(p,_)|*p==page).map(|(_,n)|*n).unwrap_or(""))))};
+      .bg(rgb(if active{0x443024}else{0x191919})).hover(|s|s.bg(rgb(0x303030)));
+     let row=if self.language.rtl(){row.child(label.text_right()).child(mark)}else{row.child(mark).child(label)};
      sidebar=sidebar.child(row.on_click(cx.listener(move|v,_,_,cx|{v.page=page;v.picker=None;if page==Page::Gamut&&v.preview.is_none(){v.refresh_gamut(cx);}cx.notify();})));
     }
    }
