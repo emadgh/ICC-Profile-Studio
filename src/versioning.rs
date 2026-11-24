@@ -95,10 +95,16 @@ fn build(p:&Profile,target:u8,allow_omit:bool)->R<(Profile,Vec<String>)>{
    if forward{
     // Scale only the PCS output curve samples, preserving knots and CLUT.
     let f=if target==2{LEGACY}else{1./LEGACY};
-    for curve in &mut l.out_curves{for x in curve{
-     if target==4&&*x>LEGACY+1./65535.{return Err("Legacy PCS output exceeds nominal Lab range; conversion refused".into())}
-     *x=(*x*f).clamp(0.,1.);
-    }}
+    for curve in &mut l.out_curves{
+     // Legacy identity output curves often reach 65535 at unused input
+     // values even when the CLUT only reaches 65280. Do not reject those
+     // valid profiles. Sample the composed clipped curve if its upper
+     // range crosses the nominal Lab limit; never just scale endpoints.
+     if target==4&&curve.iter().any(|&x|x>LEGACY){
+      let n=curve.len().max(16385);
+      *curve=(0..n).map(|i|(interp(curve,i as f64/(n-1) as f64)*f).clamp(0.,1.)).collect();
+     }else{for x in curve{*x=(*x*f).clamp(0.,1.);}}
+    }
    }else{
     // Compose legacy/full-range Lab input remapping before original input
     // curve. 16,385 evenly spaced samples, enough for the usual 4096-point
@@ -134,7 +140,7 @@ fn check(source:&Profile,out:&Profile,target:u8,omitted:Vec<String>,max_de:f64,m
   let lab=CIELab{L:l as f64*100./16.,a:aa as f64*255./16.-128.,b:bb as f64*255./16.-128.};
   let t=lab.to_xyz(&white);let v=[t.X,t.Y,t.Z];if v.iter().all(|x|x.is_finite()&&*x>=0.&&*x<2.){pcs.push(v);}
  }}}
- // Dense neutral samples plus shifted samples beyond the regular lattice.
+ // Dense neutral samples beyond the regular lattice.
  for i in 0..=100{let x=CIELab{L:i as f64,a:0.,b:0.}.to_xyz(&white);pcs.push([x.X,x.Y,x.Z]);}
  let mut checks=Vec::new();
  for (name,intent) in [("Perceptual",Intent::Perceptual),("Relative",Intent::RelativeColorimetric),("Saturation",Intent::Saturation),("Absolute",Intent::AbsoluteColorimetric)]{
@@ -184,6 +190,17 @@ pub fn convert_file(source:&Path,destination:&Path,target:u8,allow_omit:bool,max
   assert!(build(&p,2,false).is_err());
   let (v,omitted)=build(&p,2,true).unwrap();assert_eq!(omitted,vec!["DEVS"]);assert!(!v.tags.contains_key(b"DEVS"));assert!(p.tags.contains_key(b"DEVS"));
   p.tags.insert(*b"D2B0",b"mpet\0\0\0\0".to_vec());assert!(build(&p,2,true).is_err());
+ }
+ #[test]fn legacy_identity_pcs_curve_is_supported(){
+  let (mut v2,_)=build(&crate::synthetic_cmyk_v4(true),2,false).unwrap();
+  for k in [b"A2B0",b"A2B1",b"A2B2"]{
+   let mut l=Lut::parse(&v2.tags[k]).unwrap();
+   for j in 0..3{for n in l.clut.chunks_exact_mut(3){n[j]*=LEGACY;}}
+   l.out_curves=vec![vec![0.,1.];3];
+   v2.tags.insert(*k,crate::editing::encode(&l,b"mft2").unwrap());
+  }
+  let (v4,_)=build(&v2,4,false).unwrap();
+  let l=Lut::parse(&v4.tags[b"A2B1"]).unwrap();assert!((interp(&l.out_curves[0],0.5)-0.5/LEGACY).abs()<0.00003);
  }
  #[test]fn unequal_curve_lengths_retain_knots(){
   let mut c=vec![vec![0.,0.1,1.],vec![0.,1.],vec![0.,0.2,0.8,1.]];
