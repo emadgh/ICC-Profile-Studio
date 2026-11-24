@@ -102,6 +102,13 @@
 - [x] Test of monitor ICC embedding and proof pipeline added.
 - [ ] CI, real calibrated monitor visual comparison, large-file proof sampling, integrated color-managed GPUI display and out-of-gamut overlay.
 
+## Gamut preview rendering repair
+
+- User reported no rendered gamut in either 2D or 3D on Windows. Root cause not yet reproduced on Windows; investigate render/layout separately from data.
+- [x] Independently tested three local printer ICCs (original, K0, K10) with native LittleCMS: 3,440 valid Lab targets each; 3,279 / 1,338 / 1,348 distinct Lab points. Proprietary files not committed.
+- [x] Replaced GPUI custom Canvas drawing with a CPU-rendered PNG via existing image crate and fixed 320×320 GPUI image element; always display axes, auto-fit common scale, brighter points, visible counts, 2D outline and 3D wireframe, separate error status and PNG export. Existing mouse controls and before/after toggles retained.
+- [x] Added raster pixel-change, toggles/slice, and synthetic native ICC-to-raster tests. CI and actual Windows rendering still pending.
+
 ## Release engineering
 
 - [x] Studio-specific version file (0.9.0-beta.1), immutable separate Studio prerelease packaging with EXE, SHA256 and ZIP; legacy release kept independent.

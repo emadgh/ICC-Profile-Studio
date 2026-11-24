@@ -106,3 +106,7 @@ Settings saves validated preferences atomically under `%APPDATA%/ICC Profile Stu
 ### Strict validation
 
 For supported output LUTs, Validator reports mathematical channel bounds and TAC: affine post-curves give the exact node maximum, non-affine curves use a conservative per-cell envelope that may overestimate. The Rebuilder refuses an output that cannot be certified against the explicit limits, and independently samples all three native LittleCMS B2A pipelines before save (14,739 samples). A conservative rejection is not proof that the actual profile exceeds TAC. These checks do not establish physical safe ink limits or print accuracy.
+
+### Gamut preview rendering repair
+
+The preview uses a CPU raster image rendered with the existing image crate, shown in a fixed-size GPUI image rather than the previous Canvas. The shared auto-fit Lab scale does not change when Before/After visibility is toggled. Axes are always present; visible sample counts and errors are displayed, and a PNG can be exported for independent inspection. Windows interactive rendering verification is still required.

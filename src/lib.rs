@@ -1,3 +1,4 @@
+pub mod gamut_raster;
 pub mod validation;
 pub mod preferences;
 pub mod streaming;

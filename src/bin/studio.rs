@@ -215,7 +215,7 @@ impl Studio {
   cx.spawn(async move |this,cx|{
    let result=cx.background_spawn(async move{gamut::overlay(&reference,candidate.as_deref(),grid)}).await;
    let _=this.update(cx,|view,cx|{
-    view.preview=Some(result);view.busy=false;view.status="Gamut analysis finished. See each profile's result in Preview.".into();cx.notify();
+    let status=match &result.reference{Ok(c)=>format!("Gamut ready: {} reference points{}",c.points.len(),match &result.candidate{Some(Ok(c))=>format!(", {} candidate points",c.points.len()),Some(Err(e))=>format!("; candidate failed: {e}"),None=>String::new()}),Err(e)=>format!("Reference gamut failed: {e}")};view.preview=Some(result);view.busy=false;view.status=status;cx.notify();
    });
   }).detach();
  }
@@ -253,11 +253,13 @@ impl Studio {
   p=p.child(div().flex().gap_1().child(button("zoom-out","− zoom").on_click(cx.listener(|this,_,_,cx|{this.preview_options.zoom=(this.preview_options.zoom/1.2).max(0.5);cx.notify();})))
    .child(button("zoom-in","+ zoom").on_click(cx.listener(|this,_,_,cx|{this.preview_options.zoom=(this.preview_options.zoom*1.2).min(3.);cx.notify();})))
    .child(button("reset-view","Reset").on_click(cx.listener(|this,_,_,cx|{this.preview_options=ViewOptions::default();cx.notify();}))));
-  if let Some(data)=&self.preview{
+  { 
+   if let Some(data)=&self.preview{
    match &data.reference{Ok(c)=>p=p.child(format!("Before: {} distinct / {} targets",c.points.len(),c.sampled)),Err(e)=>p=p.child(format!("Before failed: {e}"))}
    if let Some(c)=&data.candidate{match c{Ok(c)=>p=p.child(format!("After: {} distinct / {} targets",c.points.len(),c.sampled)),Err(e)=>p=p.child(format!("After failed: {e}"))}}
+   }
    p=p.child(button("mesh-toggle",if o.wireframe{"Wireframe ✓"}else{"Point cloud"}).on_click(cx.listener(|this,_,_,cx|{this.preview_options.wireframe=!this.preview_options.wireframe;cx.notify();})));
-   p=p.child(div().id("gamut-orbit").w_full().cursor_pointer()
+   p=p.child(div().id("gamut-orbit").w_full().flex_shrink_0().cursor_pointer()
     .on_mouse_down(MouseButton::Left,cx.listener(|this,e:&MouseDownEvent,_,cx|{this.orbit_last=Some(e.position);cx.notify();}))
     .on_mouse_up(MouseButton::Left,cx.listener(|this,_,_,cx|{this.orbit_last=None;cx.notify();}))
     .on_mouse_move(cx.listener(|this,e:&MouseMoveEvent,_,cx|{
@@ -278,11 +280,13 @@ impl Studio {
      let dy=f32::from(e.delta.pixel_delta(px(20.)).y);
      if dy.is_finite(){this.preview_options.zoom=(this.preview_options.zoom*(dy*0.004).clamp(-0.6,0.6).exp()).clamp(0.5,3.);cx.notify();cx.stop_propagation();}
     }))
-    .child(gamut_view::plot(data,o)));
-   p=p.child("Drag to orbit (3D); scroll to zoom.");
-   if o.wireframe{p=p.child("Convex hull wireframe (slice uses points).");}
+    .child(gamut_view::plot(self.preview.as_ref(),o)));
+   p=p.child("Drag to orbit (3D); scroll to zoom. Both profiles share the same auto-fit scale.")
+    .child(button("save-gamut-png","Export current gamut PNG").on_click(cx.listener(|v,_,_,cx|{if let Some(data)=&v.preview{if let Some(path)=rfd::FileDialog::new().add_filter("PNG",&["png"]).set_file_name("gamut.png").save_file(){let result=color_convert_rust::gamut_raster::render(Some(data),v.preview_options).png().and_then(|bytes|{use std::io::Write;let mut f=tempfile::NamedTempFile::new_in(path.parent().unwrap_or(std::path::Path::new("."))).map_err(|e|e.to_string())?;f.write_all(&bytes).map_err(|e|e.to_string())?;f.persist_noclobber(&path).map_err(|e|e.to_string())?;Ok(())});v.status=result.map(|_|format!("Saved {}",path.display())).unwrap_or_else(|e|format!("Error: {e}"));cx.notify();}}})));
+   if o.wireframe{p=p.child("Convex hull wireframe / 2D outline; approximate envelope.");}
    if o.three_d{p=p.child("Axes: red +a*, green +b*, white +L*");}else{p=p.child(if o.slice{format!("a* / b* | L* {:.0} ± 5",o.light)}else{"a* / b* | all lightness values".into()});}
-  }else{p=p.child("Open an ICC or refresh to calculate the preview.");}
+  }
+  if self.preview.is_none(){p=p.child(if self.busy{"Sampling in progress…"}else{"Open an ICC or refresh to calculate the preview."});}
   p.child(div().text_xs().text_color(rgb(0x94a3b8)).child("Sampled effective separation gamut (Lab → B2A → device → A2B → Lab). Relative colorimetric, D50. Point cloud, not a measured or exact surface/volume."))
  }
  fn analyze_gradient(&mut self,cx:&mut Context<Self>){

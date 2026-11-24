@@ -43,6 +43,7 @@ pub fn sample(path:&Path,grid:usize)->Result<Cloud,String>{
  // Quantize only the display point keys, retain the original Lab coordinates.
  let mut seen=std::collections::HashSet::new();
  points.retain(|p|seen.insert(p.map(|v|(v*4.).round() as i32)));
+ if points.is_empty(){return Err("LittleCMS produced no usable gamut points".into())}
  let hull=convex_mesh(&points);Ok(Cloud{points,sampled:values.len(),errors,hull})
 }
 /// Convex envelope of sampled points. It may enclose unattainable colors;
