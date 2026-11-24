@@ -102,3 +102,7 @@ Select a source image, printer reference/candidate and actual RGB monitor ICC. L
 ### Local preferences
 
 Settings saves validated preferences atomically under `%APPDATA%/ICC Profile Studio/preferences.json`. Startup restores non-device-specific UI, preview, grid, DPI, TIFF and proof settings plus existing monitor/library/output paths. No ink limits, TAC, untagged-source assumptions, printer profiles or running jobs are restored automatically. Reset in memory and save explicitly to persist defaults.
+
+### Strict validation
+
+For supported output LUTs, Validator reports mathematical channel bounds and TAC: affine post-curves give the exact node maximum, non-affine curves use a conservative per-cell envelope that may overestimate. The Rebuilder refuses an output that cannot be certified against the explicit limits, and independently samples all three native LittleCMS B2A pipelines before save (14,739 samples). A conservative rejection is not proof that the actual profile exceeds TAC. These checks do not establish physical safe ink limits or print accuracy.

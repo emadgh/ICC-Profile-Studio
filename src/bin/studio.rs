@@ -683,7 +683,14 @@ impl Studio {
     let line=match &check.result{Ok(max)=>format!("Transforms created • sampled maxima {:.2} / {:.2} / {:.2} / {:.2}%",max[0],max[1],max[2],max[3]),Err(e)=>format!("Failed: {e}")};
     panel=panel.child(div().flex().flex_col().gap_1().p_3().rounded_md().bg(rgb(0x1b2637)).child(check.name).child(div().text_sm().child(line)));
    }
-   panel=panel.child("729 sRGB samples per intent. Strict output LUT bounds are checked separately by the rebuild engine.");
+   panel=panel.child("729 sRGB samples per intent. Sampled values are not exhaustive.");
+   if let Some(bounds)=&r.strict_bounds{
+    panel=panel.child(div().text_lg().child("Strict LUT bounds"));
+    match bounds{
+     Ok(b)=>{panel=panel.child(format!("Channel ceilings: {:.4?}%",b.channels.map(|v|v*100.))).child(format!("TAC upper bound: {:.4}% ({})",b.tac*100.,if b.exact_node_tac{"affine output curves; exact node maximum"}else{"conservative per-cell envelope; may overestimate"}));},
+     Err(e)=>{panel=panel.child(format!("Not certifiable with supported LUT parser: {e}"));}
+    }
+   }
   }
   panel
  }

@@ -1,3 +1,4 @@
+pub mod validation;
 pub mod preferences;
 pub mod streaming;
 pub mod library;

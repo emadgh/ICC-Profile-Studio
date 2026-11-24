@@ -11,7 +11,7 @@
 - [x] GPUI About icon and shared update-via-github UI with separate Studio asset/checksum names; package Studio EXE with checksum and docs in CI.
 - [ ] Private feed/authentication and stable Studio releases, verify updater, port remaining legacy controls, drag-and-drop, accessibility, promotion to default.
 - [ ] Run real Durst ICC v2/v4 regression tests and print/firing checks. Proprietary customer ICCs must stay out of the repository.
-- [ ] Add independent LCMS transform checks for generated profiles; enforce numerical bounds through the strict LUT validator as well as sampled transforms.
+- [x] Rebuilder validates all three output intents with strict channel bounds, exact affine-curve or conservative per-cell TAC bound, independent 14,739 LittleCMS pipeline samples; explicit TAC must be certifiable before save. Validator shows strict bounds or unsupported reason. Tests added; CI pending.
 
 ## v0.4 — comparison (source implementation started)
 

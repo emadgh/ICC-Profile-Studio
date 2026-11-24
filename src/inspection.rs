@@ -42,6 +42,7 @@ pub struct Inspection {
     pub tac: Option<f64>,
     pub media_white: Option<MediaWhite>,
     pub is_output: bool,
+    pub strict_bounds: Option<Result<crate::validation::Bounds,String>>,
     pub intents: Vec<IntentResult>,
 }
 pub fn inspect(path: &Path) -> Result<Inspection, String> {
@@ -79,9 +80,10 @@ pub fn inspect(path: &Path) -> Result<Inspection, String> {
     }
     let media_white=media_white(&profile);
     let is_output=profile.device_class()==ProfileClassSignature::OutputClass;
+    let strict_bounds=if is_output {Some(crate::Profile::parse(&data).and_then(|p|crate::validation::bounds(&p)))}else{None};
     Ok(Inspection{
         version:profile.version(),device_class:format!("{:?}",profile.device_class()),
-        color_space,pcs:format!("{:?}",profile.pcs()),size,media_white,is_output,
+        color_space,pcs:format!("{:?}",profile.pcs()),size,media_white,is_output,strict_bounds,
         tags:profile.tag_signatures().iter().map(|s|format!("{s:?}")).collect(),tac,intents,
     })
 }

@@ -55,10 +55,11 @@ pub fn run(j:Job,progress:impl Fn(String))->R<String>{
  };
  if output.space()!=reference.space() || output.pcs()!=reference.pcs(){return Err("Engine changed the color space or PCS".into())}
  progress("Validating maximum channel values in all output LUTs...".into());
- let max=output.verify(caps).map_err(|e|format!("{e}\nIf Argyll cannot meet the strict bound, try Custom with an explicit TAC."))?;
+ let (bounds,native)=crate::validation::verify_output(&output,caps,if j.estimate&&j.mode==Mode::Argyll{None}else{Some(j.tac/100.)}).map_err(|e|format!("{e}\nIf Argyll cannot meet the strict bound, try Custom with an explicit TAC."))?;
+ let max=bounds.channels;
  output.clean_stale();
  let name=j.destination.file_stem().unwrap_or_default().to_string_lossy();
  output.describe(&name);
  output.save_new(&j.destination)?;
- Ok(format!("Saved: {}\nVerified maxima (device values): {:.3}% / {:.3}% / {:.3}% / {:.3}%\nTest a printed chart after firing before production.",j.destination.display(),max[0]*100.,max[1]*100.,max[2]*100.,max[3]*100.))
+ Ok(format!("Saved: {}\nVerified maxima (device values): {:.3}% / {:.3}% / {:.3}% / {:.3}%\nTAC upper bound: {:.3}% | LittleCMS: {} pipeline samples, peak {:.3}%\nTest a printed chart after firing before production.",j.destination.display(),max[0]*100.,max[1]*100.,max[2]*100.,max[3]*100.,bounds.tac*100.,native.count,native.tac*100.))
 }
