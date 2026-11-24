@@ -43,14 +43,25 @@
 - [x] Gradient Analyzer: 13 × 256 sRGB ramps, adjacent ΔE00, P95, plateau/spike heuristic, maximum ink step, paired graphs.
 - [x] Gamut target coverage: paired D50 Lab errors at selectable ΔE00 thresholds, lost/gained/both/neither counts and lost share.
 - [x] Parry3D convex hull wireframe and approximate convex envelope volume, separate from coverage. Point cloud fallback for degenerate shapes or L* slices.
-- [ ] New analytics/hull CI and runtime verification; test actual printer files; mouse drag/wheel, axis tick labels, nonconvex mesh/volume and selective color correction.
+- [x] Analytics/hull CI passed at 21bcef07: 21 unit tests and Windows GPUI artifact 14923084302.
+- [ ] Actual printer files, mouse drag/wheel, axis tick labels, nonconvex mesh/volume and runtime checks.
+
+## v0.7 — selective color and smoothing (source implementation)
+
+- [x] Selective D50 Lab/LCh correction: circular hue mask, smooth falloff, lightness/chroma/hue controls and protection of near-neutrals and extreme lightness targets.
+- [x] Use LittleCMS native tag Pipeline evaluation of each original B2A intent; bake separate 16-bit mBA CLUTs, keep A2B and source channel maxima. Optional explicit TAC; verify every node and output bounds. No reuse of a single rendering intent.
+- [x] Bounded six-neighbor LUT smoothing, strength 5–50%, 1–5 passes. Convex averaging of interior nodes; no averaging of boundary nodes. Resampling and explicit TAC still affect boundaries.
+- [x] GPUI pages, 17/33/49/65 grid, output auto-selected in shared before/after Preview, no source overwrite, LittleCMS transform smoke checks.
+- [x] Five unit tests for hue wrapping, protected neutrals, locality and ink bounds.
+- [ ] New CI and integration regression on a valid ICC, quantify drift outside selective band, real printer tests and compare before/after using Gradient Analyzer and Delta E00.
+- [ ] ICC v2/other LUT structures, multiple selective masks, interactive mouse orbit and wheel zoom.
 
 ## Next milestones
 
 - v0.4: Complete validation/export of Profile Comparison, Delta E2000, neutral axis and ink distribution.
 - v0.5: Complete runtime validation of Tone Curves, channel mapping/reordering, profile metadata editing.
 - v0.6: Validate new analytics and hull build; actual printer regression, richer controls and nonconvex gamut analysis.
-- v0.7: Selective Lab/LCh color correction, controlled LUT smoothing.
+- v0.7: Verify selective Lab/LCh correction and smoothing, add multi-region controls and mouse orbit.
 - v0.8: ICC image conversion, batch conversion, separations, soft proof, ink coverage.
 - v0.9: DeviceLink generation, constrained ink saving and cost optimization.
 - v1.0: Ceramic profiling, reference charts, measured glaze/firing/ink batch compensation, machine matching, profile library.
@@ -71,4 +82,5 @@ Check boxes mean source implementation, not verified runtime unless explicitly m
 ## Build evidence
 
 - Successful baseline: https://github.com/emadgh/color-convert-rust/actions/runs/45400551593 — 17 tests; artifact 14924101531. Legacy build also succeeded.
-- Current analytics commit: CI not yet verified. Convex hull is an approximation and sampled target loss is not exact gamut volume.
+- Successful analytics: https://github.com/emadgh/color-convert-rust/actions/runs/45402521624 — 21 tests; artifact 14923084302.
+- Current v0.7 source: new CI not yet verified. Convex hull is an approximation and sampled target loss is not exact gamut volume.

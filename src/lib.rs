@@ -1,3 +1,4 @@
+pub mod correction;
 pub mod gradient;
 pub mod gamut;
 pub mod editing;

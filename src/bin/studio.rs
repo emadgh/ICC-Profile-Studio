@@ -4,24 +4,25 @@ use color_convert_rust::{Profile, backend::{self,Job,Mode}, inspection::{self,In
 use std::{path::PathBuf,sync::mpsc,time::Duration};
 use color_convert_rust::comparison::{self,Comparison};
 use color_convert_rust::editing::{self,Edit};
+use color_convert_rust::correction::{Operation,Selective};
 #[path = "../gamut_view.rs"] mod gamut_view;
 use color_convert_rust::gamut::{self,Overlay};
 use gamut_view::ViewOptions;
 use color_convert_rust::gradient::{self,GradientReport};
 
 #[derive(Clone,Copy,PartialEq,Eq)]
-enum Page { Dashboard, Inspector, Validator, Rebuilder, Comparison, Curves, Reorder, Metadata, Gamut, Gradient, Correction, Converter, Lab, Settings, About }
-const PAGES: [(Page,&str);15] = [
+enum Page { Dashboard, Inspector, Validator, Rebuilder, Comparison, Curves, Reorder, Metadata, Gamut, Gradient, Correction, Smoothing, Converter, Lab, Settings, About }
+const PAGES: [(Page,&str);16] = [
  (Page::Dashboard,"Dashboard"),(Page::Inspector,"Profile Inspector"),(Page::Validator,"Profile Validator"),(Page::Rebuilder,"Profile Rebuilder"),
- (Page::Comparison,"Profile Comparison"),(Page::Curves,"Tone Curves"),(Page::Reorder,"Channel Reorder"),(Page::Metadata,"Profile Metadata"),(Page::Gamut,"Gamut Viewer"),(Page::Gradient,"Gradient Analyzer"),(Page::Correction,"Color Correction"),(Page::Converter,"Image Converter"),(Page::Lab,"Profiling Lab"),(Page::Settings,"Settings"),(Page::About,"About & Updates")
+ (Page::Comparison,"Profile Comparison"),(Page::Curves,"Tone Curves"),(Page::Reorder,"Channel Reorder"),(Page::Metadata,"Profile Metadata"),(Page::Gamut,"Gamut Viewer"),(Page::Gradient,"Gradient Analyzer"),(Page::Correction,"Color Correction"),(Page::Smoothing,"LUT Smoothing"),(Page::Converter,"Image Converter"),(Page::Lab,"Profiling Lab"),(Page::Settings,"Settings"),(Page::About,"About & Updates")
 ];
 enum Event { Progress(String), Done(Result<String,String>) }
 struct Studio {
  page:Page, source:Option<PathBuf>, profile:Option<Profile>, report:Option<Inspection>, error:Option<String>,
- caps:[f64;4],tac:f64,grid:usize,mode:Mode,status:String,busy:bool, candidate:Option<PathBuf>,comparison:Option<Comparison>,compare_error:Option<String>,compare_grid:usize,gamma:[f64;4],order:[usize;4], preview_open:bool, preview:Option<Overlay>, preview_options:ViewOptions, gamut_grid:usize,gradient:Option<GradientReport>,gradient_error:Option<String>,coverage_threshold:f64,
+ caps:[f64;4],tac:f64,grid:usize,mode:Mode,status:String,busy:bool, candidate:Option<PathBuf>,comparison:Option<Comparison>,compare_error:Option<String>,compare_grid:usize,gamma:[f64;4],order:[usize;4], preview_open:bool, preview:Option<Overlay>, preview_options:ViewOptions, gamut_grid:usize,gradient:Option<GradientReport>,gradient_error:Option<String>,coverage_threshold:f64, selective:[f64;5], correction_grid:usize, correction_tac:f64, smoothing:f64, smoothing_passes:usize,
 }
 impl Default for Studio {
- fn default()->Self{Self{page:Page::Dashboard,source:None,profile:None,report:None,error:None,caps:[100.,100.,100.,0.],tac:240.,grid:33,mode:Mode::Custom,status:"Open an ICC or ICM profile to start.".into(),busy:false,candidate:None,comparison:None,compare_error:None,compare_grid:17,gamma:[1.;4],order:[0,1,2,3],preview_open:true,preview:None,preview_options:ViewOptions::default(),gamut_grid:17,gradient:None,gradient_error:None,coverage_threshold:2.}}
+ fn default()->Self{Self{page:Page::Dashboard,source:None,profile:None,report:None,error:None,caps:[100.,100.,100.,0.],tac:240.,grid:33,mode:Mode::Custom,status:"Open an ICC or ICM profile to start.".into(),busy:false,candidate:None,comparison:None,compare_error:None,compare_grid:17,gamma:[1.;4],order:[0,1,2,3],preview_open:true,preview:None,preview_options:ViewOptions::default(),gamut_grid:17,gradient:None,gradient_error:None,coverage_threshold:2.,selective:[135.,45.,0.,0.,0.],correction_grid:33,correction_tac:400.,smoothing:0.20,smoothing_passes:1}}
 }
 fn button(id: impl Into<ElementId>,label:impl Into<SharedString>)->Stateful<Div>{
  div().id(id).px_3().py_2().rounded_md().bg(rgb(0x263449)).text_color(rgb(0xe6eefb)).cursor_pointer().hover(|s|s.bg(rgb(0x354963))).child(label.into())
@@ -31,7 +32,7 @@ impl Studio {
  fn open(&mut self,cx:&mut Context<Self>) {
   if self.busy{return}
   let Some(path)=rfd::FileDialog::new().add_filter("ICC profile",&["icc","icm"]).pick_file() else{return};
-  self.source=Some(path.clone());self.preview=None;self.candidate=None;self.gradient=None;self.gradient_error=None;self.gamma=[1.;4];self.order=[0,1,2,3];self.comparison=None;self.compare_error=None;self.report=None;self.profile=None;self.error=None;
+  self.source=Some(path.clone());self.selective=[135.,45.,0.,0.,0.];self.correction_grid=33;self.correction_tac=400.;self.smoothing=0.20;self.smoothing_passes=1;self.preview=None;self.candidate=None;self.gradient=None;self.gradient_error=None;self.gamma=[1.;4];self.order=[0,1,2,3];self.comparison=None;self.compare_error=None;self.report=None;self.profile=None;self.error=None;
   match inspection::inspect(&path){Ok(r)=>self.report=Some(r),Err(e)=>self.error=Some(e)}
   if let Ok(p)=Profile::read(&path){
    if p.check().is_ok(){
@@ -116,12 +117,12 @@ impl Studio {
  }
  fn save_edit(&mut self,kind:u8,cx:&mut Context<Self>){
   if self.busy{return}let Some(source)=self.source.clone()else{return};
-  let suffix=match kind{0=>"curves",1=>"reordered",_=>"renamed"};
+  let suffix=match kind{0=>"curves",1=>"reordered",3=>"selective",4=>"smoothed",_=>"renamed"};
   let default_name=format!("{}_{}.icc",source.file_stem().unwrap_or_default().to_string_lossy(),suffix);
   let Some(mut destination)=rfd::FileDialog::new().add_filter("ICC profile",&["icc","icm"]).set_file_name(default_name).save_file()else{return};
   if destination.extension().is_none(){destination.set_extension("icc");}
   let output_path=destination.clone();
-  let edit=match kind{0=>Edit::Tone(self.gamma),1=>Edit::Reorder(self.order),_=>Edit::Rename(destination.file_stem().unwrap_or_default().to_string_lossy().into_owned())};
+  let edit=match kind{0=>Edit::Tone(self.gamma),1=>Edit::Reorder(self.order),3=>Edit::Correction(Operation::Selective(Selective{center:self.selective[0],width:self.selective[1],light:self.selective[2],chroma_percent:self.selective[3],hue_shift:self.selective[4]}),self.correction_grid,self.correction_tac),4=>Edit::Correction(Operation::Smooth{strength:self.smoothing,passes:self.smoothing_passes},self.correction_grid,self.correction_tac),_=>Edit::Rename(destination.file_stem().unwrap_or_default().to_string_lossy().into_owned())};
   self.busy=true;self.status="Editing ICC and validating with LittleCMS…".into();cx.notify();
   cx.spawn(async move |this,cx|{
    let result=cx.background_spawn(async move{editing::edit_file(&source,&destination,edit)}).await;
@@ -263,6 +264,44 @@ impl Studio {
   }
   p.child("Coverage is a sampled round-trip reproduction test, not proof of physical achievability. Convex envelopes can include unattainable concave regions; volume is an approximation only.")
  }
+ fn correction_options(&self,cx:&mut Context<Self>)->Div{
+  let estimate=self.profile.as_ref().and_then(|p|p.estimated_tac_percent());
+  let mut p=div().flex().flex_col().gap_2()
+   .child(div().flex().items_center().gap_1().child("CLUT grid").children([17usize,33,49,65].map(|g|button(("edit-grid",g),if self.correction_grid==g{format!("{g} ✓")}else{g.to_string()}).on_click(cx.listener(move|this,_,_,cx|{if !this.busy{this.correction_grid=g;cx.notify();}})))))
+   .child(div().flex().items_center().gap_2().child(format!("TAC ceiling: {:.0}%",self.correction_tac))
+    .child(button("edit-tac-minus","−5").on_click(cx.listener(|this,_,_,cx|{if !this.busy{this.correction_tac=(this.correction_tac-5.).max(0.);cx.notify();}})))
+    .child(button("edit-tac-plus","+5").on_click(cx.listener(|this,_,_,cx|{if !this.busy{this.correction_tac=(this.correction_tac+5.).min(400.);cx.notify();}}))));
+  if let Some(v)=estimate{p=p.child(button("edit-tac-reference",format!("Use reference B2A1 node estimate ({v:.0}%)")).on_click(cx.listener(move|this,_,_,cx|{if !this.busy{this.correction_tac=v;cx.notify();}})));}
+  p.child("Default 400% means no added TAC reduction; select a safe explicit limit. Source channel maxima are enforced automatically. A2B is preserved.")
+ }
+ fn correction_page(&self,cx:&mut Context<Self>)->Div{
+  let mut p=div().flex().flex_col().gap_3().child(heading("Selective Color Correction","Soft hue selection in D50 Lab/LCh; independent B2A intents."));
+  let Some(profile)=&self.profile else{return p.child("Open a compatible ICC v4 CMYK printer profile.")};
+  if !profile.cmyk()||profile.version_major()!=4||profile.pcs()!="Lab "{return p.child("Initial editor supports ICC v4 CMYK / Lab with simple mBA LUTs only.")}
+  p=p.child(div().flex().gap_1().flex_wrap().children([("Red",40.,0xc34c4c),("Yellow",90.,0xdbbb35),("Green",135.,0x47a86a),("Cyan",200.,0x2fa6b8),("Blue",270.,0x547cda),("Magenta",320.,0xb865b5)].into_iter().enumerate().map(|(i,(name,v,color))|button(("hue-preset",i),name).bg(rgb(color)).text_color(rgb(0xffffff)).on_click(cx.listener(move|this,_,_,cx|{if !this.busy{this.selective[0]=v;cx.notify();}})))));
+  for (i,(name,lo,hi,step,unit)) in [("Hue center",0.,360.,5.,"°"),("Hue half-width",10.,180.,5.,"°"),("Lightness",-30.,30.,1.," L*"),("Chroma",-80.,80.,5.,"%"),("Hue shift",-60.,60.,5.,"°")].into_iter().enumerate(){
+   p=p.child(div().flex().items_center().gap_2().child(div().w(px(120.)).child(name))
+    .child(button(("correction-minus",i),"−").on_click(cx.listener(move|this,_,_,cx|{if !this.busy{this.selective[i]=(this.selective[i]-step).max(lo);cx.notify();}})))
+    .child(div().w(px(90.)).child(format!("{:.0}{unit}",self.selective[i])))
+    .child(button(("correction-plus",i),"+").on_click(cx.listener(move|this,_,_,cx|{if !this.busy{this.selective[i]=(this.selective[i]+step).min(hi);cx.notify();}}))));
+  }
+  p.child(button("reset-selective","Reset").on_click(cx.listener(|this,_,_,cx|{if !this.busy{this.selective=[135.,45.,0.,0.,0.];cx.notify();}})))
+   .child(self.correction_options(cx))
+   .child("Near-neutrals and black/white endpoints are protected. Corrects the requested PCS color before separation, not measured print color. Resampling can alter colors outside the selected band.")
+   .child(button("save-selective","Generate corrected ICC").on_click(cx.listener(|this,_,_,cx|this.save_edit(3,cx))))
+ }
+ fn smoothing_page(&self,cx:&mut Context<Self>)->Div{
+  let mut p=div().flex().flex_col().gap_3().child(heading("LUT Smoothing","Bounded six-neighbor averaging in the B2A separation lattice."));
+  let Some(profile)=&self.profile else{return p.child("Open a compatible ICC v4 CMYK printer profile.")};
+  if !profile.cmyk()||profile.version_major()!=4||profile.pcs()!="Lab "{return p.child("Initial editor supports ICC v4 CMYK / Lab with simple mBA LUTs only.")}
+  p=p.child(div().flex().items_center().gap_2().child(format!("Strength: {:.0}%",self.smoothing*100.))
+   .child(button("smooth-minus","−5").on_click(cx.listener(|this,_,_,cx|{if !this.busy{this.smoothing=(this.smoothing-0.05).max(0.05);cx.notify();}})))
+   .child(button("smooth-plus","+5").on_click(cx.listener(|this,_,_,cx|{if !this.busy{this.smoothing=(this.smoothing+0.05).min(0.5);cx.notify();}}))))
+   .child(div().flex().gap_1().items_center().child("Passes").children([1usize,2,3,4,5].map(|n|button(("smooth-pass",n),if n==self.smoothing_passes{format!("{n} ✓")}else{n.to_string()}).on_click(cx.listener(move|this,_,_,cx|{if !this.busy{this.smoothing_passes=n;cx.notify();}})))));
+  p.child(self.correction_options(cx))
+   .child("Lattice boundaries are not averaged; initial resampling and ink constraints can still change them. Use Gradient Analyzer and Profile Comparison after saving to check the trade-off between smoothness and color accuracy.")
+   .child(button("save-smoothing","Generate smoothed ICC").on_click(cx.listener(|this,_,_,cx|this.save_edit(4,cx))))
+ }
  fn inspector(&self)->Div{
   let mut panel=div().flex().flex_col().gap_3().child(heading("Profile Inspector","ICC metadata decoded by LittleCMS 2."));
   if let Some(e)=&self.error{panel=panel.child(div().text_color(rgb(0xfca5a5)).child(e.clone()));}
@@ -336,6 +375,8 @@ impl Render for Studio {
    Page::Metadata=>self.metadata_page(cx),
    Page::Gamut=>self.gamut_analysis_page(cx),
    Page::Gradient=>self.gradient_page(cx),
+   Page::Correction=>self.correction_page(cx),
+   Page::Smoothing=>self.smoothing_page(cx),
    Page::Settings=>div().flex().flex_col().gap_3().child(heading("Settings","Engine configuration")).child("LittleCMS is linked statically. ArgyllCMS is installed by the existing portable backend when required."),
    Page::About=>div().flex().flex_col().gap_3().child(heading("ICC Profile Studio","Experimental GPUI frontend")).child(format!("Core version {}",env!("CARGO_PKG_VERSION"))).child("Developed by emadgh. LittleCMS 2 · ArgyllCMS · Rust.").child("Updater integration is pending in this frontend. Use the stable executable for updates."),
    other=>div().flex().flex_col().gap_3().child(heading(PAGES.iter().find(|(p,_)|*p==other).map(|(_,n)|*n).unwrap_or("Tool"),"Planned module")).child("Not implemented yet. See ROADMAP.md."),

@@ -64,3 +64,7 @@ The GPUI right pane is collapsible, available on every page and accepts a separa
 ### Gradient and gamut analysis
 
 Gradient Analyzer runs 13 sRGB ramps with 256 samples per ramp, using LCMS predicted Lab and CIEDE2000. Gamut Viewer compares shared valid D50 target errors at ΔE00 thresholds 1/2/3/5. Parry3D computes a convex hull of the sampled points for an optional wireframe and convex-envelope volume. The envelope may include unattainable colors; it is not the exact gamut or a measured result. New analytics are pending Windows CI.
+
+### Selective Color Correction / LUT Smoothing
+
+Initial support is deliberately restricted to ICC v4 CMYK / Lab printer profiles with three supported mBA B2A tags. LittleCMS evaluates the original pipelines independently. Selective hue correction uses a smooth circular Lab/LCh mask, protecting near-neutral and extreme lightness targets. Smoothing averages six neighbors in the 3D separation lattice using convex weights. Both resample to a chosen 17/33/49/65 grid, preserve the A2B model, enforce original channel bounds and an explicit TAC cap (default 400% adds no extra TAC reduction), then verify the generated identity-curve CLUT. Resampling and gamut mapping may affect unselected colors. Use the reference TAC estimate only as a starting point, compare both output profiles, and print-test before production. New code remains pending CI.
