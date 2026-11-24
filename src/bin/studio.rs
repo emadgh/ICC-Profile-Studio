@@ -143,7 +143,7 @@ impl Studio {
      let text=std::fs::read_to_string(&input).map_err(|e|e.to_string())?;let p=Profile::read(&id.path)?;
      let out=tags::edit_text(&p,key,text.trim_start_matches('\u{feff}').trim_end_matches(['\r','\n']))?;out.save_new(&dest)
     })();
-    match result{Ok(())=>{v.status=format!("Saved metadata copy: {}",dest.display());v.candidate=Some(dest);v.preview=None;v.comparison=None;v.gradient=None;v.gradient_error=None;},Err(e)=>v.status=format!("Metadata edit refused: {e}")}cx.notify();
+    match result{Ok(())=>{v.status=format!("Saved metadata copy: {}",dest.display());},Err(e)=>v.status=format!("Metadata edit refused: {e}")}cx.notify();
    })));
   }
   p
@@ -217,10 +217,10 @@ impl Studio {
  fn comparison_page(&self,cx:&mut Context<Self>)->Div{
   let mut p=div().flex().flex_col().gap_3().child(heading("Profile Comparison","Predicted D50 media-relative Lab appearance and CMYK separation."));
   p=p.child(format!("Reference: {}",self.source.as_ref().map(|p|p.display().to_string()).unwrap_or("Not selected".into())))
-   .child(button("pick-candidate","Select candidate ICC").on_click(cx.listener(|this,_,_,cx|{
+   .child(div().flex().gap_2().items_center().flex_wrap().child(button("pick-candidate","Select candidate ICC").on_click(cx.listener(|this,_,_,cx|{
     if !this.busy{if let Some(path)=rfd::FileDialog::new().add_filter("ICC profile",&["icc","icm"]).pick_file(){this.candidate=Some(path);this.preview=None;this.comparison=None;this.gradient=None;this.gradient_error=None;this.compare_error=None;if this.preview_open{this.refresh_gamut(cx);}cx.notify();}}
    })))
-   .child(seg("sys-compare-button","System profiles ▾",self.picker==Some(Picker::Comparison)).on_click(cx.listener(|v,_,_,cx|v.toggle_system_picker(Picker::Comparison,cx))))
+   .child(seg("sys-compare-button","System profiles ▾",self.picker==Some(Picker::Comparison)).on_click(cx.listener(|v,_,_,cx|v.toggle_system_picker(Picker::Comparison,cx)))))
    .when(self.picker==Some(Picker::Comparison),|p|p.child(self.system_picker(Picker::Comparison,cx)))
    .child(format!("Candidate: {}",self.candidate.as_ref().map(|p|p.display().to_string()).unwrap_or("Not selected".into())))
    .child(div().flex().items_center().gap_2().child(format!("RGB sample grid: {}³",self.compare_grid)).children([9usize,17,33].into_iter().map(|v|button(("compare-grid",v),v.to_string()).on_click(cx.listener(move|this,_,_,cx|{if !this.busy{this.compare_grid=v;this.comparison=None;cx.notify();}})))))
