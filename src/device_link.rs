@@ -47,7 +47,7 @@ pub struct LinkSettings{pub grid:usize,pub max_ink_pp:f64,pub intent:Intent}
 pub struct MultiLinkReport{
  pub source_space:String,pub destination_space:String,
  pub source_channels:Vec<crate::comparison::ChannelInfo>,pub destination_channels:Vec<crate::comparison::ChannelInfo>,
- pub grid:usize,pub nodes:usize,pub byte_count:usize,pub sample_count:usize,
+ pub grid:usize,pub nodes:usize,pub byte_count:usize,pub sample_count:usize,pub intent:Intent,
  pub max_channel_difference:f64,pub max_tac_difference:f64,pub peak_tac:f64,pub maxima:Vec<f64>,
  pub mean_de:f64,pub max_de:f64,pub p95_de:f64,pub generated_colorant_tables:usize,
 }
@@ -108,24 +108,30 @@ pub fn device_link_multi(reference:&Path,candidate:&Path,destination:&Path,setti
  use lcms2::{CIEXYZ,CIEXYZExt,CIELabExt};
  if !settings.max_ink_pp.is_finite()||!(0.1..=10.).contains(&settings.max_ink_pp){return Err("DeviceLink channel tolerance must be 0.1–10 percentage points".into())}
  let src=crate::Profile::read(reference)?;let dst=crate::Profile::read(candidate)?;
- let (a,source_channels)=crate::comparison::open_output(reference)?;
- let (b,destination_channels)=crate::comparison::open_output(candidate)?;
+ let a=Profile::new_icc(&src.bytes()?).map_err(err)?;let b=Profile::new_icc(&dst.bytes()?).map_err(err)?;
+ let info=|p:&crate::Profile|{let names=p.channels();let standard=p.standard_channels();(0..names.len()).map(|j|crate::comparison::ChannelInfo{name:names[j].clone(),standard:standard[j].clone(),color:p.channel_swatch(j,true),standard_color:p.channel_swatch(j,false)}).collect::<Vec<_>>()};
+ let source_channels=info(&src);let destination_channels=info(&dst);
  let fi=crate::print_space::for_profile(&a)?;let fo=crate::print_space::for_profile(&b)?;
  let ni=fi.channels;let no=fo.channels;
- grid_cost(ni,no,settings.grid)?;
+ if source_channels.len()!=ni||destination_channels.len()!=no{return Err("DeviceLink channel metadata does not match native formats".into())}
+ let grid=if settings.grid==0{recommended_grid(ni,no).ok_or("No grid fits the DeviceLink budget")?}else{settings.grid};
+ grid_cost(ni,no,grid)?;
  let direct:Transform<u8,u8>=Transform::new_multiprofile(&[&a,&b],fi.pixel,fo.pixel,settings.intent,Flags::NO_OPTIMIZE|Flags::KEEP_SEQUENCE).map_err(err)?;
- let link=Profile::new_device_link(&direct,4.3,link_flags(settings.grid)).map_err(err)?;
+ let link=Profile::new_device_link(&direct,4.3,link_flags(grid)).map_err(err)?;
  let bytes=link.icc().map_err(err)?;
  if bytes.len()>32*1024*1024{return Err("DeviceLink exceeds 32 MiB".into())}
  if bytes.len()<128||&bytes[12..16]!=b"link"||bytes[16..20]!=src.header[16..20]||bytes[20..24]!=dst.header[16..20]{return Err("Unexpected DeviceLink class or color spaces".into())}
  let mut parsed=crate::Profile::parse(&bytes)?;
- let nodes=parse_grid(&parsed,ni,no,settings.grid)?;
+ if parsed.version_major()!=4{return Err("Expected ICC v4 DeviceLink".into())}
+ let nodes=parse_grid(&parsed,ni,no,grid)?;
  if !parsed.tags.contains_key(b"pseq"){return Err("DeviceLink missing profile sequence description".into())}
  // Native colorant-table propagation can be absent or incorrect. Retain
  // device order and source labels explicitly for both non-CMYK endpoints.
  let mut generated=0;
- if !src.cmyk(){let (t,derived)=colorant_table(&src,&a,ni)?;parsed.tags.insert(*b"clrt",t);generated+=usize::from(derived);}
- if !dst.cmyk(){let (t,derived)=colorant_table(&dst,&b,no)?;parsed.tags.insert(*b"clot",t);generated+=usize::from(derived);}
+ if !src.cmyk(){let (t,derived)=colorant_table(&src,&a,ni)?;parsed.tags.insert(*b"clrt",t);if derived{generated+=1;}}
+ if !dst.cmyk(){let (t,derived)=colorant_table(&dst,&b,no)?;parsed.tags.insert(*b"clot",t);if derived{generated+=1;}}
+ // Header intent describes the fixed conversion baked into the link.
+ parsed.header[64..68].copy_from_slice(&(settings.intent as u32).to_be_bytes());
  parsed.describe(&format!("{} to {} DeviceLink",src.space(),dst.space()));
  let bytes=parsed.bytes()?;
  let check=Profile::new_icc(&bytes).map_err(err)?;
@@ -134,7 +140,7 @@ pub fn device_link_multi(reference:&Path,candidate:&Path,destination:&Path,setti
  let stride=no*2;
  let mut expected=vec![0u8;count*stride];let mut observed=expected.clone();
  direct.transform_pixels(&samples,&mut expected);actual.transform_pixels(&samples,&mut observed);
- let mut report=MultiLinkReport{source_space:src.space(),destination_space:dst.space(),source_channels,destination_channels,grid:settings.grid,nodes,byte_count:bytes.len(),sample_count:count,max_channel_difference:0.,max_tac_difference:0.,peak_tac:0.,maxima:vec![0.;no],mean_de:0.,max_de:0.,p95_de:0.,generated_colorant_tables:generated};
+ let mut report=MultiLinkReport{source_space:src.space(),destination_space:dst.space(),source_channels,destination_channels,grid,nodes,byte_count:bytes.len(),sample_count:count,intent:settings.intent,max_channel_difference:0.,max_tac_difference:0.,peak_tac:0.,maxima:vec![0.;no],mean_de:0.,max_de:0.,p95_de:0.,generated_colorant_tables:generated};
  let caps=crate::print_space::bounds(&dst).ok();
  let value=|p:&[u8],j:usize|u16::from_ne_bytes([p[2*j],p[2*j+1]]);
  for (x,y) in expected.chunks_exact(stride).zip(observed.chunks_exact(stride)){
