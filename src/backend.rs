@@ -63,3 +63,14 @@ pub fn run(j:Job,progress:impl Fn(String))->R<String>{
  output.save_new(&j.destination)?;
  Ok(format!("Saved: {}\nVerified maxima (device values): {:.3}% / {:.3}% / {:.3}% / {:.3}%\nTAC upper bound: {:.3}% | LittleCMS: {} pipeline samples, peak {:.3}%\nTest a printed chart before production.",j.destination.display(),max[0]*100.,max[1]*100.,max[2]*100.,max[3]*100.,bounds.tac*100.,native.count,native.tac*100.))
 }
+
+pub fn run_multichannel(source:&Path,destination:&Path,caps:&[f64],tac:f64,grid:usize,progress:impl Fn(String))->R<String>{
+ let reference=Profile::read(source)?;
+ if destination.exists(){return Err("Choose a new output filename; reference is never overwritten".into())}
+ let limits:Vec<_>=caps.iter().map(|v|v/100.).collect();
+ let mut output=crate::multichannel::rebuild(&reference,&limits,tac/100.,grid,&progress)?;
+ progress("Verifying all output intents…".into());
+ let result=crate::multichannel::verify(&output,&limits,tac/100.)?;
+ output.describe(&destination.file_stem().unwrap_or_default().to_string_lossy());output.save_new(destination)?;
+ Ok(format!("Saved: {}\nVerified channel ceilings: {}%\nTAC bound {:.3}% · {} native samples · sampled TAC {:.3}%. All intents rebuilt from relative A2B1; validate actual output.",destination.display(),result.channels.iter().map(|v|format!("{:.3}",100.*v)).collect::<Vec<_>>().join(" / "),100.*result.tac,result.samples,100.*result.sampled_tac))
+}

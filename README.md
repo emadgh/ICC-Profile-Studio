@@ -39,3 +39,5 @@ Beta.12: grouped navigation, neutral charcoal/orange theme, developer credit and
 Beta.13: native LittleCMS forward pipeline inversion in the four-channel Rebuilder supports native-decoded parametric and nonuniform A2B LUTs, preserving original A2B bytes. CMYK and nCLR output profiles can use dynamic 16-bit native gamut and inspection, and simple-LUT mathematical channel/TAC bounds. Full multichannel editing and unsupported reverse structures are not yet supported.
 
 Beta.14 adds a display-only standard/embedded channel-name switch, stored v4 colorant-table swatches, live channel/TAC limit bars, reorder palette, gradient line plots, bounded content width and Arabic/Persian display shaping with Unicode BiDi. RTL soft wrapping and Windows visual behavior remain to be checked.
+
+Beta.15: dynamic nCLR Rebuilder adds per-channel caps, total ink ceiling, native forward inversion with bounded search and independent strict/native output verification. All three output intents are regenerated from relative A2B1; validate color drift and print behavior. Other multichannel editing modules remain limited.

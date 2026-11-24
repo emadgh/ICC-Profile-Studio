@@ -1,3 +1,4 @@
+pub mod multichannel;
 pub mod rtl;
 pub mod print_space;
 pub mod i18n;
