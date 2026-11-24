@@ -44,7 +44,7 @@
 - [x] Gamut target coverage: paired D50 Lab errors at selectable ΔE00 thresholds, lost/gained/both/neither counts and lost share.
 - [x] Parry3D convex hull wireframe and approximate convex envelope volume, separate from coverage. Point cloud fallback for degenerate shapes or L* slices.
 - [x] Analytics/hull CI passed at 21bcef07: 21 unit tests and Windows GPUI artifact 14923084302.
-- [ ] Actual printer files, mouse drag/wheel, axis tick labels, nonconvex mesh/volume and runtime checks.
+- [ ] Actual printer files, axis tick labels, nonconvex mesh/volume and runtime checks.
 
 ## v0.7 — selective color and smoothing (source implementation)
 
@@ -54,14 +54,15 @@
 - [x] GPUI pages, 17/33/49/65 grid, output auto-selected in shared before/after Preview, no source overwrite, LittleCMS transform smoke checks.
 - [x] Five unit tests for hue wrapping, protected neutrals, locality and ink bounds.
 - [ ] New CI and integration regression on a valid ICC, quantify drift outside selective band, real printer tests and compare before/after using Gradient Analyzer and Delta E00.
-- [ ] ICC v2/other LUT structures, multiple selective masks, interactive mouse orbit and wheel zoom.
+- [x] GPUI mouse orbit and wheel zoom in the shared gamut preview; existing button controls retained.
+- [ ] Verify mouse interactions on Windows; ICC v2/other LUT structures, multiple selective masks.
 
 ## Next milestones
 
 - v0.4: Complete validation/export of Profile Comparison, Delta E2000, neutral axis and ink distribution.
 - v0.5: Complete runtime validation of Tone Curves, channel mapping/reordering, profile metadata editing.
 - v0.6: Validate new analytics and hull build; actual printer regression, richer controls and nonconvex gamut analysis.
-- v0.7: Verify selective Lab/LCh correction and smoothing, add multi-region controls and mouse orbit.
+- v0.7: Verify selective Lab/LCh correction and smoothing, add multi-region controls and verify mouse orbit.
 - v0.8: ICC image conversion, batch conversion, separations, soft proof, ink coverage.
 - v0.9: DeviceLink generation, constrained ink saving and cost optimization.
 - v1.0: Ceramic profiling, reference charts, measured glaze/firing/ink batch compensation, machine matching, profile library.
