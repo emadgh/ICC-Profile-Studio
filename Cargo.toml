@@ -2,8 +2,20 @@
 name = "color-convert-rust"
 version = "0.2.2"
 edition = "2021"
+default-run = "color-convert-rust"
+
+[features]
+default = []
+studio = ["dep:gpui"]
+
+[[bin]]
+name = "icc-profile-studio"
+path = "src/bin/studio.rs"
+required-features = ["studio"]
 
 [dependencies]
+gpui = { version = "=0.2.2", optional = true }
+lcms2 = { version = "=6.2.0", features = ["static"] }
 eframe = "0.31.1"
 rfd = "0.15.3"
 tempfile = "3.15"

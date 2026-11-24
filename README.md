@@ -44,3 +44,7 @@ Successful main builds publish a new version from Cargo.toml if that version has
 ## v0.2.1 — ICC v4 support
 
 ICC v4.3 mAB/mBA profiles are automatically routed to the custom engine. Input and output curve sets are parsed, the original v4 header and four-channel color space are retained, and all three B2A tags are regenerated as mBA with identity curves. Matrix/M and parametric curves fail closed. Default grid for v4 is 33. No header downgrading or post-conversion K clipping. Gamut metadata gbd0–gbd3 is removed with stale gamut tags.
+
+## ICC Profile Studio migration
+
+See [ROADMAP.md](ROADMAP.md) for completed work, remaining milestones and the dependency-first architecture. Experimental GPUI frontend (not the default release yet): `cargo run --features studio --bin icc-profile-studio`. The stable egui executable remains the default while the new frontend is validated. LittleCMS 2 is statically linked through the lcms2 Rust crate for inspection and transform smoke tests; ArgyllCMS remains available for supported revfix operations.
