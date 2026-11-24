@@ -47,7 +47,7 @@ fn seg(id:impl Into<ElementId>,label:impl Into<SharedString>,active:bool)->State
 }
 fn heading(title:&str,sub:&str)->Div{div().flex().flex_col().gap_1().when(i18n::is_rtl(),|p|p.text_right()).child(div().text_2xl().child(tr(title))).child(div().text_sm().text_color(rgb(0xa1a1aa)).child(tr(sub)))}
 fn visible_ink(color:u32)->u32{if color==0||((color>>16)&255)<32&&((color>>8)&255)<32&&(color&255)<32{0x505050}else{color}}
-fn swatch(color:u32,height:f32)->Div{div().h(px(height)).min_w(px(height)).rounded_md().border_1().border_color(rgb(0x777777)).bg(rgb(visible_ink(color)))}
+fn swatch(color:u32,height:f32)->Div{div().h(px(height)).min_w(px(height)).rounded_md().border_1().border_color(rgb(0x777777)).bg(rgb(color))}
 fn bar(value:f64,color:u32,height:f32)->Div{
  div().w_full().h(px(height)).rounded_md().bg(rgb(0x171717)).overflow_hidden()
   .child(div().w(relative(value.clamp(0.,1.) as f32)).h_full().bg(rgb(color)))
@@ -133,6 +133,7 @@ fn neutral_plot(samples:&[comparison::NeutralSample],metric:usize)->impl IntoEle
 }
 
 impl Studio {
+ fn persist_name_mode(&mut self){if let Err(e)=preferences::location().and_then(|p|{let mut current=preferences::load(&p)?;current.embedded_names=self.embedded_names;preferences::save(&p,&current)}){self.status=format!("Name preference not saved: {e}");}}
  fn ink_names(&self)->Vec<String>{self.display_profile.as_ref().map(|p|if self.embedded_names{p.channels()}else{p.standard_channels()}).unwrap_or_default()}
  fn ink_name(&self,i:usize)->String{self.ink_names().get(i).cloned().map(|n|if self.embedded_names{color_convert_rust::rtl::visual(&n)}else{tr(&n)}).unwrap_or_else(||format!("CH {}",i+1))}
  fn ink_color(&self,i:usize)->u32{visible_ink(self.display_profile.as_ref().map(|p|p.channel_swatch(i,self.embedded_names)).unwrap_or(0x858585))}
@@ -188,9 +189,9 @@ impl Studio {
    if count==0{return p.child(div().text_xs().child(tr("No matching installed profiles.")))}
    p=p.child(div().id("sys-profile-list").max_h(px(250.)).overflow_y_scroll().flex().flex_col().gap_1()
     .children(c.entries.iter().enumerate().filter(|(_,e)|target==Picker::Reference||!e.device_link).map(|(i,e)|{
-     let path=e.path.clone();
-     div().id(("system-profile",i)).p_2().rounded_md().bg(rgb(0x333333)).hover(|s|s.bg(rgb(0x414141))).cursor_pointer()
-      .child(div().text_xs().child(e.name.clone())).child(div().text_xs().text_color(rgb(0xa1a1aa)).child(e.format.clone()))
+     let path=e.path.clone();let chosen=if target==Picker::Reference{self.source.as_ref()==Some(&path)}else{self.candidate.as_ref()==Some(&path)};
+     div().id(("system-profile",i)).p_2().rounded_md().bg(rgb(if chosen{0x684024}else{0x333333})).hover(|s|s.bg(rgb(0x414141))).cursor_pointer()
+      .child(div().flex().justify_between().text_xs().child(e.name.clone()).when(chosen,|p|p.child("✓"))).child(div().text_xs().text_color(rgb(0xa1a1aa)).child(e.format.clone()))
       .child(div().text_xs().text_color(rgb(0xa1a1aa)).child(e.description.clone()))
       .on_click(cx.listener(move|v,_,_,cx|{
        if v.busy{return}v.picker=None;
@@ -351,7 +352,7 @@ impl Studio {
     let mut group=div().flex().flex_col().gap_2().p_3().rounded_md().bg(rgb(0x282828))
      .child(div().text_lg().child(format!("{} · {} channels",if side==0{tr("Reference")}else{tr("Candidate")},channels.len())));
     for (j,ch) in channels.iter().enumerate(){
-     let name=color_convert_rust::rtl::visual(ch.label(self.embedded_names));let color=ch.swatch(self.embedded_names);
+     let name=color_convert_rust::rtl::visual(ch.label(self.embedded_names));let color=visible_ink(ch.swatch(self.embedded_names));
      group=group.child(div().flex().flex_col().gap_1()
       .child(div().flex().items_center().gap_2().child(swatch(color,16.)).child(div().flex_1().child(format!("{} · {name}",j+1))).child(div().text_xs().child(format!("Mean {:.2}% · Max {:.2}%",stats.mean[j],stats.max[j]))))
       .child(bar(stats.mean[j]/100.,color,12.)).child(bar(stats.max[j]/100.,color,5.)));
@@ -368,7 +369,7 @@ impl Studio {
      .child(div().text_lg().child(tr(if side==0{"Reference"}else{"Candidate"})));
     for (j,ch) in channels.iter().enumerate(){
      let values:Vec<_>=r.neutral.iter().map(|v|if side==0{v.reference_ink[j]}else{v.candidate_ink[j]}).collect();
-     group=group.child(div().flex().items_center().gap_2().child(swatch(ch.swatch(self.embedded_names),16.)).child(color_convert_rust::rtl::visual(ch.label(self.embedded_names))))
+     group=group.child(div().flex().items_center().gap_2().child(swatch(visible_ink(ch.swatch(self.embedded_names)),16.)).child(color_convert_rust::rtl::visual(ch.label(self.embedded_names))))
       .child(if side==0{analysis_plot(&values,None,100.)}else{analysis_plot(&[],Some(&values),100.)})
       .child(chart_labels(100.));
     }
@@ -432,11 +433,11 @@ impl Studio {
      .child(graph)
      .child(div().flex().justify_between().text_xs().text_color(rgb(0xa1a1aa)).child("0%").child(tr("Input →")).child("100%"));
     if point_mode{
-     for j in 1..4{card=card.child(div().flex().gap_1().items_center().text_xs().child(format!("{}% → {:.0}%",j*25,self.curve_points[i][j]*100.))
+     for j in 1..4{card=card.child(div().flex().flex_wrap().gap_1().items_center().text_xs().child(format!("{}% → {:.0}%",j*25,self.curve_points[i][j]*100.))
       .child(seg(("point-minus",i*5+j),"−",false).on_click(cx.listener(move|v,_,_,cx|{if !v.busy{let p=&mut v.curve_points[i];p[j]=(p[j]-0.05).max(p[j-1]);cx.notify();}})))
       .child(self.numeric_slider(("point-slider",i*5+j),self.curve_points[i][j],self.curve_points[i][j-1],self.curve_points[i][j+1],0.01,move|v,x|v.curve_points[i][j]=x,cx)).child(seg(("point-plus",i*5+j),"+",false).on_click(cx.listener(move|v,_,_,cx|{if !v.busy{let p=&mut v.curve_points[i];p[j]=(p[j]+0.05).min(p[j+1]);cx.notify();}}))));}
     }else{
-     card=card.child(div().flex().items_center().gap_1().child(seg(("gamma-minus",i),"−",false).on_click(cx.listener(move|v,_,_,cx|{if !v.busy{v.gamma[i]=(v.gamma[i]-0.1).max(0.25);cx.notify();}}))).child(format!("γ {:.2}",self.gamma[i])).child(self.numeric_slider(("gamma-slider",i),self.gamma[i],0.25,4.,0.01,move|v,x|v.gamma[i]=x,cx)).child(seg(("gamma-plus",i),"+",false).on_click(cx.listener(move|v,_,_,cx|{if !v.busy{v.gamma[i]=(v.gamma[i]+0.1).min(4.);cx.notify();}}))))
+     card=card.child(div().flex().flex_wrap().items_center().gap_1().child(seg(("gamma-minus",i),"−",false).on_click(cx.listener(move|v,_,_,cx|{if !v.busy{v.gamma[i]=(v.gamma[i]-0.1).max(0.25);cx.notify();}}))).child(format!("γ {:.2}",self.gamma[i])).child(self.numeric_slider(("gamma-slider",i),self.gamma[i],0.25,4.,0.01,move|v,x|v.gamma[i]=x,cx)).child(seg(("gamma-plus",i),"+",false).on_click(cx.listener(move|v,_,_,cx|{if !v.busy{v.gamma[i]=(v.gamma[i]+0.1).min(4.);cx.notify();}}))))
       .child(div().text_xs().child(format!("25/50/75% → {:.0}/{:.0}/{:.0}%",100.*0.25_f64.powf(self.gamma[i]),100.*0.5_f64.powf(self.gamma[i]),100.*0.75_f64.powf(self.gamma[i]))));
     }
     line=line.child(card);
@@ -655,7 +656,7 @@ impl Studio {
        row=row.child(div().text_lg().child(tr(if side==0{"Reference"}else{"Candidate"})));
        for (j,ch) in channels.iter().enumerate(){
         let values=&ramp.ink_curves[j];
-        row=row.child(div().flex().items_center().gap_2().child(swatch(ch.swatch(self.embedded_names),16.)).child(color_convert_rust::rtl::visual(ch.label(self.embedded_names))))
+        row=row.child(div().flex().items_center().gap_2().child(swatch(visible_ink(ch.swatch(self.embedded_names)),16.)).child(color_convert_rust::rtl::visual(ch.label(self.embedded_names))))
          .child(if side==0{analysis_plot(values,None,100.)}else{analysis_plot(&[],Some(values),100.)})
          .child(chart_labels(100.));
        }
@@ -758,17 +759,18 @@ impl Studio {
    })))
  }
  fn recipe_page(&self,cx:&mut Context<Self>)->Div{
+  if !self.profile.as_ref().is_some_and(|p|p.cmyk()){return div().child(tr("Requires CMYK printer profile."))}
   let mut p=div().flex().flex_col().gap_3().child(heading("Ink / Cost Optimizer","Find a bounded device recipe for a D50 Lab target."))
    .child("Uses the reference A2B prediction. Relative ink weights are cost proxies, not actual mass or currency. Search is approximate and can fail to find a feasible recipe.");
   for (i,(name,lo,hi)) in [("L*",0.,100.),("a*",-128.,127.),("b*",-128.,127.)].into_iter().enumerate(){
    p=p.child(div().flex().items_center().gap_2().child(format!("{name}: {:.1}",self.recipe_target[i]))
     .child(button(("recipe-target-minus",i),"−1").on_click(cx.listener(move|v,_,_,cx|{if !v.busy{v.recipe_target[i]=(v.recipe_target[i]-1.).max(lo);v.recipe_result=None;cx.notify();}})))
-    .child(button(("recipe-target-plus",i),"+1").on_click(cx.listener(move|v,_,_,cx|{if !v.busy{v.recipe_target[i]=(v.recipe_target[i]+1.).min(hi);v.recipe_result=None;cx.notify();}}))));
+    .child(self.numeric_slider(("recipe-target-slider",i),self.recipe_target[i],lo,hi,0.1,move|v,x|{v.recipe_target[i]=x;v.recipe_result=None;},cx)).child(button(("recipe-target-plus",i),"+1").on_click(cx.listener(move|v,_,_,cx|{if !v.busy{v.recipe_target[i]=(v.recipe_target[i]+1.).min(hi);v.recipe_result=None;cx.notify();}}))));
   }
   for j in 0..4{
-   p=p.child(div().flex().items_center().gap_2().child(format!("Ink {} weight {:.2}",j+1,self.recipe_settings.weights[j]))
+   p=p.child(div().flex().items_center().gap_2().child(format!("{} · {:.2}",self.ink_name(j),self.recipe_settings.weights[j]))
     .child(button(("weight-minus",j),"−0.25").on_click(cx.listener(move|v,_,_,cx|{if !v.busy{v.recipe_settings.weights[j]=(v.recipe_settings.weights[j]-0.25).max(0.01);v.recipe_result=None;cx.notify();}})))
-    .child(button(("weight-plus",j),"+0.25").on_click(cx.listener(move|v,_,_,cx|{if !v.busy{v.recipe_settings.weights[j]=(v.recipe_settings.weights[j]+0.25).min(100.);v.recipe_result=None;cx.notify();}}))));
+    .child(self.numeric_slider(("weight-slider",j),self.recipe_settings.weights[j],0.01,100.,0.01,move|v,x|{v.recipe_settings.weights[j]=x;v.recipe_result=None;},cx)).child(button(("weight-plus",j),"+0.25").on_click(cx.listener(move|v,_,_,cx|{if !v.busy{v.recipe_settings.weights[j]=(v.recipe_settings.weights[j]+0.25).min(100.);v.recipe_result=None;cx.notify();}}))));
   }
   p=p.child(format!("Caps and TAC from Rebuilder settings: {:?} / {:.0}%",self.caps,self.tac))
    .child(div().flex().gap_1().items_center().child(tr("ΔE00 tolerance")).children([1usize,2,3,5].map(|n|button(("recipe-tolerance",n),if self.recipe_settings.tolerance==n as f64{format!("{n} ✓")}else{n.to_string()}).on_click(cx.listener(move|v,_,_,cx|{if !v.busy{v.recipe_settings.tolerance=n as f64;v.recipe_result=None;cx.notify();}})))))
@@ -895,6 +897,7 @@ impl Studio {
    .child(button("save-points","Generate bounded curves ICC").on_click(cx.listener(|v,_,_,cx|v.save_edit(7,cx))))
  }
  fn black_page(&self,cx:&mut Context<Self>)->Div{
+  if !self.profile.as_ref().is_some_and(|p|p.cmyk()){return div().child(tr("Requires CMYK printer profile."))}
   let s=self.black;
   let mut p=div().flex().flex_col().gap_3().child(heading("Black Generation / GCR / UCR","Constrained, predictive preference for physical channel 4."))
    .child("Verify channel 4 is actually black. GCR is a broad chroma-weighted preference; UCR favors dark near-neutrals. The solver may not reach the requested K curve. It preserves source channel maxima (K0 remains K0) and refuses a source over the selected TAC.")
@@ -1087,7 +1090,7 @@ impl Render for Studio {
      let mark=div().w(px(18.)).text_color(rgb(if active{0xfb923c}else{0xa1a1aa})).child(icon);
      let label=div().flex_1().child(tr(label));
      let row=div().id(("page",page as usize)).px_2().py_1().rounded_md().flex().items_center().gap_2().text_sm().cursor_pointer()
-      .bg(rgb(if active{0x443024}else{0x191919})).hover(|s|s.bg(rgb(0x303030)));
+      .bg(rgb(if active{0x443024}else{0x101010})).hover(|s|s.bg(rgb(0x303030)));
      let row=if self.language.rtl(){row.child(label.text_right()).child(mark)}else{row.child(mark).child(label)};
      sidebar=sidebar.child(row.on_click(cx.listener(move|v,_,_,cx|{v.page=page;v.picker=None;if page==Page::Gamut&&v.preview.is_none(){v.refresh_gamut(cx);}cx.notify();})));
     }
@@ -1116,8 +1119,8 @@ impl Render for Studio {
   div().flex().size_full().bg(rgb(0x101010)).text_color(rgb(0xe8e8e8)).child(sidebar)
    .child(div().flex().flex_col().flex_1().min_w(px(0.)).h_full()
     .child(div().flex().flex_wrap().gap_2().items_center().justify_between().px_5().py_3().bg(rgb(0x282828)).child(div().flex_1().min_w(px(0.)).child(self.source.as_ref().and_then(|p|p.file_name()).map(|p|p.to_string_lossy().into_owned()).unwrap_or_else(||tr("No profile selected")))).when(self.display_profile.is_some(),|r|r.child(div().flex().gap_1().items_center()
-     .child(seg("ink-name-standard","Standard names",!self.embedded_names).on_click(cx.listener(|v,_,_,cx|{v.embedded_names=false;cx.notify();})))
-     .child(seg("ink-name-profile","Profile names",self.embedded_names).on_click(cx.listener(|v,_,_,cx|{v.embedded_names=true;cx.notify();})))
+     .child(seg("ink-name-standard","Standard names",!self.embedded_names).on_click(cx.listener(|v,_,_,cx|{v.embedded_names=false;v.persist_name_mode();cx.notify();})))
+     .child(seg("ink-name-profile","Profile names",self.embedded_names).on_click(cx.listener(|v,_,_,cx|{v.embedded_names=true;v.persist_name_mode();cx.notify();})))
      .when(self.embedded_names&&self.display_profile.as_ref().is_some_and(|p|p.colorants().iter().all(Option::is_none)),|r|r.child(div().text_xs().text_color(rgb(0xfbbf24)).child(tr("No embedded ink names")))))).child(button("toggle-preview",if self.preview_open{"Hide preview"}else{"Show preview"}).on_click(cx.listener(|this,_,_,cx|{this.preview_open=!this.preview_open;if this.preview_open&&this.preview.is_none(){this.refresh_gamut(cx);}cx.notify();}))))
     .child(div().id("content-scroll").flex_1().overflow_y_scroll().p_5().child(div().w_full().max_w(px(900.)).mx_auto().child(content)))
     .child(div().px_5().py_3().bg(rgb(0x101010)).text_sm().child(tr(&self.status))))
