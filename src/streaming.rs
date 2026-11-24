@@ -147,5 +147,22 @@ fn write_strips<K:TiffKind>(decoder:&mut Decoder<BufReader<File>>,conversion:&Co
  use super::*;
  #[test]fn classic_vs_big_limits(){assert!(dimensions(30000,30000,16,false).is_err());assert!(dimensions(30000,30000,16,true).is_ok());assert!(dimensions(30000,30000,100,true).is_err());}
  #[test]fn cancellation(){let c=AtomicBool::new(true);assert!(cancelled(&c).is_err());}
+ #[test]fn native_tiff_stream_roundtrip(){
+  let d=tempfile::tempdir().unwrap();let p=d.path().join("reference.icc");let q=d.path().join("candidate.icc");
+  crate::synthetic_cmyk_v4(false).save_new(&p).unwrap();crate::synthetic_cmyk_v4(true).save_new(&q).unwrap();
+  let source=d.path().join("test_rgb.tif");
+  let srgb=Profile::new_srgb().icc().unwrap();
+  {let mut t=TiffEncoder::new(File::create(&source).unwrap()).unwrap();let mut img=t.new_image::<tiff::encoder::colortype::RGB8>(4,3).unwrap();img.rows_per_strip(2).unwrap();img.encoder().write_tag(Tag::IccProfile,&srgb[..]).unwrap();img.write_strip(&[120u8;24]).unwrap();img.write_strip(&[80u8;12]).unwrap();img.finish().unwrap();}
+  let cancel=AtomicBool::new(false);
+  let result=convert(&source,&p,&q,d.path(),Options::default(),StreamOptions{bigtiff:true,separations:true},&cancel,|_,_|{}).unwrap();
+  assert_eq!((result.width,result.height),(4,3));assert_eq!(result.max[3],0.);
+  let mut output=Decoder::new(File::open(result.directory.join("converted.tif")).unwrap()).unwrap();
+  assert_eq!(output.colortype().unwrap(),ColorType::CMYK(16));
+  assert!(Profile::new_icc(&output.get_tag_u8_vec(Tag::IccProfile).unwrap()).is_ok());
+  match output.read_image().unwrap(){DecodingResult::U16(v)=>{assert_eq!(v.len(),48);assert!(v.chunks_exact(4).all(|v|v[3]==0));},_=>panic!("Expected CMYK16")}
+  let mut sep=Decoder::new(File::open(result.directory.join("separation_4_16bit.tif")).unwrap()).unwrap();
+  match sep.read_image().unwrap(){DecodingResult::U16(v)=>assert_eq!(v,vec![65535;12]),_=>panic!("Expected Gray16")}
+  assert!(convert(&source,&p,&q,d.path(),Options::default(),StreamOptions::default(),&cancel,|_,_|{}).is_err());
+ }
  #[test]fn stats(){let mut s=Stats::default();s.add(&[[65535,65535,0,0],[0,0,0,0]],199.);assert_eq!(s.peak,200.);assert_eq!(s.over,1);}
 }

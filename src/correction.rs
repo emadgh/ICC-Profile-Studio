@@ -240,5 +240,13 @@ impl Profile{
  }
  #[test]fn ucr_protects_saturated_colors(){let s=BlackGeneration{ucr:true,..Default::default()};assert_eq!(s.target(CIELab{L:30.,a:80.,b:20.},0.1,1.),0.1);}
  #[test]fn points_monotone(){let mut p=IDENTITY_POINTS;assert_eq!(curve_points([0.25,0.5,0.75,1.],p),[0.25,0.5,0.75,1.]);p[0][2]=0.1;assert!(validate_points(p).is_err());}
+ #[test]fn native_pipeline_correction_roundtrip(){
+ let p=crate::synthetic_cmyk_v4(true);
+ let o=p.bounded_correction(Operation::Selective(Selective{light:3.,..Default::default()}),17,100.).unwrap();
+ assert_eq!(o.verify([1.,1.,1.,0.]).unwrap()[3],0.);
+ let dir=tempfile::tempdir().unwrap();let file=dir.path().join("edited.icc");o.save_new(&file).unwrap();
+ let inspection=crate::inspection::inspect(&file).unwrap();
+ assert_eq!(inspection.intents.len(),4);assert!(inspection.intents.iter().all(|i|i.result.as_ref().is_ok_and(|v|v[3]==0.)));
+ }
  #[test]fn bounds_validation(){assert!(constrained([f64::NAN,0.,0.,0.],[1.;4],3.).is_err());assert_eq!(constrained([1.;4],[1.,1.,1.,0.],0.).unwrap(),[0.;4]);}
 }

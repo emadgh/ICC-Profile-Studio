@@ -295,3 +295,31 @@ mod tests{
  #[test]fn channel_names(){assert_eq!(fixture().channels(),vec!["Cyan","Magenta","Yellow","Black"]);}
  #[test]fn constrained_rebuild(){let p=fixture();let caps=[0.0,1.,0.10,0.05];let out=p.custom_rebuild(caps,2.,9,|_|{}).unwrap();let parsed=Profile::parse(&out.bytes().unwrap()).unwrap();let max=parsed.verify(caps).unwrap();assert_eq!(max[0],0.);assert!(max[2]<=0.10);assert!(max[3]<=0.05);}
 }
+
+// A deliberately synthetic ICC used only to exercise actual LCMS transforms.
+// Not a measured printer characterization and never distributed as a profile.
+#[cfg(test)]
+pub(crate) fn synthetic_cmyk_v4(k_zero:bool)->Profile{
+ let mut header=vec![0;128];
+ header[8]=4;header[9]=0x30;header[12..16].copy_from_slice(b"prtr");header[16..20].copy_from_slice(b"CMYK");header[20..24].copy_from_slice(b"Lab ");header[36..40].copy_from_slice(b"acsp");
+ for (j,v) in [0x0000f6d6u32,0x00010000,0x0000d32d].into_iter().enumerate(){header[68+4*j..72+4*j].copy_from_slice(&v.to_be_bytes());}
+ let mut white=b"XYZ \0\0\0\0".to_vec();for v in [0x0000f6d6,0x00010000,0x0000d32d]{put32(&mut white,v);}
+ let mut forward=b"mAB \0\0\0\0".to_vec();forward.extend([4,3,0,0]);
+ let cl=32+3*16;let a=cl+20+16*3*2;
+ for v in [32,0,0,cl as u32,a as u32]{put32(&mut forward,v);}
+ identity_curves(&mut forward,3);forward.extend([2;4]);forward.extend([0;12]);forward.extend([2,0,0,0]);
+ for i in 0..16{let c=(i>>3)&1;let m=(i>>2)&1;let y=(i>>1)&1;let k=i&1;
+  for v in [1.-0.18*(c+m+y+k) as f64,0.50+0.18*(m as f64-c as f64),0.50+0.18*(y as f64-c as f64)]{put16(&mut forward,(v*65535.).round() as u16);}
+ }
+ identity_curves(&mut forward,4);
+ let mut reverse=Vec::new();
+ for l in 0..2{for a in 0..2{for b in 0..2{
+  for v in [0.30*(1-l) as f64,0.25*a as f64,0.25*b as f64,if k_zero{0.}else{0.20*(1-l) as f64}]{put16(&mut reverse,(65535.*v) as u16);}
+ }}}
+ let reverse=make_mba(2,&reverse);
+ let mut p=Profile{header,tags:BTreeMap::new()};p.describe("Synthetic CI fixture (not a printer characterization)");
+ p.tags.insert(*b"wtpt",white);
+ for key in [b"A2B0",b"A2B1",b"A2B2"]{p.tags.insert(*key,forward.clone());}
+ for key in [b"B2A0",b"B2A1",b"B2A2"]{p.tags.insert(*key,reverse.clone());}
+ p
+}

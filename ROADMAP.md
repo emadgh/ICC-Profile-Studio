@@ -65,7 +65,8 @@
 - [x] Native LCMS CMYK-to-CMYK DeviceLink v4.3 export, reopen and validate transform creation, no overwrite.
 - [x] Batch per-file error/progress and staged result directories, basic TIFF round-trip tests.
 - [ ] CI and real ICC/image regression; real large-image regression, DPI metadata preservation, exact calibrated monitor proof, alpha, tiled/planar and multipage workflows.
-- [ ] DeviceLink numeric equivalence, strict caps/TAC, black-preserving link modes and direct DeviceLink image application.
+- [x] DeviceLink sampled numeric comparison against direct conversion: 6,561 CMYK samples, maximum per-channel difference, sampled maximum channels and TAC.
+- [ ] DeviceLink strict bounds proof, black-preserving link modes and direct DeviceLink image application.
 
 ## v0.9 / v1.0 — ink recipes and ceramic lab (source implementation)
 
@@ -90,6 +91,7 @@
 
 - [x] Interleaved single-image RGB/CMYK 8/16-bit strip TIFF streaming, 2 MP per strip and up to 2 billion pixels total; per-strip LCMS conversion, strict TAC rejection, staged output, thumbnails and stats.
 - [x] Explicit classic/BigTIFF selection for streaming, optional full-resolution 16-bit grayscale separation TIFFs, per-strip progress and cancellation (in-memory jobs cancel between files).
+- [x] Synthetic native ICC/BigTIFF integration tests added (not yet run in CI), plus native selective correction and DeviceLink tests.
 - [ ] CI and end-to-end real large-file/RIP regression; tiled TIFF, planar input, metadata preservation and calibrated monitor proof. No claim of unrestricted file-size support.
 
 ## Next milestones
