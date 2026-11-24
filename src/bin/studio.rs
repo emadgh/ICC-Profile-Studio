@@ -220,9 +220,9 @@ impl Studio {
    if let Some(c)=&data.candidate{match c{Ok(c)=>p=p.child(format!("After: {} distinct / {} targets",c.points.len(),c.sampled)),Err(e)=>p=p.child(format!("After failed: {e}"))}}
    p=p.child(button("mesh-toggle",if o.wireframe{"Wireframe ✓"}else{"Point cloud"}).on_click(cx.listener(|this,_,_,cx|{this.preview_options.wireframe=!this.preview_options.wireframe;cx.notify();})));
    p=p.child(div().id("gamut-orbit").w_full().cursor_pointer()
-    .on_mouse_down(MouseButton::Left,cx.listener(|this,e,_,cx|{this.orbit_last=Some(e.position);cx.notify();}))
+    .on_mouse_down(MouseButton::Left,cx.listener(|this,e:&MouseDownEvent,_,cx|{this.orbit_last=Some(e.position);cx.notify();}))
     .on_mouse_up(MouseButton::Left,cx.listener(|this,_,_,cx|{this.orbit_last=None;cx.notify();}))
-    .on_mouse_move(cx.listener(|this,e,_,cx|{
+    .on_mouse_move(cx.listener(|this,e:&MouseMoveEvent,_,cx|{
      if !e.dragging(){this.orbit_last=None;return}
      if let Some(last)=this.orbit_last{
       if this.preview_options.three_d{
@@ -236,7 +236,7 @@ impl Studio {
       this.orbit_last=Some(e.position);
      }
     }))
-    .on_scroll_wheel(cx.listener(|this,e,_,cx|{
+    .on_scroll_wheel(cx.listener(|this,e:&ScrollWheelEvent,_,cx|{
      let dy=f32::from(e.delta.pixel_delta(px(20.)).y);
      if dy.is_finite(){this.preview_options.zoom=(this.preview_options.zoom*(dy*0.004).clamp(-0.6,0.6).exp()).clamp(0.5,3.);cx.notify();cx.stop_propagation();}
     }))

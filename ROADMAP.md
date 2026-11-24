@@ -107,3 +107,6 @@ Check boxes mean source implementation, not verified runtime unless explicitly m
 - Successful baseline: https://github.com/emadgh/color-convert-rust/actions/runs/45400551593 — 17 tests; artifact 14924101531. Legacy build also succeeded.
 - Successful analytics: https://github.com/emadgh/color-convert-rust/actions/runs/45402521624 — 21 tests; artifact 14923084302.
 - Current v0.7 source: new CI not yet verified. Convex hull is an approximation and sampled target loss is not exact gamut volume.
+
+- v0.7 legacy build succeeded at 71fb5180. GPUI failed on mouse event type inference (E0282); explicit event types added in the subsequent source. New complete Studio build not yet verified.
+- v0.8 legacy/core build succeeded at 64e71891; GPUI image workflow runtime and end-to-end checks remain pending.
