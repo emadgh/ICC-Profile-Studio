@@ -131,3 +131,5 @@ Check boxes mean source implementation, not verified runtime unless explicitly m
 
 - v0.7 legacy build succeeded at 71fb5180. GPUI failed on mouse event type inference (E0282); explicit event types added in the subsequent source. Complete Studio build succeeded at b3e71c44.
 - v0.8 legacy/core build succeeded at 64e71891; GPUI compiled at b3e71c44; runtime and end-to-end checks remain pending.
+
+- Studio release workflow initially failed YAML validation at 310ad675; corrected the malformed PowerShell regex line and artifact block. New CI pending.

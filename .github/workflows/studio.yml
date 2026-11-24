@@ -48,12 +48,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           $version = (Get-Content STUDIO_VERSION -Raw).Trim()
-          if ($version -notmatch '^\d+\.\d+\.\d+-beta\.\d+
-        with:
-          name: ICC-Profile-Studio-GPUI-preview
-          path: studio-dist/
-          if-no-files-found: error
-) { throw "Expected Studio beta version" }
+          if ($version -notmatch '^\d+\.\d+\.\d+-beta\.\d+$') { throw "Expected Studio beta version" }
           $tag = "studio-v$version"
           gh release view $tag --json tagName 2>$null
           if ($LASTEXITCODE -eq 0) { throw "Immutable Studio version exists; increment STUDIO_VERSION" }
