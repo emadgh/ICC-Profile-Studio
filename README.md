@@ -110,3 +110,7 @@ For supported output LUTs, Validator reports mathematical channel bounds and TAC
 ### Gamut preview rendering repair
 
 The preview uses a CPU raster image rendered with the existing image crate, shown in a fixed-size GPUI image rather than the previous Canvas. The shared auto-fit Lab scale does not change when Before/After visibility is toggled. Axes are always present; visible sample counts and errors are displayed, and a PNG can be exported for independent inspection. Windows interactive rendering verification is still required.
+
+### Gamut R2 troubleshooting
+
+The plot is fixed above the preview scroll area and duplicated on Gamut Viewer. Native cells is default (ordinary GPUI rectangles without a texture), BGRA is an alternative predecoded image path. Axes and three diagnostic color swatches should appear even without opening an ICC. Check the sidebar version and Gamut R2 label; compare visible-point and span counts. If still blank, export a PNG and report whether the border, swatches and count text are visible. Actual Windows interaction remains a release gate.

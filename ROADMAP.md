@@ -156,3 +156,10 @@ Check boxes mean source implementation, not verified runtime unless explicitly m
 - GPUI build at 10af67e9 passed 45 tests and uploaded artifact 14929160937: https://github.com/emadgh/color-convert-rust/actions/runs/45409608575.
 - Legacy/core build at 6bfdc843 (paper/substrate color) succeeded: https://github.com/emadgh/color-convert-rust/actions/runs/45410491959. GPUI verification pending.
 - Soft Proof initial build bba58f12 failed because Rust binding uses SOFT_PROOFING rather than SOFTPROOFING. Corrected at aa1e1f54; integrated GPUI CI passed all 53 tests, artifact 14930171063 (run 45411400981). Gamut rendering repair awaits new CI and interactive Windows confirmation.
+
+## Gamut R2 runtime report
+
+- Owner reports previous raster build still shows no gamut or grid. Previous commit 797551e7 passed both Windows workflows (Studio run 45414370996). Runtime failure is not resolved by CI alone.
+- [x] Pin plot above and outside settings scroll, add fixed-size frame, independent colored test swatches, visible point and native span counts, render ID R2 in header, duplicate plot on Gamut Viewer page.
+- [x] Default native colored Div spans (no Canvas or image path); alternate synchronous predecoded BGRA RenderImage bypasses PNG asset decoding. Both use identical cached raster. Add tests for nonempty native axes with no ICC and changing span output when profile visibility toggled.
+- [ ] Confirm Windows visual display in both paths, at common display scales, with actual printer ICC. Do not mark as fixed until confirmed.

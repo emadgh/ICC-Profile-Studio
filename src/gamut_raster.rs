@@ -91,11 +91,52 @@ pub fn render(data:Option<&Overlay>,o:ViewOptions)->Rendered{
  for (v,c) in dots{dot(&mut img,at(v),c,3,210);}
  Rendered{image:img,visible,units_per_half:range/zoom}
 }
+/// A second presentation backend uses ordinary GPUI rectangle elements,
+/// independent of canvas hooks, texture atlases and image decoding.
+pub const CELL_GRID:u32=160;
+#[derive(Clone,Copy,Debug,PartialEq,Eq)]
+pub struct Span{pub x:u32,pub y:u32,pub width:u32,pub rgb:u32}
+pub fn native_spans(image:&RgbImage)->Vec<Span>{
+ let mut spans=Vec::new();
+ let factor=SIZE/CELL_GRID;
+ let color_at=|x:u32,y:u32|{
+  let mut chosen=BG;let mut best=0u32;
+  for dy in 0..factor{for dx in 0..factor{
+   let p=image.get_pixel(x*factor+dx,y*factor+dy).0;
+   let score=p.iter().zip(BG).map(|(&a,b)|u32::from(a.abs_diff(b))).sum::<u32>();
+   if score>best{best=score;chosen=p;}
+  }}
+  if best==0{0}else{u32::from(chosen[0])<<16|u32::from(chosen[1])<<8|u32::from(chosen[2])}
+ };
+ for y in 0..CELL_GRID{
+  let mut x=0;
+  while x<CELL_GRID{
+   let rgb=color_at(x,y);let start=x;x+=1;
+   while x<CELL_GRID&&color_at(x,y)==rgb{x+=1;}
+   if rgb!=0{spans.push(Span{x:start,y,width:x-start,rgb});}
+  }
+ }
+ spans
+}
 #[cfg(test)]mod tests{
  use super::*;
  fn example()->Overlay{
   let points=vec![[30.,-4.,-40.],[50.,12.,20.],[98.,0.,0.],[70.,22.,-25.]];
   Overlay{reference:Ok(Cloud{points:points.clone(),sampled:4,errors:vec![0.;4],hull:None}),candidate:Some(Ok(Cloud{points,sampled:4,errors:vec![0.;4],hull:None}))}
+ }
+ #[test]fn native_spans_include_grid_even_without_icc(){
+  for three_d in [false,true]{
+   let r=render(None,ViewOptions{three_d,..Default::default()});
+   let spans=native_spans(&r.image);
+   assert!(!spans.is_empty());assert!(spans.iter().all(|s|s.x+s.width<=CELL_GRID&&s.y<CELL_GRID));
+   assert!(spans.iter().any(|s|s.rgb>>16>100));
+  }
+ }
+ #[test]fn native_spans_change_with_profile(){
+  let d=example();let o=ViewOptions{three_d:false,candidate:false,..Default::default()};
+  let a=native_spans(&render(Some(&d),o).image);
+  let b=native_spans(&render(Some(&d),ViewOptions{reference:false,..o}).image);
+  assert_ne!(a,b);
  }
  #[test]fn actual_pixels_change_in_both_views(){
   let d=example();

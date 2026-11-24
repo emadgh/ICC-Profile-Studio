@@ -27,10 +27,10 @@ const PAGES: [(Page,&str);21] = [
 enum Event { Progress(String), Done(Result<String,String>) }
 struct Studio {
  page:Page, source:Option<PathBuf>, profile:Option<Profile>, report:Option<Inspection>, error:Option<String>,
- caps:[f64;4],tac:f64,grid:usize,mode:Mode,status:String,busy:bool, candidate:Option<PathBuf>,comparison:Option<Comparison>,compare_error:Option<String>,compare_grid:usize,compare_intent:lcms2::Intent,gamma:[f64;4],order:[usize;4], preview_open:bool, preview:Option<Overlay>, preview_revision:u64, preview_cache:std::cell::RefCell<gamut_view::PreviewCache>, preview_options:ViewOptions, gamut_grid:usize,gradient:Option<GradientReport>,gradient_error:Option<String>,coverage_threshold:f64, selective:[f64;5], correction_grid:usize, correction_tac:f64, smoothing:f64, smoothing_passes:usize,orbit_last:Option<Point<Pixels>>,image_files:Vec<PathBuf>,image_root:Option<PathBuf>,image_options:ImageOptions,image_results:Vec<ImageOutput>,image_errors:Vec<String>,image_preview:usize,proof_source:Option<PathBuf>,monitor_profile:Option<PathBuf>,proof_media:bool,proof_bpc:bool,proof_output:Option<PathBuf>,stream_options:StreamOptions,stream_enabled:bool,batch_cancel:Option<Arc<AtomicBool>>,recipe_target:[f64;3],recipe_settings:RecipeSettings,recipe_result:Option<RecipeReport>,lab_levels:usize,measured:[Option<PathBuf>;2],measurement_result:Option<MeasuredComparison>,black:BlackGeneration,curve_points:[[f64;5];4],library_root:Option<PathBuf>,library_entries:Vec<library::Entry>,logo:std::sync::Arc<gpui::Image>,#[cfg(windows)] updater:UpdateManager,
+ caps:[f64;4],tac:f64,grid:usize,mode:Mode,status:String,busy:bool, candidate:Option<PathBuf>,comparison:Option<Comparison>,compare_error:Option<String>,compare_grid:usize,compare_intent:lcms2::Intent,gamma:[f64;4],order:[usize;4], preview_open:bool, preview:Option<Overlay>, preview_revision:u64, preview_direct_image:bool, preview_cache:std::cell::RefCell<gamut_view::PreviewCache>, preview_options:ViewOptions, gamut_grid:usize,gradient:Option<GradientReport>,gradient_error:Option<String>,coverage_threshold:f64, selective:[f64;5], correction_grid:usize, correction_tac:f64, smoothing:f64, smoothing_passes:usize,orbit_last:Option<Point<Pixels>>,image_files:Vec<PathBuf>,image_root:Option<PathBuf>,image_options:ImageOptions,image_results:Vec<ImageOutput>,image_errors:Vec<String>,image_preview:usize,proof_source:Option<PathBuf>,monitor_profile:Option<PathBuf>,proof_media:bool,proof_bpc:bool,proof_output:Option<PathBuf>,stream_options:StreamOptions,stream_enabled:bool,batch_cancel:Option<Arc<AtomicBool>>,recipe_target:[f64;3],recipe_settings:RecipeSettings,recipe_result:Option<RecipeReport>,lab_levels:usize,measured:[Option<PathBuf>;2],measurement_result:Option<MeasuredComparison>,black:BlackGeneration,curve_points:[[f64;5];4],library_root:Option<PathBuf>,library_entries:Vec<library::Entry>,logo:std::sync::Arc<gpui::Image>,#[cfg(windows)] updater:UpdateManager,
 }
 impl Default for Studio {
- fn default()->Self{Self{page:Page::Dashboard,source:None,profile:None,report:None,error:None,caps:[100.,100.,100.,0.],tac:240.,grid:33,mode:Mode::Custom,status:"Open an ICC or ICM profile to start.".into(),busy:false,candidate:None,comparison:None,compare_error:None,compare_grid:17,compare_intent:lcms2::Intent::RelativeColorimetric,gamma:[1.;4],order:[0,1,2,3],preview_open:true,preview:None,preview_revision:0,preview_cache:std::cell::RefCell::new(gamut_view::PreviewCache::default()),preview_options:ViewOptions::default(),gamut_grid:17,gradient:None,gradient_error:None,coverage_threshold:2.,selective:[135.,45.,0.,0.,0.],correction_grid:33,correction_tac:400.,smoothing:0.20,smoothing_passes:1,orbit_last:None,image_files:vec![],image_root:None,image_options:ImageOptions::default(),image_results:vec![],image_errors:vec![],image_preview:0,proof_source:None,monitor_profile:None,proof_media:true,proof_bpc:false,proof_output:None,stream_options:StreamOptions::default(),stream_enabled:false,batch_cancel:None,recipe_target:[50.,0.,0.],recipe_settings:RecipeSettings::default(),recipe_result:None,lab_levels:5,measured:[None,None],measurement_result:None,black:BlackGeneration::default(),curve_points:IDENTITY_POINTS,library_root:None,library_entries:vec![],logo:std::sync::Arc::new(gpui::Image::from_bytes(gpui::ImageFormat::Png,include_bytes!("../../assets/icon.png").to_vec())),#[cfg(windows)] updater:UpdateManager::new(UpdateConfig::new("emadgh/color-convert-rust","ICC-Profile-Studio.exe",STUDIO_VERSION.trim()).with_app_name("ICC Profile Studio").with_checksum_asset("ICC-Profile-Studio.exe.sha256").with_required_checksum(true))}}
+ fn default()->Self{Self{page:Page::Dashboard,source:None,profile:None,report:None,error:None,caps:[100.,100.,100.,0.],tac:240.,grid:33,mode:Mode::Custom,status:"Open an ICC or ICM profile to start.".into(),busy:false,candidate:None,comparison:None,compare_error:None,compare_grid:17,compare_intent:lcms2::Intent::RelativeColorimetric,gamma:[1.;4],order:[0,1,2,3],preview_open:true,preview:None,preview_revision:0,preview_direct_image:false,preview_cache:std::cell::RefCell::new(gamut_view::PreviewCache::default()),preview_options:ViewOptions::default(),gamut_grid:17,gradient:None,gradient_error:None,coverage_threshold:2.,selective:[135.,45.,0.,0.,0.],correction_grid:33,correction_tac:400.,smoothing:0.20,smoothing_passes:1,orbit_last:None,image_files:vec![],image_root:None,image_options:ImageOptions::default(),image_results:vec![],image_errors:vec![],image_preview:0,proof_source:None,monitor_profile:None,proof_media:true,proof_bpc:false,proof_output:None,stream_options:StreamOptions::default(),stream_enabled:false,batch_cancel:None,recipe_target:[50.,0.,0.],recipe_settings:RecipeSettings::default(),recipe_result:None,lab_levels:5,measured:[None,None],measurement_result:None,black:BlackGeneration::default(),curve_points:IDENTITY_POINTS,library_root:None,library_entries:vec![],logo:std::sync::Arc::new(gpui::Image::from_bytes(gpui::ImageFormat::Png,include_bytes!("../../assets/icon.png").to_vec())),#[cfg(windows)] updater:UpdateManager::new(UpdateConfig::new("emadgh/color-convert-rust","ICC-Profile-Studio.exe",STUDIO_VERSION.trim()).with_app_name("ICC Profile Studio").with_checksum_asset("ICC-Profile-Studio.exe.sha256").with_required_checksum(true))}}
 }
 fn button(id: impl Into<ElementId>,label:impl Into<SharedString>)->Stateful<Div>{
  div().id(id).px_3().py_2().rounded_md().bg(rgb(0x263449)).text_color(rgb(0xe6eefb)).cursor_pointer().hover(|s|s.bg(rgb(0x354963))).child(label.into())
@@ -81,7 +81,7 @@ impl Studio {
   }
   self.status=if self.report.is_some(){"Profile loaded with LittleCMS.".into()}else{"Profile could not be opened.".into()};
   self.page=Page::Inspector;
-  if self.preview_open && self.report.is_some(){self.refresh_gamut(cx);}
+  if self.preview_open && self.source.is_some(){self.refresh_gamut(cx);}
  }
  fn generate(&mut self,cx:&mut Context<Self>){
   if self.busy||self.profile.is_none(){return}
@@ -220,20 +220,16 @@ impl Studio {
   }).detach();
  }
  fn preview_panel(&self,cx:&mut Context<Self>)->Div{
-  let mut panel=div().flex().flex_col().w(px(360.)).flex_shrink_0().h_full().bg(rgb(0x101a2a))
-   .child(div().flex().items_center().justify_between().p_3().child(div().text_lg().child("Gamut Preview"))
-    .child(button("collapse-preview","»").on_click(cx.listener(|this,_,_,cx|{this.preview_open=false;cx.notify();}))));
-  panel=panel.child(div().id("preview-scroll").flex_1().overflow_y_scroll().p_3().child(self.gamut_controls(cx)));
-  panel
- }
- fn gamut_controls(&self,cx:&mut Context<Self>)->Div{
   let o=self.preview_options;
-  let mut p=div().flex().flex_col().gap_3()
+  let panel=div().flex().flex_col().w(px(360.)).flex_shrink_0().h_full().min_h(px(0.)).overflow_hidden().bg(rgb(0x101a2a))
+   .child(div().flex().items_center().justify_between().p_2().flex_shrink_0().child(div().text_lg().child("Gamut Preview · R2"))
+    .child(button("collapse-preview","»").on_click(cx.listener(|this,_,_,cx|{this.preview_open=false;cx.notify();}))));
+  let controls=div().flex().flex_col().gap_1().flex_shrink_0().p_2()
    .child(div().flex().gap_2().child(button("view-2d",if o.three_d{"2D"}else{"2D ✓"}).on_click(cx.listener(|this,_,_,cx|{this.preview_options.three_d=false;cx.notify();})))
     .child(button("view-3d",if o.three_d{"3D ✓"}else{"3D"}).on_click(cx.listener(|this,_,_,cx|{this.preview_options.three_d=true;cx.notify();}))))
    .child(div().flex().gap_2().child(button("show-before",if o.reference{"Before ✓"}else{"Before"}).on_click(cx.listener(|this,_,_,cx|{this.preview_options.reference=!this.preview_options.reference;cx.notify();})))
     .child(button("show-after",if o.candidate{"After ✓"}else{"After"}).on_click(cx.listener(|this,_,_,cx|{this.preview_options.candidate=!this.preview_options.candidate;cx.notify();}))));
-   p=p.child(div().id("gamut-orbit").w_full().flex_shrink_0().cursor_pointer()
+let chart=div().id("gamut-orbit").w_full().flex_shrink_0().cursor_pointer()
     .on_mouse_down(MouseButton::Left,cx.listener(|this,e:&MouseDownEvent,_,cx|{this.orbit_last=Some(e.position);cx.notify();}))
     .on_mouse_up(MouseButton::Left,cx.listener(|this,_,_,cx|{this.orbit_last=None;cx.notify();}))
     .on_mouse_move(cx.listener(|this,e:&MouseMoveEvent,_,cx|{
@@ -254,7 +250,17 @@ impl Studio {
      let dy=f32::from(e.delta.pixel_delta(px(20.)).y);
      if dy.is_finite(){this.preview_options.zoom=(this.preview_options.zoom*(dy*0.004).clamp(-0.6,0.6).exp()).clamp(0.5,3.);cx.notify();cx.stop_propagation();}
     }))
-    .child(gamut_view::plot(self.preview.as_ref(),self.preview_revision,o,&mut self.preview_cache.borrow_mut())));
+    .child(gamut_view::plot(self.preview.as_ref(),self.preview_revision,o,&mut self.preview_cache.borrow_mut(),self.preview_direct_image));
+  panel.child(controls)
+   .child(div().flex().flex_col().items_center().flex_shrink_0().child(chart))
+   .child(div().flex().gap_1().p_2().flex_shrink_0()
+    .child(button("renderer-native",if self.preview_direct_image{"Native cells"}else{"Native cells ✓"}).on_click(cx.listener(|v,_,_,cx|{v.preview_direct_image=false;cx.notify();})))
+    .child(button("renderer-bgra",if self.preview_direct_image{"BGRA ✓"}else{"BGRA"}).on_click(cx.listener(|v,_,_,cx|{v.preview_direct_image=true;cx.notify();}))))
+   .child(div().id("preview-scroll").flex_1().min_h(px(0.)).overflow_y_scroll().p_2().child(self.gamut_controls(cx)))
+ }
+ fn gamut_controls(&self,cx:&mut Context<Self>)->Div{
+  let o=self.preview_options;
+  let mut p=div().flex().flex_col().gap_3();
   p=p
    .child(div().flex().gap_2().items_center().child(div().size(px(9.)).bg(rgb(0x60a5fa))).child("Reference").child(div().size(px(9.)).bg(rgb(0xfbbf24))).child("Candidate"))
    .child(div().text_xs().child(format!("Before: {}",self.source.as_ref().and_then(|p|p.file_name()).map(|n|n.to_string_lossy().into_owned()).unwrap_or("Not selected".into()))))
@@ -320,6 +326,7 @@ impl Studio {
  }
  fn gamut_analysis_page(&self,cx:&mut Context<Self>)->Div{
   let mut p=div().flex().flex_col().gap_3().child(heading("Gamut Viewer","Effective separation coverage and convex envelope."))
+   .child(gamut_view::plot(self.preview.as_ref(),self.preview_revision,self.preview_options,&mut self.preview_cache.borrow_mut(),self.preview_direct_image))
    .child(button("open-gamut-page-preview","Show preview pane").on_click(cx.listener(|this,_,_,cx|{this.preview_open=true;if this.preview.is_none(){this.refresh_gamut(cx);}cx.notify();})))
    .child(div().flex().gap_2().items_center().child("Target tolerance ΔE00").children([1usize,2,3,5].map(|v|button(("threshold",v),if self.coverage_threshold==v as f64{format!("{v} ✓")}else{v.to_string()}).on_click(cx.listener(move|this,_,_,cx|{this.coverage_threshold=v as f64;cx.notify();})))));
   if let Some(data)=&self.preview{
@@ -760,13 +767,13 @@ impl Studio {
 impl Render for Studio {
  fn render(&mut self,_window:&mut Window,cx:&mut Context<Self>)->impl IntoElement{
   let sidebar=div().id("sidebar").flex().flex_col().w(px(224.)).flex_shrink_0().h_full().overflow_y_scroll().p_3().gap_1().bg(rgb(0x101a2a))
-   .child(div().text_lg().mb_3().child("ICC Profile Studio"))
+   .child(div().text_lg().child("ICC Profile Studio")).child(div().text_xs().mb_3().child(format!("{} · Gamut R2",STUDIO_VERSION.trim())))
    .child(button("open-profile","Open ICC / ICM").on_click(cx.listener(|this,_,_,cx|{this.open(cx);cx.notify();})))
    .children(PAGES.into_iter().enumerate().map(|(i,(page,label))|{
     let active=self.page==page;
     div().id(("page",i)).px_3().py_2().rounded_md().text_sm().cursor_pointer()
      .bg(rgb(if active{0x304867}else{0x101a2a})).hover(|s|s.bg(rgb(0x233751))).child(label)
-     .on_click(cx.listener(move|this,_,_,cx|{this.page=page;cx.notify();}))
+     .on_click(cx.listener(move|this,_,_,cx|{this.page=page;if page==Page::Gamut&&this.preview.is_none(){this.refresh_gamut(cx);}cx.notify();}))
    }));
   let content=match self.page{
    Page::Dashboard=>div().flex().flex_col().gap_3().child(heading("Dashboard","Color management workspace for ceramic printing.")).child("Open an ICC profile to inspect its structure or rebuild a separation."),
