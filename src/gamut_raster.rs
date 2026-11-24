@@ -3,7 +3,7 @@
 //! toggles; narrow ceramic gamuts are automatically fitted.
 use crate::gamut::{Overlay,Cloud,project};
 use image::{Rgb,RgbImage,ImageEncoder};
-#[derive(Clone,Copy,Debug)]
+#[derive(Clone,Copy,Debug,PartialEq)]
 pub struct ViewOptions{pub three_d:bool,pub reference:bool,pub candidate:bool,pub slice:bool,pub light:f32,pub yaw:f32,pub pitch:f32,pub zoom:f32,pub wireframe:bool}
 impl Default for ViewOptions{fn default()->Self{Self{three_d:true,reference:true,candidate:true,slice:false,light:50.,yaw:0.65,pitch:0.45,zoom:1.,wireframe:false}}}
 pub const SIZE:u32=640;

@@ -106,7 +106,7 @@
 
 - User reported no rendered gamut in either 2D or 3D on Windows. Root cause not yet reproduced on Windows; investigate render/layout separately from data.
 - [x] Independently tested three local printer ICCs (original, K0, K10) with native LittleCMS: 3,440 valid Lab targets each; 3,279 / 1,338 / 1,348 distinct Lab points. Proprietary files not committed.
-- [x] Replaced GPUI custom Canvas drawing with a CPU-rendered PNG via existing image crate and fixed 320×320 GPUI image element; always display axes, auto-fit common scale, brighter points, visible counts, 2D outline and 3D wireframe, separate error status and PNG export. Existing mouse controls and before/after toggles retained.
+- [x] Replaced GPUI custom Canvas drawing with a CPU-rendered PNG via existing image crate and fixed 320×320 GPUI image element; always display axes, auto-fit common scale, brighter points, visible counts, 2D outline and 3D wireframe, separate error status and PNG export. Existing mouse controls and before/after toggles retained. Plot positioned immediately below view toggles; cache keyed by sample revision and view parameters avoids regenerating images on unrelated renders.
 - [x] Added raster pixel-change, toggles/slice, and synthetic native ICC-to-raster tests. CI and actual Windows rendering still pending.
 
 ## Release engineering
@@ -155,4 +155,4 @@ Check boxes mean source implementation, not verified runtime unless explicitly m
 - Studio release workflow initially failed YAML validation at 310ad675; corrected the malformed PowerShell regex line and artifact block. New release workflow CI pending.
 - GPUI build at 10af67e9 passed 45 tests and uploaded artifact 14929160937: https://github.com/emadgh/color-convert-rust/actions/runs/45409608575.
 - Legacy/core build at 6bfdc843 (paper/substrate color) succeeded: https://github.com/emadgh/color-convert-rust/actions/runs/45410491959. GPUI verification pending.
-- Soft Proof initial build bba58f12 failed because Rust binding uses SOFT_PROOFING rather than SOFTPROOFING. Corrected; subsequent CI pending.
+- Soft Proof initial build bba58f12 failed because Rust binding uses SOFT_PROOFING rather than SOFTPROOFING. Corrected at aa1e1f54; integrated GPUI CI passed all 53 tests, artifact 14930171063 (run 45411400981). Gamut rendering repair awaits new CI and interactive Windows confirmation.

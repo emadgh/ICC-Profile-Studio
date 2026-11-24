@@ -27,10 +27,10 @@ const PAGES: [(Page,&str);21] = [
 enum Event { Progress(String), Done(Result<String,String>) }
 struct Studio {
  page:Page, source:Option<PathBuf>, profile:Option<Profile>, report:Option<Inspection>, error:Option<String>,
- caps:[f64;4],tac:f64,grid:usize,mode:Mode,status:String,busy:bool, candidate:Option<PathBuf>,comparison:Option<Comparison>,compare_error:Option<String>,compare_grid:usize,compare_intent:lcms2::Intent,gamma:[f64;4],order:[usize;4], preview_open:bool, preview:Option<Overlay>, preview_options:ViewOptions, gamut_grid:usize,gradient:Option<GradientReport>,gradient_error:Option<String>,coverage_threshold:f64, selective:[f64;5], correction_grid:usize, correction_tac:f64, smoothing:f64, smoothing_passes:usize,orbit_last:Option<Point<Pixels>>,image_files:Vec<PathBuf>,image_root:Option<PathBuf>,image_options:ImageOptions,image_results:Vec<ImageOutput>,image_errors:Vec<String>,image_preview:usize,proof_source:Option<PathBuf>,monitor_profile:Option<PathBuf>,proof_media:bool,proof_bpc:bool,proof_output:Option<PathBuf>,stream_options:StreamOptions,stream_enabled:bool,batch_cancel:Option<Arc<AtomicBool>>,recipe_target:[f64;3],recipe_settings:RecipeSettings,recipe_result:Option<RecipeReport>,lab_levels:usize,measured:[Option<PathBuf>;2],measurement_result:Option<MeasuredComparison>,black:BlackGeneration,curve_points:[[f64;5];4],library_root:Option<PathBuf>,library_entries:Vec<library::Entry>,logo:std::sync::Arc<gpui::Image>,#[cfg(windows)] updater:UpdateManager,
+ caps:[f64;4],tac:f64,grid:usize,mode:Mode,status:String,busy:bool, candidate:Option<PathBuf>,comparison:Option<Comparison>,compare_error:Option<String>,compare_grid:usize,compare_intent:lcms2::Intent,gamma:[f64;4],order:[usize;4], preview_open:bool, preview:Option<Overlay>, preview_revision:u64, preview_cache:std::cell::RefCell<gamut_view::PreviewCache>, preview_options:ViewOptions, gamut_grid:usize,gradient:Option<GradientReport>,gradient_error:Option<String>,coverage_threshold:f64, selective:[f64;5], correction_grid:usize, correction_tac:f64, smoothing:f64, smoothing_passes:usize,orbit_last:Option<Point<Pixels>>,image_files:Vec<PathBuf>,image_root:Option<PathBuf>,image_options:ImageOptions,image_results:Vec<ImageOutput>,image_errors:Vec<String>,image_preview:usize,proof_source:Option<PathBuf>,monitor_profile:Option<PathBuf>,proof_media:bool,proof_bpc:bool,proof_output:Option<PathBuf>,stream_options:StreamOptions,stream_enabled:bool,batch_cancel:Option<Arc<AtomicBool>>,recipe_target:[f64;3],recipe_settings:RecipeSettings,recipe_result:Option<RecipeReport>,lab_levels:usize,measured:[Option<PathBuf>;2],measurement_result:Option<MeasuredComparison>,black:BlackGeneration,curve_points:[[f64;5];4],library_root:Option<PathBuf>,library_entries:Vec<library::Entry>,logo:std::sync::Arc<gpui::Image>,#[cfg(windows)] updater:UpdateManager,
 }
 impl Default for Studio {
- fn default()->Self{Self{page:Page::Dashboard,source:None,profile:None,report:None,error:None,caps:[100.,100.,100.,0.],tac:240.,grid:33,mode:Mode::Custom,status:"Open an ICC or ICM profile to start.".into(),busy:false,candidate:None,comparison:None,compare_error:None,compare_grid:17,compare_intent:lcms2::Intent::RelativeColorimetric,gamma:[1.;4],order:[0,1,2,3],preview_open:true,preview:None,preview_options:ViewOptions::default(),gamut_grid:17,gradient:None,gradient_error:None,coverage_threshold:2.,selective:[135.,45.,0.,0.,0.],correction_grid:33,correction_tac:400.,smoothing:0.20,smoothing_passes:1,orbit_last:None,image_files:vec![],image_root:None,image_options:ImageOptions::default(),image_results:vec![],image_errors:vec![],image_preview:0,proof_source:None,monitor_profile:None,proof_media:true,proof_bpc:false,proof_output:None,stream_options:StreamOptions::default(),stream_enabled:false,batch_cancel:None,recipe_target:[50.,0.,0.],recipe_settings:RecipeSettings::default(),recipe_result:None,lab_levels:5,measured:[None,None],measurement_result:None,black:BlackGeneration::default(),curve_points:IDENTITY_POINTS,library_root:None,library_entries:vec![],logo:std::sync::Arc::new(gpui::Image::from_bytes(gpui::ImageFormat::Png,include_bytes!("../../assets/icon.png").to_vec())),#[cfg(windows)] updater:UpdateManager::new(UpdateConfig::new("emadgh/color-convert-rust","ICC-Profile-Studio.exe",STUDIO_VERSION.trim()).with_app_name("ICC Profile Studio").with_checksum_asset("ICC-Profile-Studio.exe.sha256").with_required_checksum(true))}}
+ fn default()->Self{Self{page:Page::Dashboard,source:None,profile:None,report:None,error:None,caps:[100.,100.,100.,0.],tac:240.,grid:33,mode:Mode::Custom,status:"Open an ICC or ICM profile to start.".into(),busy:false,candidate:None,comparison:None,compare_error:None,compare_grid:17,compare_intent:lcms2::Intent::RelativeColorimetric,gamma:[1.;4],order:[0,1,2,3],preview_open:true,preview:None,preview_revision:0,preview_cache:std::cell::RefCell::new(gamut_view::PreviewCache::default()),preview_options:ViewOptions::default(),gamut_grid:17,gradient:None,gradient_error:None,coverage_threshold:2.,selective:[135.,45.,0.,0.,0.],correction_grid:33,correction_tac:400.,smoothing:0.20,smoothing_passes:1,orbit_last:None,image_files:vec![],image_root:None,image_options:ImageOptions::default(),image_results:vec![],image_errors:vec![],image_preview:0,proof_source:None,monitor_profile:None,proof_media:true,proof_bpc:false,proof_output:None,stream_options:StreamOptions::default(),stream_enabled:false,batch_cancel:None,recipe_target:[50.,0.,0.],recipe_settings:RecipeSettings::default(),recipe_result:None,lab_levels:5,measured:[None,None],measurement_result:None,black:BlackGeneration::default(),curve_points:IDENTITY_POINTS,library_root:None,library_entries:vec![],logo:std::sync::Arc::new(gpui::Image::from_bytes(gpui::ImageFormat::Png,include_bytes!("../../assets/icon.png").to_vec())),#[cfg(windows)] updater:UpdateManager::new(UpdateConfig::new("emadgh/color-convert-rust","ICC-Profile-Studio.exe",STUDIO_VERSION.trim()).with_app_name("ICC Profile Studio").with_checksum_asset("ICC-Profile-Studio.exe.sha256").with_required_checksum(true))}}
 }
 fn button(id: impl Into<ElementId>,label:impl Into<SharedString>)->Stateful<Div>{
  div().id(id).px_3().py_2().rounded_md().bg(rgb(0x263449)).text_color(rgb(0xe6eefb)).cursor_pointer().hover(|s|s.bg(rgb(0x354963))).child(label.into())
@@ -215,7 +215,7 @@ impl Studio {
   cx.spawn(async move |this,cx|{
    let result=cx.background_spawn(async move{gamut::overlay(&reference,candidate.as_deref(),grid)}).await;
    let _=this.update(cx,|view,cx|{
-    let status=match &result.reference{Ok(c)=>format!("Gamut ready: {} reference points{}",c.points.len(),match &result.candidate{Some(Ok(c))=>format!(", {} candidate points",c.points.len()),Some(Err(e))=>format!("; candidate failed: {e}"),None=>String::new()}),Err(e)=>format!("Reference gamut failed: {e}")};view.preview=Some(result);view.busy=false;view.status=status;cx.notify();
+    let status=match &result.reference{Ok(c)=>format!("Gamut ready: {} reference points{}",c.points.len(),match &result.candidate{Some(Ok(c))=>format!(", {} candidate points",c.points.len()),Some(Err(e))=>format!("; candidate failed: {e}"),None=>String::new()}),Err(e)=>format!("Reference gamut failed: {e}")};view.preview=Some(result);view.preview_revision=view.preview_revision.wrapping_add(1);view.busy=false;view.status=status;cx.notify();
    });
   }).detach();
  }
@@ -232,7 +232,30 @@ impl Studio {
    .child(div().flex().gap_2().child(button("view-2d",if o.three_d{"2D"}else{"2D ✓"}).on_click(cx.listener(|this,_,_,cx|{this.preview_options.three_d=false;cx.notify();})))
     .child(button("view-3d",if o.three_d{"3D ✓"}else{"3D"}).on_click(cx.listener(|this,_,_,cx|{this.preview_options.three_d=true;cx.notify();}))))
    .child(div().flex().gap_2().child(button("show-before",if o.reference{"Before ✓"}else{"Before"}).on_click(cx.listener(|this,_,_,cx|{this.preview_options.reference=!this.preview_options.reference;cx.notify();})))
-    .child(button("show-after",if o.candidate{"After ✓"}else{"After"}).on_click(cx.listener(|this,_,_,cx|{this.preview_options.candidate=!this.preview_options.candidate;cx.notify();}))))
+    .child(button("show-after",if o.candidate{"After ✓"}else{"After"}).on_click(cx.listener(|this,_,_,cx|{this.preview_options.candidate=!this.preview_options.candidate;cx.notify();}))));
+   p=p.child(div().id("gamut-orbit").w_full().flex_shrink_0().cursor_pointer()
+    .on_mouse_down(MouseButton::Left,cx.listener(|this,e:&MouseDownEvent,_,cx|{this.orbit_last=Some(e.position);cx.notify();}))
+    .on_mouse_up(MouseButton::Left,cx.listener(|this,_,_,cx|{this.orbit_last=None;cx.notify();}))
+    .on_mouse_move(cx.listener(|this,e:&MouseMoveEvent,_,cx|{
+     if !e.dragging(){this.orbit_last=None;return}
+     if let Some(last)=this.orbit_last{
+      if this.preview_options.three_d{
+       let dx=f32::from(e.position.x-last.x);let dy=f32::from(e.position.y-last.y);
+       // Ignore abrupt jumps when the cursor returns from outside the plot.
+       if dx.abs()<100.&&dy.abs()<100.{
+        this.preview_options.yaw=(this.preview_options.yaw+dx*0.01).rem_euclid(std::f32::consts::TAU);
+        this.preview_options.pitch=(this.preview_options.pitch+dy*0.01).clamp(-1.55,1.55);cx.notify();
+       }
+      }
+      this.orbit_last=Some(e.position);
+     }
+    }))
+    .on_scroll_wheel(cx.listener(|this,e:&ScrollWheelEvent,_,cx|{
+     let dy=f32::from(e.delta.pixel_delta(px(20.)).y);
+     if dy.is_finite(){this.preview_options.zoom=(this.preview_options.zoom*(dy*0.004).clamp(-0.6,0.6).exp()).clamp(0.5,3.);cx.notify();cx.stop_propagation();}
+    }))
+    .child(gamut_view::plot(self.preview.as_ref(),self.preview_revision,o,&mut self.preview_cache.borrow_mut())));
+  p=p
    .child(div().flex().gap_2().items_center().child(div().size(px(9.)).bg(rgb(0x60a5fa))).child("Reference").child(div().size(px(9.)).bg(rgb(0xfbbf24))).child("Candidate"))
    .child(div().text_xs().child(format!("Before: {}",self.source.as_ref().and_then(|p|p.file_name()).map(|n|n.to_string_lossy().into_owned()).unwrap_or("Not selected".into()))))
    .child(div().text_xs().child(format!("After: {}",self.candidate.as_ref().and_then(|p|p.file_name()).map(|n|n.to_string_lossy().into_owned()).unwrap_or("Not selected".into()))))
@@ -259,28 +282,6 @@ impl Studio {
    if let Some(c)=&data.candidate{match c{Ok(c)=>p=p.child(format!("After: {} distinct / {} targets",c.points.len(),c.sampled)),Err(e)=>p=p.child(format!("After failed: {e}"))}}
    }
    p=p.child(button("mesh-toggle",if o.wireframe{"Wireframe ✓"}else{"Point cloud"}).on_click(cx.listener(|this,_,_,cx|{this.preview_options.wireframe=!this.preview_options.wireframe;cx.notify();})));
-   p=p.child(div().id("gamut-orbit").w_full().flex_shrink_0().cursor_pointer()
-    .on_mouse_down(MouseButton::Left,cx.listener(|this,e:&MouseDownEvent,_,cx|{this.orbit_last=Some(e.position);cx.notify();}))
-    .on_mouse_up(MouseButton::Left,cx.listener(|this,_,_,cx|{this.orbit_last=None;cx.notify();}))
-    .on_mouse_move(cx.listener(|this,e:&MouseMoveEvent,_,cx|{
-     if !e.dragging(){this.orbit_last=None;return}
-     if let Some(last)=this.orbit_last{
-      if this.preview_options.three_d{
-       let dx=f32::from(e.position.x-last.x);let dy=f32::from(e.position.y-last.y);
-       // Ignore abrupt jumps when the cursor returns from outside the plot.
-       if dx.abs()<100.&&dy.abs()<100.{
-        this.preview_options.yaw=(this.preview_options.yaw+dx*0.01).rem_euclid(std::f32::consts::TAU);
-        this.preview_options.pitch=(this.preview_options.pitch+dy*0.01).clamp(-1.55,1.55);cx.notify();
-       }
-      }
-      this.orbit_last=Some(e.position);
-     }
-    }))
-    .on_scroll_wheel(cx.listener(|this,e:&ScrollWheelEvent,_,cx|{
-     let dy=f32::from(e.delta.pixel_delta(px(20.)).y);
-     if dy.is_finite(){this.preview_options.zoom=(this.preview_options.zoom*(dy*0.004).clamp(-0.6,0.6).exp()).clamp(0.5,3.);cx.notify();cx.stop_propagation();}
-    }))
-    .child(gamut_view::plot(self.preview.as_ref(),o)));
    p=p.child("Drag to orbit (3D); scroll to zoom. Both profiles share the same auto-fit scale.")
     .child(button("save-gamut-png","Export current gamut PNG").on_click(cx.listener(|v,_,_,cx|{if let Some(data)=&v.preview{if let Some(path)=rfd::FileDialog::new().add_filter("PNG",&["png"]).set_file_name("gamut.png").save_file(){let result=color_convert_rust::gamut_raster::render(Some(data),v.preview_options).png().and_then(|bytes|{use std::io::Write;let mut f=tempfile::NamedTempFile::new_in(path.parent().unwrap_or(std::path::Path::new("."))).map_err(|e|e.to_string())?;f.write_all(&bytes).map_err(|e|e.to_string())?;f.persist_noclobber(&path).map_err(|e|e.to_string())?;Ok(())});v.status=result.map(|_|format!("Saved {}",path.display())).unwrap_or_else(|e|format!("Error: {e}"));cx.notify();}}})));
    if o.wireframe{p=p.child("Convex hull wireframe / 2D outline; approximate envelope.");}
