@@ -1,12 +1,9 @@
 pub mod system_profiles;
-pub mod tags;
-pub mod project;
 pub mod versioning;
 pub mod gamut_surface;
 pub mod gamut_raster;
 pub mod validation;
 pub mod preferences;
-pub mod library;
 pub mod reports;
 pub mod optimizer;
 pub mod lab;

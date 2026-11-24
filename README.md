@@ -1,52 +1,35 @@
 # ICC Profile Studio
 
-Portable Windows x64 **GPUI-only** application for inspecting, editing, validating, comparing and building ICC/ICM color profiles, independent of printer vendor. Advanced editing currently primarily supports four-channel printer LUTs; target scope is CMYK, multichannel output profiles and print DeviceLinks. Dedicated RGB, Gray, display, input and abstract editors are out of scope.
+Vendor-independent, portable Windows x64 application for ICC/ICM inspection, color analysis, editing and construction. GPUI only. Scope: CMYK and multichannel printer output profiles and print DeviceLinks. Advanced tools currently primarily support four-channel CMYK/Lab LUTs. Broader multichannel support is planned.
 
-## Current scope
+## Workflow
 
-No image import/conversion/editing, image soft proof, batch conversion or image separation tools. Previous image-processing code and egui app are retained only in Git history at 32e6b7899b42e8cbe3a0942795aa0cc02a3de19f. Profile-level DeviceLink generation remains; applying it to images must be done externally. ICC characterization chart TIFF and gamut PNG exports remain because they support profile work.
-
-## Run
-
-Download the Studio artifact from [GitHub Actions](https://github.com/emadgh/color-convert-rust/actions/workflows/studio.yml) or a compatible Studio prerelease from [Releases](https://github.com/emadgh/color-convert-rust/releases). Extract to a writable folder and launch ICC-Profile-Studio.exe. Verify the SHA256. Open an ICC/ICM and verify physical ink channel order; logical CMYK labels are not necessarily physical ink names. Choose limits and save a new profile. Compare gamut, gradients, separations and predicted Delta E before print testing. Source files are never overwritten.
+Open a profile from disk or choose **System** to select an eligible installed ICC from the Windows color directory. Select a tool, adjust its parameters, and save a new ICC. Compare predicted colors, ink usage, gradients and gamut with the original. Never overwrite the source; verify physical ink mapping and print conditions separately.
 
 ## Tools
 
-- Profile Inspector and Validator, stored media white point (wtpt) with derived D50 Lab and approximate sRGB swatch.
-- Profile Rebuilder, per-channel/TAC limits, strict LUT and native LittleCMS validation.
-- Comparison, neutral-axis plots, Gradient Analyzer, sampled gamut coverage and CSV reports.
-- Tone curves, channel reorder, metadata, multi-region selective LCh correction, LUT smoothing, black generation and ink/cost optimization.
-- Collapsible 2D/3D Gamut R5: colorized solid reference, wireframe candidate, BGRA only, shared Lab grid, floor contours, optional convex hull, nonconvex sampled surface. Surface is a Delta E00 <= 2 round-trip estimate, not a measured physical boundary. Display colors are approximate sRGB.
-- ICC DeviceLink generator with sampled validation. No direct image application.
-- Profile Library and Profiling Lab: generate direct-device characterization charts, import measured CSV/TI3, compare measured patches and build profiles with Argyll colprof. No instrument connection.
-- Settings and About/Updates. Local preferences retain preview/grid/chart DPI and library directory, not device-specific limits or jobs. Older image settings are ignored.
+- Profile Inspector / Validator: ICC class, version, space, PCS, media white point, channel limits and native LittleCMS checks. Simple copy/rename in Inspector.
+- Rebuilder, per-channel ink caps and TAC, Tone Curves, Channel Reorder, multi-region Color Correction, LUT Smoothing, Black Generation / GCR / UCR, Ink Optimizer.
+- Profile Comparison, Gradient Analyzer, Gamut Viewer with 2D/3D, profile-derived display colors, solid/outline/quad-style wireframe, shared scale, resizable panel, expanded view, PNG/CSV analysis exports.
+- ICC v2/v4 structural conversion for supported CMYK/Lab LUTs: four-intent sampled validation by default, explicitly restricted Relative/Absolute mode if requested. Unhandled tags require omission consent; no automatic private-tag interpretation.
+- DeviceLink generation and validation (no application to images).
+- Profiling Lab: direct-device chart generation, measured CSV comparison, measured TI3 profile creation using Argyll colprof.
+- Local display preferences and About/Updates.
 
-## Engines and limitations
+No profile library, project files, session management, dedicated tag manager, image import/conversion/editing, RGB/Gray/input/display/abstract editing, vendor-specific tools or egui. Historical code remains in Git history. The system profile picker is read-only, not a catalog or OS association editor.
 
-LittleCMS 2 is linked statically. Custom constrained LUT rebuild supports selected ICC v2 Lab mft2 and ICC v4 Lab mAB/mBA profiles with equal grids and supported sampled curves; unsupported matrices, parametric curves or alternate B2D transforms can be rejected. It regenerates B2A intents using relative-colorimetric inversion, not true perceptual/saturation rendering. Channel/TAC certification is mathematical only for supported structures; native samples are independent checks, not physical printer limits. Channel reorder rejects unknown channel-sensitive tags. Use verified ink limits, then print and measure after firing. Profile editing is not a substitute for characterization.
+## Engine limits
 
-ArgyllCMS revfix is available for supported v2 CMYK, and colprof builds from measured TI3. Official Windows Argyll 3.5.0 is downloaded when needed into a writable app folder; a trusted optional ARGYLL_SHA256 can be supplied. Upstream checksum not independently verified; no Argyll binaries bundled. See https://www.argyllcms.com/doc/revfix.html and https://www.argyllcms.com/downloadwin.html.
+LittleCMS 2 is statically linked. Current advanced editors are restricted to supported equal-grid sampled LUT structures. Unsupported profiles are not silently converted. Rebuilds can regenerate B2A intents from relative-colorimetric inversion; color equivalence is sampled, not guaranteed. Gamut surface represents approximate round-trip coverage (Delta E00 <= 2), not measured physical gamut. Display colors are approximate sRGB. ICC characterization charts and reports are not image-editing features. Existing basic inspector can identify other profiles without implying editing support.
 
-## Build
+ArgyllCMS revfix/colprof use official Windows Argyll 3.5.0 installed when required in a writable application folder. Optional trusted ARGYLL_SHA256; upstream checksum/redistribution review remains pending. No Argyll binaries bundled.
 
-Stable Rust and Visual Studio Build Tools (Desktop development with C++) on Windows:
+## Build and download
+
+Download the [Windows artifact](https://github.com/emadgh/color-convert-rust/actions/workflows/studio.yml) and verify SHA256. Extract and run ICC-Profile-Studio.exe.
 
     cargo test --lib --no-default-features --release
     cargo build --release
     cargo run --release
 
-Default and only executable: target/release/icc-profile-studio.exe. The optional studio feature is enabled by default; disabling default features is for headless library tests only. The single Windows Studio workflow tests and packages the executable, SHA256 and documentation. STUDIO_VERSION tracks prerelease version; Cargo package version remains the historical core version. Preview publishing remains manual and does not overwrite releases. Older Rebuilder releases are historical, not actively built. The shared updater's latest-release/private-feed limitations remain; use compatible Studio release assets, not Rebuilder EXEs.
-
-See [ROADMAP.md](ROADMAP.md) for the active scope and remaining work, and [CERAMIC_WORKFLOW.md](CERAMIC_WORKFLOW.md) for characterization. CI does not establish print accuracy or interactive Windows runtime quality.
-
-R5 adds a resizable preview, expanded in-window view, compact controls, quad-style surface section grid, 2D outline/fill opacity, one projected footprint per visible profile and reusable two-column draggable curve editors. The wire grid is not an all-quad remeshing of the solid triangles.
-
-Beta.7 adds up to six independent color regions, overlap-normalized original-Lab masks in a single edit, and a shared interactive black-preference graph. R5 plot return type compilation error is corrected; Windows CI and interactive checks remain pending.
-
-Beta.8: ICC Version Conversion builds actual v2.4 mft2 or v4.3 mAB/mBA LUTs for supported CMYK/Lab printers; compensates legacy Lab encoding, validates four intents via LCMS and preserves source channel/TAC bounds. Unsupported optional tags are listed and require explicit omission consent; unsupported transform structures fail closed. This is an independent compatibility copy, not a guarantee of vendor/RIP compatibility.
-
-Compatibility note: unequal curve lengths are harmonized on a common knot-preserving grid where representable. All-intent validation is default. Explicit Relative/Absolute-only compatibility mode allows output only when these two intents pass; Perceptual/Saturation are still checked and reported, and must not be used if outside tolerance. Version-dependent LCMS intent semantics can differ even with preserved CLUTs.
-
-Beta.9: Projects & Session saves explicit .iccproj JSON snapshots with SHA-256 identities for external reference/candidate ICC files, validates stored edit/view settings and refuses missing or modified files. Explicit local session checkpoints are never automatically restored. No vendor-specific development, no image workflows. Project relocation and multichannel editing remain planned.
-
-Beta.10: System profiles picker reads the Windows system color directory without modifying installed profiles. Eligible CMYK/multichannel output profiles and print DeviceLinks can be opened; candidates are output profiles. Tag Manager lists standard/private tag signatures and types, bounded decoded summaries and raw export; standard text metadata replacement creates a new ICC and preserves other payloads. No dedicated RGB, Gray, input, display or abstract workflows.
+Default and sole executable: icc-profile-studio. Manual prerelease publishing is immutable. See [ROADMAP.md](ROADMAP.md) and [PROFILE_WORKFLOW.md](PROFILE_WORKFLOW.md). CI success does not establish Windows interaction or physical print accuracy.

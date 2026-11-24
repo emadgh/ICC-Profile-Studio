@@ -1,10 +1,32 @@
 //! Read-only enumeration of ICC/ICM files in the Windows system color directory.
-use crate::{Profile,R};
+use crate::{Profile,R,u32at};
 use std::{fs,path::{Path,PathBuf}};
 #[derive(Debug,Clone)]
 pub struct Entry{pub path:PathBuf,pub name:String,pub description:String,pub format:String,pub device_link:bool}
 #[derive(Debug,Clone,Default)]
 pub struct Catalog{pub entries:Vec<Entry>,pub excluded:usize,pub invalid:usize}
+fn sig(b:&[u8])->String{String::from_utf8_lossy(b).into_owned()}
+fn text_preview(v:&[u8])->Option<String>{
+ let text=if v.starts_with(b"mluc"){
+  let count=u32at(v,8).ok()? as usize;let record=u32at(v,12).ok()? as usize;
+  if count==0||record<12||16usize.checked_add(count.checked_mul(record)?)?>v.len(){return None}
+  let mut out=Vec::new();
+  for i in 0..count.min(4){
+   let p=16+i*record;let n=u32at(v,p+4).ok()? as usize;let o=u32at(v,p+8).ok()? as usize;
+   if n%2!=0{continue}let b=v.get(o..o.checked_add(n)?)?;
+   let t=String::from_utf16_lossy(&b.chunks_exact(2).take(256).map(|w|u16::from_be_bytes([w[0],w[1]])).collect::<Vec<_>>());
+   out.push(format!("{}: {}",sig(&v[p..p+4]),t));
+  }
+  out.join(" | ")
+ }else if v.starts_with(b"desc"){
+  let n=u32at(v,8).ok()? as usize;let b=v.get(12..12usize.checked_add(n)?)?;sig(&b[..b.iter().position(|&x|x==0).unwrap_or(b.len()).min(256)])
+ }else if v.starts_with(b"text"){
+  let b=v.get(8..)?;sig(&b[..b.iter().position(|&x|x==0).unwrap_or(b.len()).min(256)])
+ }else{return None};
+ Some(text.chars().map(|c|if c.is_control(){' '}else{c}).take(1024).collect())
+}
+fn description(p:&Profile)->Option<String>{p.tags.get(b"desc").and_then(|v|text_preview(v)).filter(|s|!s.is_empty())}
+
 fn print_space(s:&[u8])->bool{
  s==b"CMYK"||(s.len()==4&&&s[1..]==b"CLR"&&matches!(s[0],b'2'..=b'9'|b'A'..=b'F'))
 }
@@ -36,7 +58,7 @@ pub fn scan(root:&Path)->R<Catalog>{
   if lcms2::Profile::new_icc(&p.bytes()?).is_err(){out.invalid+=1;continue}
   let device_link=&p.header[12..16]==b"link";
   let name=e.file_name().to_string_lossy().into_owned();
-  let description=crate::tags::description(&p).unwrap_or_else(||name.clone());
+  let description=description(&p).unwrap_or_else(||name.clone());
   let format=format!("v{} · {} · {}",p.version_major(),p.space().trim(),if device_link{"DeviceLink"}else{"Output"});
   out.entries.push(Entry{path,name,description,format,device_link});
  }
