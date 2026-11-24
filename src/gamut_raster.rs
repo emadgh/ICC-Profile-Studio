@@ -6,8 +6,8 @@ use image::{Rgb,RgbImage,ImageEncoder};
 #[derive(Clone,Copy,Debug,PartialEq,Eq,serde::Serialize,serde::Deserialize,Default)]
 pub enum CompareLayout{#[default] ReferenceSolidCandidateWire,ReferenceWireCandidateSolid,Shared}
 #[derive(Clone,Copy,Debug,PartialEq)]
-pub struct ViewOptions{pub three_d:bool,pub reference:bool,pub candidate:bool,pub slice:bool,pub light:f32,pub yaw:f32,pub pitch:f32,pub zoom:f32,pub wireframe:bool,pub solid:bool,pub profile_colors:bool,pub convex:bool,pub layout:CompareLayout,pub floor_contour:bool}
-impl Default for ViewOptions{fn default()->Self{Self{three_d:true,reference:true,candidate:true,slice:false,light:50.,yaw:0.65,pitch:0.45,zoom:1.,wireframe:false,solid:true,profile_colors:true,convex:false,layout:CompareLayout::default(),floor_contour:true}}}
+pub struct ViewOptions{pub three_d:bool,pub reference:bool,pub candidate:bool,pub slice:bool,pub light:f32,pub yaw:f32,pub pitch:f32,pub zoom:f32,pub wireframe:bool,pub solid:bool,pub profile_colors:bool,pub convex:bool,pub layout:CompareLayout,pub floor_contour:bool,pub opacity_2d:u8}
+impl Default for ViewOptions{fn default()->Self{Self{three_d:true,reference:true,candidate:true,slice:false,light:50.,yaw:0.65,pitch:0.45,zoom:1.,wireframe:false,solid:true,profile_colors:true,convex:false,layout:CompareLayout::default(),floor_contour:true,opacity_2d:100}}}
 impl ViewOptions{
  pub fn style(self,i:usize)->(bool,bool){
   match self.layout{
@@ -100,13 +100,54 @@ impl Layer{
    let t=i as f32/n as f32;let x=(a[0]+(b[0]-a[0])*t).round() as i32;let y=(a[1]+(b[1]-a[1])*t).round() as i32;
    let z=a[2]+(b[2]-a[2])*t;
    let mut c=std::array::from_fn(|j|(ca[j] as f32+(cb[j] as f32-ca[j] as f32)*t).round() as u8);
-   if solid{c=c.map(|v|if v>125{(v as f32*0.6) as u8}else{v.saturating_add(55)});}
+   if solid{c=c.map(|v|(v as f32*0.68).round() as u8);}
    if x>=0&&y>=0&&x<SIZE as i32&&y<SIZE as i32{
     let idx=y as usize*SIZE as usize+x as usize;
     if !solid||z+1.0>=self.depth[idx]{self.pixel(x,y,z+if solid{1.0}else{0.},c);}
    }
   }
  }
+}
+
+// Two families of true surface intersections form a quad-style wire grid:
+// constant L* rings and vertical hue meridians. No internal triangle edges.
+// At cusps and disconnected regions this is not an all-quad topology.
+fn plane_segment(t:[[f32;3];3],value:impl Fn([f32;3])->f32)->Option<[[f32;3];2]>{
+ let mut p=Vec::new();
+ for (a,b) in [(t[0],t[1]),(t[1],t[2]),(t[2],t[0])]{
+  let (u,v)=(value(a),value(b));
+  if (u<=0.&&v>0.)||(v<=0.&&u>0.){
+   let f=u/(u-v);p.push(std::array::from_fn(|j|a[j]+(b[j]-a[j])*f));
+  }
+ }
+ if p.len()==2{Some([p[0],p[1]])}else{None}
+}
+fn quad_grid(mesh:&[[[f32;3];3]])->Vec<[[f32;3];2]>{
+ let mut out=Vec::new();
+ for light in (5..100).step_by(5){out.extend(mesh.iter().filter_map(|&t|slice_segment(t,light as f32)));}
+ for k in 0..24{
+  let angle=k as f32*std::f32::consts::TAU/24.;let (s,c)=angle.sin_cos();
+  for &t in mesh{
+   if let Some([mut a,mut b])=plane_segment(t,|v|v[1]*s-v[2]*c){
+    let (ra,rb)=(a[1]*c+a[2]*s,b[1]*c+b[2]*s);
+    if ra<0.&&rb<0.{continue}
+    if (ra<0.)!=(rb<0.){
+     let f=ra/(ra-rb);let p=std::array::from_fn(|j|a[j]+(b[j]-a[j])*f);
+     if ra<0.{a=p}else{b=p}
+    }
+    out.push([a,b]);
+   }
+  }
+ }
+ out
+}
+fn boundary(l:&Layer,i:usize)->bool{
+ if !l.depth[i].is_finite(){return false}
+ let n=SIZE as usize;let x=i%n;let y=i/n;
+ x==0||y==0||x+1==n||y+1==n||[i-1,i+1,i-n,i+n].into_iter().any(|j|!l.depth[j].is_finite())
+}
+fn paint_outline(img:&mut RgbImage,l:&Layer,alpha:u16){
+ for i in 0..l.depth.len(){if boundary(l,i){paint(img,(i%SIZE as usize) as i32,(i/SIZE as usize) as i32,l.color[i],alpha);}}
 }
 
 // Minimal raster text, no platform font dependency. Labels stay upright.
@@ -204,6 +245,7 @@ pub fn render(data:Option<&Overlay>,o:ViewOptions)->Rendered{
  let mut visible=[0;2];
  let mut layers:[Option<Layer>;2]=[None,None];
  let mut styles=[(false,false);2];
+ let mut outline_only=[false;2];
  for (i,cloud) in clouds.into_iter().enumerate(){
   if !(if i==0{o.reference}else{o.candidate}){continue}
   let Some(c)=cloud else{continue};let (solid,wire)=o.style(i);styles[i]=(solid,wire);let tint=if i==0{BEFORE}else{AFTER};
@@ -212,21 +254,21 @@ pub fn render(data:Option<&Overlay>,o:ViewOptions)->Rendered{
   let points:Vec<_>=c.points.iter().copied().filter(|v|v.iter().all(|v|v.is_finite())&&in_slice(*v,o)).collect();
   visible[i]=points.len();let mut layer=Layer::new();
   let mesh=if solid||wire||o.floor_contour&&o.three_d{triangles(c,o.convex)}else{Vec::new()};
-  // Project actual equal-L* contour intersections, not all triangle edges,
-  // onto L*=0. This retains separate lobes/holes in each sampled contour.
-  if o.three_d&&o.floor_contour{
-   for light in [20.,40.,60.,80.]{
-    for [a,b] in mesh.iter().filter_map(|&t|slice_segment(t,light)){
-     let ca=color(a);let cb=color(b);let c=std::array::from_fn(|j|((ca[j] as u16+cb[j] as u16)/2) as u8);
-     line(&mut img,p([0.,a[1],a[2]]),p([0.,b[1],b[2]]),c,0,150);
-    }
+  // One union projection per visible profile. A disconnected footprint may
+  // still have several components, but there are no stacked L* contours.
+  if o.three_d&&o.floor_contour&&!mesh.is_empty(){
+   let mut floor=Layer::new();
+   for &t in &mesh{
+    let q=t.map(|v|{let xy=p([0.,v[1],v[2]]);[xy[0],xy[1],v[0]]});
+    floor.triangle(q,t.map(color));
    }
+   paint_outline(&mut img,&floor,205);
   }
   let mesh=if solid||wire{mesh}else{Vec::new()};
   if !mesh.is_empty(){
    if !o.three_d&&o.slice{
     let segments:Vec<_>=mesh.iter().filter_map(|&t|slice_segment(t,o.light)).collect();
-    if solid{
+    if solid||wire{
      let segs:Vec<_>=segments.iter().map(|s|s.map(screen)).collect();
      for y in 0..SIZE as i32{
       let fy=y as f32+0.5;let mut xs=Vec::new();
@@ -238,10 +280,15 @@ pub fn render(data:Option<&Overlay>,o:ViewOptions)->Rendered{
       }}
      }
     }
-    if wire{for [a,b] in segments{layer.wire(screen(a),screen(b),color(a),color(b),solid);}}
+    outline_only[i]=wire&&!solid;
+   }else if !o.three_d{
+    // Project union of surface triangles, retaining nonconvex silhouettes
+    // and holes rather than drawing all triangulation edges.
+    for &t in &mesh{layer.triangle(t.map(screen),t.map(color));}
+    outline_only[i]=wire&&!solid;
    }else{
     if solid{for &t in &mesh{layer.triangle(t.map(screen),t.map(color));}}
-    if wire{for t in mesh{for (a,b) in [(0,1),(1,2),(2,0)]{layer.wire(screen(t[a]),screen(t[b]),color(t[a]),color(t[b]),solid);}}}
+    if wire{for [a,b] in quad_grid(&mesh){layer.wire(screen(a),screen(b),color(a),color(b),solid);}}
    }
   }else{
    // Explicitly reported by UI as points fallback if no surface is found.
@@ -253,48 +300,23 @@ pub fn render(data:Option<&Overlay>,o:ViewOptions)->Rendered{
  // triangles. When both profiles overlap, blend in depth order.
  for y in 0..SIZE{for x in 0..SIZE{
   let i=(y*SIZE+x) as usize;
-  let a=layers[0].as_ref().filter(|l|l.depth[i].is_finite());
-  let b=layers[1].as_ref().filter(|l|l.depth[i].is_finite());
+  let a=layers[0].as_ref().filter(|l|l.depth[i].is_finite()&&(!outline_only[0]||boundary(l,i)));
+  let b=layers[1].as_ref().filter(|l|l.depth[i].is_finite()&&(!outline_only[1]||boundary(l,i)));
+  let alpha=|index:usize,l:&Layer|if !o.three_d&&styles[index].0&&!(styles[index].1&&boundary(l,i)){u16::from(o.opacity_2d.min(100))*255/100}else{255};
   match (a,b){
    (Some(a),Some(b))=>{
     // For mixed comparison, draw the solid unchanged and overlay wire
     // regardless of depth, preserving the enclosing comparison cage.
-    if styles[0].0&&!styles[1].0&&styles[1].1{paint(&mut img,x as i32,y as i32,a.color[i],255);paint(&mut img,x as i32,y as i32,b.color[i],220);}
-    else if styles[1].0&&!styles[0].0&&styles[0].1{paint(&mut img,x as i32,y as i32,b.color[i],255);paint(&mut img,x as i32,y as i32,a.color[i],220);}
-    else{let (far,near)=if a.depth[i]<=b.depth[i]{(a,b)}else{(b,a)};paint(&mut img,x as i32,y as i32,far.color[i],255);paint(&mut img,x as i32,y as i32,near.color[i],155);}
+    if styles[0].0&&!styles[1].0&&styles[1].1{paint(&mut img,x as i32,y as i32,a.color[i],alpha(0,a));paint(&mut img,x as i32,y as i32,b.color[i],220);}
+    else if styles[1].0&&!styles[0].0&&styles[0].1{paint(&mut img,x as i32,y as i32,b.color[i],alpha(1,b));paint(&mut img,x as i32,y as i32,a.color[i],220);}
+    else{let (far,near,fi,ni)=if a.depth[i]<=b.depth[i]{(a,b,0,1)}else{(b,a,1,0)};paint(&mut img,x as i32,y as i32,far.color[i],alpha(fi,far));paint(&mut img,x as i32,y as i32,near.color[i],alpha(ni,near)*155/255);}
    },
-   (Some(l),None)|(None,Some(l))=>paint(&mut img,x as i32,y as i32,l.color[i],255),
+   (Some(l),None)=>paint(&mut img,x as i32,y as i32,l.color[i],alpha(0,l)),
+   (None,Some(l))=>paint(&mut img,x as i32,y as i32,l.color[i],alpha(1,l)),
    _=>{}
   }
  }}
  Rendered{image:img,visible,units_per_half:range/zoom}
-}
-/// A second presentation backend uses ordinary GPUI rectangle elements,
-/// independent of canvas hooks, texture atlases and image decoding.
-pub const CELL_GRID:u32=160;
-#[derive(Clone,Copy,Debug,PartialEq,Eq)]
-pub struct Span{pub x:u32,pub y:u32,pub width:u32,pub rgb:u32}
-pub fn native_spans(image:&RgbImage)->Vec<Span>{
- let mut spans=Vec::new();
- let factor=SIZE/CELL_GRID;
- let color_at=|x:u32,y:u32|{
-  let mut chosen=BG;let mut best=0u32;
-  for dy in 0..factor{for dx in 0..factor{
-   let p=image.get_pixel(x*factor+dx,y*factor+dy).0;
-   let score=p.iter().zip(BG).map(|(&a,b)|u32::from(a.abs_diff(b))).sum::<u32>();
-   if score>best{best=score;chosen=p;}
-  }}
-  if best==0{u32::MAX}else{u32::from(chosen[0])<<16|u32::from(chosen[1])<<8|u32::from(chosen[2])}
- };
- for y in 0..CELL_GRID{
-  let mut x=0;
-  while x<CELL_GRID{
-   let rgb=color_at(x,y);let start=x;x+=1;
-   while x<CELL_GRID&&color_at(x,y)==rgb{x+=1;}
-   if rgb!=u32::MAX{spans.push(Span{x:start,y,width:x-start,rgb});}
-  }
- }
- spans
 }
 #[cfg(test)]mod tests{
  use super::*;
@@ -329,11 +351,6 @@ pub fn native_spans(image:&RgbImage)->Vec<Span>{
   l.triangle(p,[[255,0,0];3]);l.triangle(p.map(|mut p|{p[2]=1.;p}),[[0,0,255];3]);
   assert_eq!(l.color[20*SIZE as usize+20],[255,0,0]);assert!(l.depth[20*SIZE as usize+20].is_finite());
  }
- #[test]fn native_cells_keep_black(){
-  let mut img=RgbImage::from_pixel(SIZE,SIZE,Rgb(BG));
-  img.put_pixel(8,8,Rgb([0;3]));
-  assert!(native_spans(&img).iter().any(|s|s.rgb==0));
- }
  #[test]fn solid_surface_fills_interior(){
   let mut d=example();
   let c=d.reference.as_mut().unwrap();
@@ -343,20 +360,26 @@ pub fn native_spans(image:&RgbImage)->Vec<Span>{
   assert_eq!(result.image.get_pixel(SIZE/2,SIZE/2).0,BEFORE);
  }
  #[test]fn slice_crosses_triangle(){let r=slice_segment([[20.,0.,0.],[80.,10.,0.],[80.,0.,10.]],50.).unwrap();assert_eq!(r,[[50.,5.,0.],[50.,0.,5.]]);}
- #[test]fn native_spans_include_grid_even_without_icc(){
-  for three_d in [false,true]{
-   let r=render(None,ViewOptions{three_d,..Default::default()});
-   let spans=native_spans(&r.image);
-   assert!(!spans.is_empty());assert!(spans.iter().all(|s|s.x+s.width<=CELL_GRID&&s.y<CELL_GRID));
-   assert!(spans.iter().any(|s|s.rgb>>16>100));
-  }
+ #[test]fn both_wire_preserves_rgb_ratios(){
+  let mut layer=Layer::new();
+  layer.wire([10.,10.,0.],[20.,10.,0.],[200,100,50],[200,100,50],true);
+  assert_eq!(layer.color[10*SIZE as usize+15],[136,68,34]);
  }
- #[test]fn native_spans_change_with_profile(){
-  let d=example();let o=ViewOptions{three_d:false,candidate:false,profile_colors:false,solid:false,layout:CompareLayout::Shared,..Default::default()};
-  let a=native_spans(&render(Some(&d),o).image);
-  let b=native_spans(&render(Some(&d),ViewOptions{reference:false,..o}).image);
-  assert_ne!(a,b);
+ #[test]fn quad_grid_uses_surface_sections(){
+  let t=[[[10.,10.,0.],[90.,10.,10.],[90.,-10.,0.]]];
+  let grid=quad_grid(&t);assert!(!grid.is_empty());
+  assert!(grid.iter().any(|s|(s[0][0]-s[1][0]).abs()<0.001));
  }
+ #[test]fn outline_and_opacity_2d(){
+  let mut d=example();d.reference.as_mut().unwrap().surface=Some(crate::gamut_surface::Surface{triangles:vec![[[50.,-20.,-20.],[50.,20.,-20.],[50.,0.,20.]]],resolution:25});
+  let o=ViewOptions{three_d:false,candidate:false,profile_colors:false,..Default::default()};
+  let solid=render(Some(&d),o);let clear=render(Some(&d),ViewOptions{opacity_2d:0,..o});
+  let outline=render(Some(&d),ViewOptions{layout:CompareLayout::Shared,solid:false,wireframe:true,..o});
+  assert_eq!(solid.image.get_pixel(SIZE/2,SIZE/2).0,BEFORE);
+  assert_ne!(clear.image.get_pixel(SIZE/2,SIZE/2).0,BEFORE);
+  assert_eq!(clear.image.get_pixel(SIZE/2,SIZE/2),outline.image.get_pixel(SIZE/2,SIZE/2));
+ }
+ #[test]fn grid_always_visible(){for three_d in [false,true]{let r=render(None,ViewOptions{three_d,..Default::default()});assert!(r.image.pixels().any(|p|p.0!=BG));}}
  #[test]fn actual_pixels_change_in_both_views(){
   let d=example();
   for three_d in [false,true]{

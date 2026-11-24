@@ -8,6 +8,7 @@ use color_convert_rust::correction::{Operation,Selective,BlackGeneration,IDENTIT
 #[path = "../gamut_view.rs"] mod gamut_view;
 use color_convert_rust::gamut::{self,Overlay};
 use gamut_view::ViewOptions;
+#[path = "../curve_view.rs"] mod curve_view;
 use color_convert_rust::gamut_raster::CompareLayout;
 use color_convert_rust::device_link;
 use color_convert_rust::gradient::{self,GradientReport};
@@ -26,13 +27,16 @@ const PAGES: [(Page,&str);19] = [
 enum Event { Progress(String), Done(Result<String,String>) }
 struct Studio {
  page:Page, source:Option<PathBuf>, profile:Option<Profile>, report:Option<Inspection>, error:Option<String>,
- caps:[f64;4],tac:f64,grid:usize,mode:Mode,status:String,busy:bool, candidate:Option<PathBuf>,comparison:Option<Comparison>,compare_error:Option<String>,compare_grid:usize,compare_intent:lcms2::Intent,gamma:[f64;4],order:[usize;4], preview_open:bool, preview:Option<Overlay>, preview_revision:u64, preview_direct_image:bool, preview_cache:std::cell::RefCell<gamut_view::PreviewCache>, preview_options:ViewOptions, gamut_grid:usize,gradient:Option<GradientReport>,gradient_error:Option<String>,coverage_threshold:f64, selective:[f64;5], correction_grid:usize, correction_tac:f64, smoothing:f64, smoothing_passes:usize,orbit_last:Option<Point<Pixels>>,chart_dpi:u32,recipe_target:[f64;3],recipe_settings:RecipeSettings,recipe_result:Option<RecipeReport>,lab_levels:usize,measured:[Option<PathBuf>;2],measurement_result:Option<MeasuredComparison>,black:BlackGeneration,curve_points:[[f64;5];4],library_root:Option<PathBuf>,library_entries:Vec<library::Entry>,logo:std::sync::Arc<gpui::Image>,#[cfg(windows)] updater:UpdateManager,
+ caps:[f64;4],tac:f64,grid:usize,mode:Mode,status:String,busy:bool, candidate:Option<PathBuf>,comparison:Option<Comparison>,compare_error:Option<String>,compare_grid:usize,compare_intent:lcms2::Intent,gamma:[f64;4],order:[usize;4], preview_open:bool, preview:Option<Overlay>, preview_revision:u64, preview_width:f32,preview_fullscreen:bool,resize_last:Option<Pixels>,gamut_advanced:bool,curve_drag:Option<(usize,usize,Pixels)>, preview_cache:std::cell::RefCell<gamut_view::PreviewCache>, preview_options:ViewOptions, gamut_grid:usize,gradient:Option<GradientReport>,gradient_error:Option<String>,coverage_threshold:f64, selective:[f64;5], correction_grid:usize, correction_tac:f64, smoothing:f64, smoothing_passes:usize,orbit_last:Option<Point<Pixels>>,chart_dpi:u32,recipe_target:[f64;3],recipe_settings:RecipeSettings,recipe_result:Option<RecipeReport>,lab_levels:usize,measured:[Option<PathBuf>;2],measurement_result:Option<MeasuredComparison>,black:BlackGeneration,curve_points:[[f64;5];4],library_root:Option<PathBuf>,library_entries:Vec<library::Entry>,logo:std::sync::Arc<gpui::Image>,#[cfg(windows)] updater:UpdateManager,
 }
 impl Default for Studio {
- fn default()->Self{Self{page:Page::Dashboard,source:None,profile:None,report:None,error:None,caps:[100.,100.,100.,0.],tac:240.,grid:33,mode:Mode::Custom,status:"Open an ICC or ICM profile to start.".into(),busy:false,candidate:None,comparison:None,compare_error:None,compare_grid:17,compare_intent:lcms2::Intent::RelativeColorimetric,gamma:[1.;4],order:[0,1,2,3],preview_open:true,preview:None,preview_revision:0,preview_direct_image:true,preview_cache:std::cell::RefCell::new(gamut_view::PreviewCache::default()),preview_options:ViewOptions::default(),gamut_grid:17,gradient:None,gradient_error:None,coverage_threshold:2.,selective:[135.,45.,0.,0.,0.],correction_grid:33,correction_tac:400.,smoothing:0.20,smoothing_passes:1,orbit_last:None,chart_dpi:300,recipe_target:[50.,0.,0.],recipe_settings:RecipeSettings::default(),recipe_result:None,lab_levels:5,measured:[None,None],measurement_result:None,black:BlackGeneration::default(),curve_points:IDENTITY_POINTS,library_root:None,library_entries:vec![],logo:std::sync::Arc::new(gpui::Image::from_bytes(gpui::ImageFormat::Png,include_bytes!("../../assets/icon.png").to_vec())),#[cfg(windows)] updater:UpdateManager::new(UpdateConfig::new("emadgh/color-convert-rust","ICC-Profile-Studio.exe",STUDIO_VERSION.trim()).with_app_name("ICC Profile Studio").with_checksum_asset("ICC-Profile-Studio.exe.sha256").with_required_checksum(true))}}
+ fn default()->Self{Self{page:Page::Dashboard,source:None,profile:None,report:None,error:None,caps:[100.,100.,100.,0.],tac:240.,grid:33,mode:Mode::Custom,status:"Open an ICC or ICM profile to start.".into(),busy:false,candidate:None,comparison:None,compare_error:None,compare_grid:17,compare_intent:lcms2::Intent::RelativeColorimetric,gamma:[1.;4],order:[0,1,2,3],preview_open:true,preview:None,preview_revision:0,preview_width:360.,preview_fullscreen:false,resize_last:None,gamut_advanced:false,curve_drag:None,preview_cache:std::cell::RefCell::new(gamut_view::PreviewCache::default()),preview_options:ViewOptions::default(),gamut_grid:17,gradient:None,gradient_error:None,coverage_threshold:2.,selective:[135.,45.,0.,0.,0.],correction_grid:33,correction_tac:400.,smoothing:0.20,smoothing_passes:1,orbit_last:None,chart_dpi:300,recipe_target:[50.,0.,0.],recipe_settings:RecipeSettings::default(),recipe_result:None,lab_levels:5,measured:[None,None],measurement_result:None,black:BlackGeneration::default(),curve_points:IDENTITY_POINTS,library_root:None,library_entries:vec![],logo:std::sync::Arc::new(gpui::Image::from_bytes(gpui::ImageFormat::Png,include_bytes!("../../assets/icon.png").to_vec())),#[cfg(windows)] updater:UpdateManager::new(UpdateConfig::new("emadgh/color-convert-rust","ICC-Profile-Studio.exe",STUDIO_VERSION.trim()).with_app_name("ICC Profile Studio").with_checksum_asset("ICC-Profile-Studio.exe.sha256").with_required_checksum(true))}}
 }
 fn button(id: impl Into<ElementId>,label:impl Into<SharedString>)->Stateful<Div>{
  div().id(id).px_3().py_2().rounded_md().bg(rgb(0x263449)).text_color(rgb(0xe6eefb)).cursor_pointer().hover(|s|s.bg(rgb(0x354963))).child(label.into())
+}
+fn seg(id:impl Into<ElementId>,label:impl Into<SharedString>,active:bool)->Stateful<Div>{
+ div().id(id).px_2().py_1().text_xs().rounded_md().bg(rgb(if active{0x38618a}else{0x263449})).text_color(rgb(0xe6eefb)).cursor_pointer().hover(|s|s.bg(rgb(0x46617c))).child(label.into())
 }
 fn heading(title:&str,sub:&str)->Div{div().flex().flex_col().gap_1().child(div().text_2xl().child(title.to_owned())).child(div().text_sm().text_color(rgb(0x94a3b8)).child(sub.to_owned()))}
 fn neutral_plot(samples:&[comparison::NeutralSample],metric:usize)->impl IntoElement{
@@ -174,22 +178,62 @@ impl Studio {
    let _=this.update(cx,|view,cx|{view.busy=false;match result{Ok(s)=>{view.status=s;view.candidate=Some(output_path);view.preview=None;view.comparison=None;view.gradient=None;view.gradient_error=None;if view.preview_open{view.refresh_gamut(cx);}},Err(e)=>view.status=format!("Error: {e}")}cx.notify();});
   }).detach();
  }
- fn curves_page(&self,cx:&mut Context<Self>)->Div{
-  let mut p=div().flex().flex_col().gap_3().child(heading("Tone Curves","Compose gamma corrections on output ink curves."));
-  let Some(profile)=&self.profile else{return p.child("Open a supported printer profile first.")};
-  for (i,name) in profile.channels().into_iter().enumerate(){
-   let gamma=self.gamma[i];let color=[0x00b7e5,0xe33b91,0xe8c44d,0x9ca3af][i];
-   p=p.child(div().p_3().rounded_md().bg(rgb(0x1b2637)).flex().flex_col().gap_2()
-    .child(div().flex().items_center().gap_2().child(div().w(px(110.)).child(name))
-    .child(button(("gamma-minus",i),"−").on_click(cx.listener(move|this,_,_,cx|{if !this.busy{this.gamma[i]=(this.gamma[i]-0.1).max(0.25);cx.notify();}})))
-    .child(format!("γ {gamma:.2}")).child(button(("gamma-plus",i),"+").on_click(cx.listener(move|this,_,_,cx|{if !this.busy{this.gamma[i]=(this.gamma[i]+0.1).min(4.);cx.notify();}})))
-    .child(button(("gamma-reset",i),"Reset").on_click(cx.listener(move|this,_,_,cx|{if !this.busy{this.gamma[i]=1.;cx.notify();}}))))
-    .child(div().flex().gap_1().items_end().h(px(52.)).children((0..=20).map(|j|div().w(px(12.)).h(px(1.+50.*(j as f32/20.).powf(gamma as f32))).bg(rgb(color)))))
-    .child(format!("25% → {:.1}%  |  50% → {:.1}%  |  75% → {:.1}%",25_f64.powf(gamma)/100_f64.powf(gamma-1.),100.*0.5_f64.powf(gamma),100.*0.75_f64.powf(gamma))));
+ fn curve_cards(&self,point_mode:bool,cx:&mut Context<Self>)->Div{
+  let names=self.profile.as_ref().map(|p|p.channels()).unwrap_or_default();
+  let mut grid=div().flex().flex_col().gap_2();
+  for row in 0..2{
+   let mut line=div().flex().gap_2().w_full();
+   for col in 0..2{
+    let i=row*2+col;let name=names.get(i).cloned().unwrap_or_else(||format!("Ink {}",i+1));
+    let color=[0x00b7e5,0xe33b91,0xe8c44d,0x9ca3af][i];
+    let samples:Vec<f64>=(0..=256).map(|n|{let x=n as f64/256.;if point_mode{curve_view::linear(self.curve_points[i],x)}else{x.powf(self.gamma[i])}}).collect();
+    let mut graph=curve_view::graph(&samples,color);
+    for j in if point_mode{1..4}else{2..3}{
+     let y=if point_mode{self.curve_points[i][j]}else{0.5_f64.powf(self.gamma[i])};
+     graph=graph.child(curve_view::handle((if point_mode{"curve-point"}else{"curve-gamma"},i*5+j),j as f32/4.,y,color)
+      .on_mouse_down(MouseButton::Left,cx.listener(move|v,e:&MouseDownEvent,_,cx|{if !v.busy{v.curve_drag=Some((i,if point_mode{j}else{5},e.position.y));cx.stop_propagation();}})));
+    }
+    let graph=graph.id((if point_mode{"point-graph"}else{"gamma-graph"},i))
+     .on_mouse_move(cx.listener(move|v,e:&MouseMoveEvent,_,cx|{
+      if !e.dragging(){v.curve_drag=None;return}
+      if v.busy{return}
+      if let Some((ink,j,last))=v.curve_drag{
+       if ink!=i||point_mode!=(j<5){return}
+       let delta=f32::from(last-e.position.y) as f64/curve_view::HEIGHT as f64;
+       if j<5{let p=&mut v.curve_points[i];p[j]=(p[j]+delta).clamp(p[j-1],p[j+1]);}
+       else{let y=(0.5_f64.powf(v.gamma[i])+delta).clamp(0.5_f64.powf(4.),0.5_f64.powf(0.25));v.gamma[i]=y.ln()/0.5_f64.ln();}
+       v.curve_drag=Some((i,j,e.position.y));cx.notify();
+      }
+     }))
+     .on_mouse_up(MouseButton::Left,cx.listener(|v,_,_,cx|{v.curve_drag=None;}));
+    let mut card=div().flex().flex_col().flex_1().min_w(px(0.)).gap_1().p_2().rounded_md().bg(rgb(0x1b2637))
+     .child(div().flex().items_center().justify_between().child(div().text_sm().child(name))
+      .child(seg((if point_mode{"point-reset"}else{"gamma-reset"},i),"Reset",false).on_click(cx.listener(move|v,_,_,cx|{if !v.busy{if point_mode{v.curve_points[i]=IDENTITY_POINTS[i];}else{v.gamma[i]=1.;}cx.notify();}}))))
+     .child(graph)
+     .child(div().flex().justify_between().text_xs().text_color(rgb(0x94a3b8)).child("0%").child("Input →").child("100%"));
+    if point_mode{
+     for j in 1..4{card=card.child(div().flex().gap_1().items_center().text_xs().child(format!("{}% → {:.0}%",j*25,self.curve_points[i][j]*100.))
+      .child(seg(("point-minus",i*5+j),"−",false).on_click(cx.listener(move|v,_,_,cx|{if !v.busy{let p=&mut v.curve_points[i];p[j]=(p[j]-0.05).max(p[j-1]);cx.notify();}})))
+      .child(seg(("point-plus",i*5+j),"+",false).on_click(cx.listener(move|v,_,_,cx|{if !v.busy{let p=&mut v.curve_points[i];p[j]=(p[j]+0.05).min(p[j+1]);cx.notify();}}))));}
+    }else{
+     card=card.child(div().flex().items_center().gap_1().child(seg(("gamma-minus",i),"−",false).on_click(cx.listener(move|v,_,_,cx|{if !v.busy{v.gamma[i]=(v.gamma[i]-0.1).max(0.25);cx.notify();}}))).child(format!("γ {:.2}",self.gamma[i])).child(seg(("gamma-plus",i),"+",false).on_click(cx.listener(move|v,_,_,cx|{if !v.busy{v.gamma[i]=(v.gamma[i]+0.1).min(4.);cx.notify();}}))))
+      .child(div().text_xs().child(format!("25/50/75% → {:.0}/{:.0}/{:.0}%",100.*0.25_f64.powf(self.gamma[i]),100.*0.5_f64.powf(self.gamma[i]),100.*0.75_f64.powf(self.gamma[i]))));
+    }
+    line=line.child(card);
+   }
+   grid=grid.child(line);
   }
-  p.child("Output curves change separations; A2B remains the original printer model. TAC and prior channel caps must be rechecked. This is not measured recalibration.")
-   .child(button("save-curves","Save gamma ICC").on_click(cx.listener(|this,_,_,cx|this.save_edit(0,cx))))
-   .child(self.point_curves_page(cx))
+  grid
+ }
+ fn curves_page(&self,cx:&mut Context<Self>)->Div{
+  let mut p=div().flex().flex_col().gap_3().child(heading("Tone Curves","Drag curve handles or use numeric steps. Curves represent corrections, not measured ink response."));
+  let Some(profile)=&self.profile else{return p.child("Open a supported printer profile first.")};
+  if !profile.cmyk(){return p.child("This editor supports four-channel CMYK printer profiles.")}
+  p=p.child(self.curve_cards(false,cx))
+   .child("Gamma modifies output separations; A2B stays unchanged. Recheck TAC and channel limits.")
+   .child(button("save-curves","Save gamma ICC").on_click(cx.listener(|v,_,_,cx|v.save_edit(0,cx))))
+   .child(self.point_curves_page(cx));
+  p
  }
  fn reorder_page(&self,cx:&mut Context<Self>)->Div{
   let mut p=div().flex().flex_col().gap_3().child(heading("Channel Reorder","New channel index → original physical ink."));
@@ -218,17 +262,9 @@ impl Studio {
    });
   }).detach();
  }
- fn preview_panel(&self,cx:&mut Context<Self>)->Div{
+ fn gamut_plot(&self,display:f32,id:&'static str,cx:&mut Context<Self>)->Div{
   let o=self.preview_options;
-  let panel=div().flex().flex_col().w(px(360.)).flex_shrink_0().h_full().min_h(px(0.)).overflow_hidden().bg(rgb(0x101a2a))
-   .child(div().flex().items_center().justify_between().p_2().flex_shrink_0().child(div().text_lg().child("Gamut Preview · R4"))
-    .child(button("collapse-preview","»").on_click(cx.listener(|this,_,_,cx|{this.preview_open=false;cx.notify();}))));
-  let controls=div().flex().flex_col().gap_1().flex_shrink_0().p_2()
-   .child(div().flex().gap_2().child(button("view-2d",if o.three_d{"2D"}else{"2D ✓"}).on_click(cx.listener(|this,_,_,cx|{this.preview_options.three_d=false;cx.notify();})))
-    .child(button("view-3d",if o.three_d{"3D ✓"}else{"3D"}).on_click(cx.listener(|this,_,_,cx|{this.preview_options.three_d=true;cx.notify();}))))
-   .child(div().flex().gap_2().child(button("show-before",if o.reference{"Before ✓"}else{"Before"}).on_click(cx.listener(|this,_,_,cx|{this.preview_options.reference=!this.preview_options.reference;cx.notify();})))
-    .child(button("show-after",if o.candidate{"After ✓"}else{"After"}).on_click(cx.listener(|this,_,_,cx|{this.preview_options.candidate=!this.preview_options.candidate;cx.notify();}))));
-let chart=div().id("gamut-orbit").w_full().flex_shrink_0().cursor_pointer()
+  div().id(id).w_full().flex_shrink_0().cursor_pointer()
     .on_mouse_down(MouseButton::Left,cx.listener(|this,e:&MouseDownEvent,_,cx|{this.orbit_last=Some(e.position);cx.notify();}))
     .on_mouse_up(MouseButton::Left,cx.listener(|this,_,_,cx|{this.orbit_last=None;cx.notify();}))
     .on_mouse_move(cx.listener(|this,e:&MouseMoveEvent,_,cx|{
@@ -236,9 +272,8 @@ let chart=div().id("gamut-orbit").w_full().flex_shrink_0().cursor_pointer()
      if let Some(last)=this.orbit_last{
       if this.preview_options.three_d{
        let dx=f32::from(e.position.x-last.x);let dy=f32::from(e.position.y-last.y);
-       // Ignore abrupt jumps when the cursor returns from outside the plot.
        if dx.abs()<100.&&dy.abs()<100.{
-        this.preview_options.yaw=(this.preview_options.yaw+dx*0.01).rem_euclid(std::f32::consts::TAU);
+        this.preview_options.yaw=(this.preview_options.yaw-dx*0.01).rem_euclid(std::f32::consts::TAU);
         this.preview_options.pitch=(this.preview_options.pitch+dy*0.01).clamp(-1.55,1.55);cx.notify();
        }
       }
@@ -249,68 +284,75 @@ let chart=div().id("gamut-orbit").w_full().flex_shrink_0().cursor_pointer()
      let dy=f32::from(e.delta.pixel_delta(px(20.)).y);
      if dy.is_finite(){this.preview_options.zoom=(this.preview_options.zoom*(dy*0.004).clamp(-0.6,0.6).exp()).clamp(0.5,3.);cx.notify();cx.stop_propagation();}
     }))
-    .child(gamut_view::plot(self.preview.as_ref(),self.preview_revision,o,&mut self.preview_cache.borrow_mut(),self.preview_direct_image));
-  panel.child(controls)
-   .child(div().px_2().text_xs().child(format!("Before: {} | After: {}",o.style_label(0),o.style_label(1))))
-   .child(div().flex().flex_col().items_center().flex_shrink_0().child(chart))
-   .child(div().flex().gap_1().p_1().flex_shrink_0().children([("Pts",false,false),("Wire",false,true),("Solid",true,false),("Both",true,true)].into_iter().enumerate().map(|(i,(name,solid,wire))|button(("quick-style",i),if o.layout==CompareLayout::Shared&&o.solid==solid&&o.wireframe==wire{format!("{name} ✓")}else{name.into()}).on_click(cx.listener(move|v,_,_,cx|{v.preview_options.layout=CompareLayout::Shared;v.preview_options.solid=solid;v.preview_options.wireframe=wire;cx.notify();})))))
-   .child(div().flex().gap_1().p_2().flex_shrink_0()
-    .child(button("renderer-native",if self.preview_direct_image{"Native cells"}else{"Native cells ✓"}).on_click(cx.listener(|v,_,_,cx|{v.preview_direct_image=false;cx.notify();})))
-    .child(button("renderer-bgra",if self.preview_direct_image{"BGRA ✓"}else{"BGRA"}).on_click(cx.listener(|v,_,_,cx|{v.preview_direct_image=true;cx.notify();}))))
-   .child(div().id("preview-scroll").flex_1().min_h(px(0.)).overflow_y_scroll().p_2().child(self.gamut_controls(cx)))
+    .child(gamut_view::plot(self.preview.as_ref(),self.preview_revision,o,&mut self.preview_cache.borrow_mut(),display))
+ }
+ fn gamut_toolbar(&self,cx:&mut Context<Self>)->Div{
+  let o=self.preview_options;
+  let style=|i:usize|o.style_label(i);
+  let name=if self.candidate.is_some(){format!("Reference: {} · Candidate: {}",style(0),style(1))}else{format!("Reference only · {}",style(0))};
+  div().flex().flex_col().gap_1().p_2().flex_shrink_0()
+   .child(div().flex().items_center().gap_1()
+    .child(seg("view-2d","2D",!o.three_d).on_click(cx.listener(|v,_,_,cx|{v.preview_options.three_d=false;cx.notify();})))
+    .child(seg("view-3d","3D",o.three_d).on_click(cx.listener(|v,_,_,cx|{v.preview_options.three_d=true;cx.notify();})))
+    .child(div().flex_1())
+    .child(seg("ref-visible","Ref",o.reference).on_click(cx.listener(|v,_,_,cx|{v.preview_options.reference=!v.preview_options.reference;cx.notify();})))
+    .when(self.candidate.is_some(),|p|p.child(seg("cand-visible","Cand",o.candidate).on_click(cx.listener(|v,_,_,cx|{v.preview_options.candidate=!v.preview_options.candidate;cx.notify();})))))
+   .child(div().flex().gap_1().flex_wrap().children([("Pts",false,false),(if o.three_d{"Wire"}else{"Outline"},false,true),("Solid",true,false),("Both",true,true)].into_iter().enumerate().map(|(i,(name,solid,wire))|seg(("quick-style",i),name,o.layout==CompareLayout::Shared&&o.solid==solid&&o.wireframe==wire).on_click(cx.listener(move|v,_,_,cx|{v.preview_options.layout=CompareLayout::Shared;v.preview_options.solid=solid;v.preview_options.wireframe=wire;cx.notify();}))))
+    .when(self.candidate.is_some(),|p|p.child(seg("mixed-quick","Compare",o.layout!=CompareLayout::Shared).on_click(cx.listener(|v,_,_,cx|{v.preview_options.layout=CompareLayout::ReferenceSolidCandidateWire;cx.notify();})))))
+   .child(div().text_xs().text_color(rgb(0x94a3b8)).child(name))
+   .when(!o.three_d,|p|p.child(div().flex().gap_1().items_center().flex_wrap()
+    .child(seg("slice-toggle",if o.slice{"Slice"}else{"All L*"},o.slice).on_click(cx.listener(|v,_,_,cx|{v.preview_options.slice=!v.preview_options.slice;cx.notify();})))
+    .when(o.slice,|p|p.child(seg("slice-down","−",false).on_click(cx.listener(|v,_,_,cx|{v.preview_options.light=(v.preview_options.light-5.).max(0.);cx.notify();}))).child(format!("L* {:.0}",o.light)).child(seg("slice-up","+",false).on_click(cx.listener(|v,_,_,cx|{v.preview_options.light=(v.preview_options.light+5.).min(100.);cx.notify();})))))
+    .child(div().text_xs().child(format!("Fill {}%",o.opacity_2d)))
+    .child(seg("opacity-down","−",false).on_click(cx.listener(|v,_,_,cx|{v.preview_options.opacity_2d=v.preview_options.opacity_2d.saturating_sub(10);cx.notify();})))
+    .child(seg("opacity-up","+",false).on_click(cx.listener(|v,_,_,cx|{v.preview_options.opacity_2d=(v.preview_options.opacity_2d+10).min(100);cx.notify();})))))
+ }
+ fn preview_panel(&self,width:f32,display:f32,full:bool,cx:&mut Context<Self>)->Div{
+  let panel=div().flex().flex_col().w(px(width)).flex_shrink_0().h_full().min_h(px(0.)).overflow_hidden().bg(rgb(0x101a2a))
+   .child(div().flex().items_center().justify_between().p_2().flex_shrink_0()
+    .child(div().text_sm().child("Gamut"))
+    .child(div().flex().gap_1()
+     .child(seg("full-gamut",if full{"Exit expanded"}else{"Expand"},full).on_click(cx.listener(|v,_,_,cx|{v.preview_fullscreen=!v.preview_fullscreen;cx.notify();})))
+     .when(!full,|p|p.child(seg("collapse-preview","»",false).on_click(cx.listener(|v,_,_,cx|{v.preview_open=false;cx.notify();}))))))
+   .child(self.gamut_toolbar(cx))
+   .child(self.gamut_plot(display,"gamut-orbit",cx))
+   .child(div().id("preview-scroll").flex_1().min_h(px(0.)).overflow_y_scroll().p_2().child(self.gamut_controls(cx)));
+  panel
  }
  fn gamut_controls(&self,cx:&mut Context<Self>)->Div{
   let o=self.preview_options;
-  let mut p=div().flex().flex_col().gap_3();
-  p=p
-   .child(if o.profile_colors{div().text_sm().child("Profile colors · use Before/After separately to identify surfaces, or switch to Compare tint.")}else{div().flex().gap_2().items_center().child(div().size(px(9.)).bg(rgb(0x60a5fa))).child("Reference").child(div().size(px(9.)).bg(rgb(0xfbbf24))).child("Candidate")})
-   .child(div().text_xs().child(format!("Before: {}",self.source.as_ref().and_then(|p|p.file_name()).map(|n|n.to_string_lossy().into_owned()).unwrap_or("Not selected".into()))))
-   .child(div().text_xs().child(format!("After: {}",self.candidate.as_ref().and_then(|p|p.file_name()).map(|n|n.to_string_lossy().into_owned()).unwrap_or("Not selected".into()))))
-   .child(button("preview-pick","Select comparison ICC").on_click(cx.listener(|this,_,_,cx|{if !this.busy{if let Some(path)=rfd::FileDialog::new().add_filter("ICC profile",&["icc","icm"]).pick_file(){this.candidate=Some(path);this.preview=None;this.comparison=None;this.gradient=None;this.gradient_error=None;this.refresh_gamut(cx);cx.notify();}}})))
-   .child(div().flex().items_center().gap_1().child("Quality").children([9usize,17,33].map(|v|button(("gamut-grid",v),{let label=match v{9=>"Draft",17=>"Normal",_=>"High"};if self.gamut_grid==v{format!("{label} ✓")}else{label.to_owned()}}).on_click(cx.listener(move|this,_,_,cx|{if !this.busy{this.gamut_grid=v;this.refresh_gamut(cx);cx.notify();}})))))
-   .child(button("refresh-gamut",if self.busy{"Working…"}else{"Refresh gamut"}).on_click(cx.listener(|this,_,_,cx|this.refresh_gamut(cx))));
-  if o.three_d{
-   p=p.child(div().flex().gap_1().child(button("yaw-left","↶").on_click(cx.listener(|this,_,_,cx|{this.preview_options.yaw-=0.20;cx.notify();})))
-    .child(button("yaw-right","↷").on_click(cx.listener(|this,_,_,cx|{this.preview_options.yaw+=0.20;cx.notify();})))
-    .child(button("pitch-up","↑").on_click(cx.listener(|this,_,_,cx|{this.preview_options.pitch=(this.preview_options.pitch+0.15).min(1.55);cx.notify();})))
-    .child(button("pitch-down","↓").on_click(cx.listener(|this,_,_,cx|{this.preview_options.pitch=(this.preview_options.pitch-0.15).max(-1.55);cx.notify();}))));
-  }else{
-   p=p.child(div().flex().gap_1().child(button("slice-toggle",if o.slice{"L* slice ✓"}else{"All L*"}).on_click(cx.listener(|this,_,_,cx|{this.preview_options.slice=!this.preview_options.slice;cx.notify();})))
-    .child(button("slice-down","−").on_click(cx.listener(|this,_,_,cx|{this.preview_options.light=(this.preview_options.light-5.).max(0.);cx.notify();})))
-    .child(format!("{:.0}",o.light))
-    .child(button("slice-up","+").on_click(cx.listener(|this,_,_,cx|{this.preview_options.light=(this.preview_options.light+5.).min(100.);cx.notify();}))));
+  let filename=|p:&Option<PathBuf>|p.as_ref().and_then(|p|p.file_name()).map(|n|n.to_string_lossy().into_owned()).unwrap_or("Not selected".into());
+  let mut p=div().flex().flex_col().gap_2().text_sm()
+   .child(div().text_xs().child(format!("Reference: {}",filename(&self.source))))
+   .child(div().text_xs().child(format!("Candidate: {}",filename(&self.candidate))))
+   .child(div().flex().gap_1().flex_wrap()
+    .child(seg("preview-pick","Compare ICC",false).on_click(cx.listener(|v,_,_,cx|{if !v.busy{if let Some(path)=rfd::FileDialog::new().add_filter("ICC profile",&["icc","icm"]).pick_file(){v.candidate=Some(path);v.preview_options.candidate=true;v.preview=None;v.comparison=None;v.gradient=None;v.gradient_error=None;v.refresh_gamut(cx);cx.notify();}}})))
+    .when(self.candidate.is_some(),|p|p.child(seg("clear-candidate","Clear",false).on_click(cx.listener(|v,_,_,cx|{if !v.busy{v.candidate=None;v.preview=None;v.comparison=None;v.gradient=None;v.gradient_error=None;v.refresh_gamut(cx);cx.notify();}}))))
+    .child(seg("refresh-gamut",if self.busy{"Working…"}else{"Refresh"},false).on_click(cx.listener(|v,_,_,cx|v.refresh_gamut(cx)))))
+   .child(div().flex().gap_1().items_center().child(div().text_xs().child("Quality")).children([9usize,17,33].map(|n|seg(("gamut-grid",n),match n{9=>"Draft",17=>"Normal",_=>"High"},self.gamut_grid==n).on_click(cx.listener(move|v,_,_,cx|{if !v.busy{v.gamut_grid=n;v.refresh_gamut(cx);cx.notify();}})))))
+   .child(div().flex().gap_1().items_center().child(seg("zoom-out","−",false).on_click(cx.listener(|v,_,_,cx|{v.preview_options.zoom=(v.preview_options.zoom/1.2).max(0.5);cx.notify();}))).child(format!("{:.0}%",100.*o.zoom)).child(seg("zoom-in","+",false).on_click(cx.listener(|v,_,_,cx|{v.preview_options.zoom=(v.preview_options.zoom*1.2).min(3.);cx.notify();}))).child(seg("reset-view","Reset",false).on_click(cx.listener(|v,_,_,cx|{v.preview_options=ViewOptions::default();cx.notify();}))))
+   .child(seg("advanced-gamut",if self.gamut_advanced{"Advanced ▴"}else{"Advanced ▾"},self.gamut_advanced).on_click(cx.listener(|v,_,_,cx|{v.gamut_advanced=!v.gamut_advanced;cx.notify();})));
+  if let Some(d)=&self.preview{
+   if let Err(e)=&d.reference{p=p.child(format!("Reference: {e}"));}
+   if let Some(Err(e))=&d.candidate{p=p.child(format!("Candidate: {e}"));}
+   let n=usize::from(d.reference.is_ok()&&o.reference)+usize::from(d.candidate.as_ref().is_some_and(|c|c.is_ok())&&o.candidate);
+   p=p.child(div().text_xs().text_color(rgb(0x94a3b8)).child(format!("{n} active profile(s). Floor = one footprint per profile; disconnected regions may have separate outlines.")));
   }
-  p=p.child(div().flex().gap_1().child(button("zoom-out","− zoom").on_click(cx.listener(|this,_,_,cx|{this.preview_options.zoom=(this.preview_options.zoom/1.2).max(0.5);cx.notify();})))
-   .child(button("zoom-in","+ zoom").on_click(cx.listener(|this,_,_,cx|{this.preview_options.zoom=(this.preview_options.zoom*1.2).min(3.);cx.notify();})))
-   .child(button("reset-view","Reset").on_click(cx.listener(|this,_,_,cx|{this.preview_options=ViewOptions::default();cx.notify();}))));
-  { 
-   if let Some(data)=&self.preview{
-   match &data.reference{Ok(c)=>p=p.child(format!("Before: {} distinct / {} targets",c.points.len(),c.sampled)),Err(e)=>p=p.child(format!("Before failed: {e}"))}
-   if let Some(c)=&data.candidate{match c{Ok(c)=>p=p.child(format!("After: {} distinct / {} targets",c.points.len(),c.sampled)),Err(e)=>p=p.child(format!("After failed: {e}"))}}
-   }
-   p=p.child(button("gamutvision-style","GamutVision Style (reset view)").on_click(cx.listener(|v,_,_,cx|{v.preview_options=ViewOptions::default();v.preview_direct_image=true;cx.notify();})))
-    .child(div().text_sm().child("Comparison layout"))
-    .child(div().flex().flex_wrap().gap_1().children([("Ref solid / Cand wire",CompareLayout::ReferenceSolidCandidateWire),("Ref wire / Cand solid",CompareLayout::ReferenceWireCandidateSolid)].into_iter().enumerate().map(|(i,(name,layout))|button(("mixed-gamut",i),if o.layout==layout{format!("{name} ✓")}else{name.into()}).on_click(cx.listener(move|v,_,_,cx|{v.preview_options.layout=layout;cx.notify();})))))
-    .child(button("floor-contour",if o.floor_contour{"Floor contours ✓"}else{"Floor contours"}).on_click(cx.listener(|v,_,_,cx|{v.preview_options.floor_contour=!v.preview_options.floor_contour;cx.notify();})))
-    .child(div().text_sm().child("Shared display mode (both profiles)"))
-    .child(div().flex().flex_wrap().gap_1().children([("Points",false,false),("Wireframe",false,true),("Solid",true,false),("Solid + Wire",true,true)].into_iter().enumerate().map(|(i,(name,solid,wire))|button(("gamut-style",i),if o.layout==CompareLayout::Shared&&o.solid==solid&&o.wireframe==wire{format!("{name} ✓")}else{name.into()}).on_click(cx.listener(move|v,_,_,cx|{v.preview_options.layout=CompareLayout::Shared;v.preview_options.solid=solid;v.preview_options.wireframe=wire;cx.notify();})))))
-    .child(div().flex().flex_wrap().gap_1().child(button("gamut-profile-colors",if o.profile_colors{"Profile colors ✓"}else{"Profile colors"}).on_click(cx.listener(|v,_,_,cx|{v.preview_options.profile_colors=true;cx.notify();})))
-     .child(button("gamut-compare-colors",if !o.profile_colors{"Compare tint ✓"}else{"Compare tint"}).on_click(cx.listener(|v,_,_,cx|{v.preview_options.profile_colors=false;cx.notify();}))))
-    .child(div().flex().flex_wrap().gap_1().child(button("gamut-surface",if !o.convex{"Sampled surface ✓"}else{"Sampled surface"}).on_click(cx.listener(|v,_,_,cx|{v.preview_options.convex=false;cx.notify();})))
-     .child(button("gamut-convex",if o.convex{"Convex hull ✓"}else{"Convex hull"}).on_click(cx.listener(|v,_,_,cx|{v.preview_options.convex=true;cx.notify();}))));
-   if let Some(d)=&self.preview{
-    for (name,c) in [("Before",d.reference.as_ref().ok()),("After",d.candidate.as_ref().and_then(|v|v.as_ref().ok()))]{
-     if let Some(c)=c{let mesh=if o.convex{c.hull.as_ref().map(|h|h.faces.len())}else{c.surface.as_ref().map(|s|s.triangles.len())};
-      p=p.child(match mesh{Some(n)=>format!("{name}: {n} triangles{}",if o.convex{String::new()}else{format!(" · {}³ field",c.surface.as_ref().map(|s|s.resolution).unwrap_or(0))}),None=>format!("{name}: no selected mesh; points fallback")});}
-    }
-   }
-   p=p.child("Drag to orbit (3D); scroll to zoom. Both profiles share the same auto-fit scale.")
-    .child(button("save-gamut-png","Export current gamut PNG").on_click(cx.listener(|v,_,_,cx|{if let Some(data)=&v.preview{if let Some(path)=rfd::FileDialog::new().add_filter("PNG",&["png"]).set_file_name("gamut.png").save_file(){let result=color_convert_rust::gamut_raster::render(Some(data),v.preview_options).png().and_then(|bytes|{use std::io::Write;let mut f=tempfile::NamedTempFile::new_in(path.parent().unwrap_or(std::path::Path::new("."))).map_err(|e|e.to_string())?;f.write_all(&bytes).map_err(|e|e.to_string())?;f.persist_noclobber(&path).map_err(|e|e.to_string())?;Ok(())});v.status=result.map(|_|format!("Saved {}",path.display())).unwrap_or_else(|e|format!("Error: {e}"));cx.notify();}}})));
-   if o.convex{p=p.child("Convex envelope fills concavities. Use sampled surface for a nonconvex estimate.");}else{p=p.child("Sampled ΔE00 ≤ 2 round-trip isosurface; concavities retained where resolved. Not a measured physical boundary.");}
-   if o.three_d{p=p.child("Axes: L* / a* / b*. Floor lines project L*=20/40/60/80 contours.");}else{p=p.child(if o.slice{format!("a* / b* | L* {:.0} ± 5",o.light)}else{"a* / b* | all lightness values".into()});}
+  if self.gamut_advanced{
+   p=p.child(div().flex().gap_1().flex_wrap()
+    .child(seg("ref-solid","Ref solid",o.layout==CompareLayout::ReferenceSolidCandidateWire).on_click(cx.listener(|v,_,_,cx|{v.preview_options.layout=CompareLayout::ReferenceSolidCandidateWire;cx.notify();})))
+    .child(seg("cand-solid","Cand solid",o.layout==CompareLayout::ReferenceWireCandidateSolid).on_click(cx.listener(|v,_,_,cx|{v.preview_options.layout=CompareLayout::ReferenceWireCandidateSolid;cx.notify();}))))
+    .child(div().flex().gap_1().flex_wrap()
+     .child(seg("profile-colors","Profile colors",o.profile_colors).on_click(cx.listener(|v,_,_,cx|{v.preview_options.profile_colors=true;cx.notify();})))
+     .child(seg("compare-tint","Compare tint",!o.profile_colors).on_click(cx.listener(|v,_,_,cx|{v.preview_options.profile_colors=false;cx.notify();}))))
+    .child(div().flex().gap_1().flex_wrap()
+     .child(seg("surface","Surface",!o.convex).on_click(cx.listener(|v,_,_,cx|{v.preview_options.convex=false;cx.notify();})))
+     .child(seg("convex","Convex",o.convex).on_click(cx.listener(|v,_,_,cx|{v.preview_options.convex=true;cx.notify();})))
+     .child(seg("floor","Floor",o.floor_contour).on_click(cx.listener(|v,_,_,cx|{v.preview_options.floor_contour=!v.preview_options.floor_contour;cx.notify();}))))
+    .child(seg("save-gamut-png","Export PNG",false).on_click(cx.listener(|v,_,_,cx|{if let Some(data)=&v.preview{if let Some(path)=rfd::FileDialog::new().add_filter("PNG",&["png"]).set_file_name("gamut.png").save_file(){let result=color_convert_rust::gamut_raster::render(Some(data),v.preview_options).png().and_then(|bytes|{use std::io::Write;let mut f=tempfile::NamedTempFile::new_in(path.parent().unwrap_or(std::path::Path::new("."))).map_err(|e|e.to_string())?;f.write_all(&bytes).map_err(|e|e.to_string())?;f.persist_noclobber(&path).map_err(|e|e.to_string())?;Ok(())});v.status=result.map(|_|format!("Saved {}",path.display())).unwrap_or_else(|e|format!("Error: {e}"));cx.notify();}}})))
+    .child(div().text_xs().text_color(rgb(0x94a3b8)).child("Sampled round-trip ΔE00 ≤ 2 surface; profile colors approximate D50 Lab to sRGB. Wire grid = L* rings and hue meridians. Not a measured physical gamut."));
   }
-  if self.preview.is_none(){p=p.child(if self.busy{"Sampling in progress…"}else{"Open an ICC or refresh to calculate the preview."});}
-  p.child(div().text_xs().text_color(rgb(0x94a3b8)).child("Sampled effective separation gamut (Lab → B2A → device → A2B → Lab). Relative colorimetric, D50. Profile colors approximate D50 Lab → sRGB (display clipping possible); compare tint distinguishes overlapping profiles. No exact or measured gamut claim."))
+  p
  }
  fn analyze_gradient(&mut self,cx:&mut Context<Self>){
   if self.busy{return}let Some(reference)=self.source.clone()else{return};
@@ -342,7 +384,7 @@ let chart=div().id("gamut-orbit").w_full().flex_shrink_0().cursor_pointer()
  }
  fn gamut_analysis_page(&self,cx:&mut Context<Self>)->Div{
   let mut p=div().flex().flex_col().gap_3().child(heading("Gamut Viewer","Effective separation coverage and convex envelope."))
-   .child(gamut_view::plot(self.preview.as_ref(),self.preview_revision,self.preview_options,&mut self.preview_cache.borrow_mut(),self.preview_direct_image))
+   .child(self.gamut_plot(320.,"gamut-page-orbit",cx))
    .child(button("open-gamut-page-preview","Show preview pane").on_click(cx.listener(|this,_,_,cx|{this.preview_open=true;if this.preview.is_none(){this.refresh_gamut(cx);}cx.notify();})))
    .child(div().flex().gap_2().items_center().child("Target tolerance ΔE00").children([1usize,2,3,5].map(|v|button(("threshold",v),if self.coverage_threshold==v as f64{format!("{v} ✓")}else{v.to_string()}).on_click(cx.listener(move|this,_,_,cx|{this.coverage_threshold=v as f64;cx.notify();})))));
   if let Some(data)=&self.preview{
@@ -553,18 +595,10 @@ let chart=div().id("gamut-orbit").w_full().flex_shrink_0().cursor_pointer()
   p.child("Private repository: unauthenticated shared updater cannot access private releases. No tokens are embedded. Download Studio previews through signed-in GitHub Releases. Studio beta tags use a separate namespace and are not supported by the existing latest-release updater; no automatic beta installation. Studio requires its own EXE and SHA256 asset, never the legacy executable.")
  }
  fn point_curves_page(&self,cx:&mut Context<Self>)->Div{
-  let mut p=div().flex().flex_col().gap_3().child(heading("Bounded multipoint curves","Five monotone points per ink; endpoints locked."))
-   .child("Applies a piecewise-linear device curve and resamples each B2A intent independently. Source caps and explicit TAC enforced. Initial support: simple ICC v4 CMYK / Lab mBA.");
-  for i in 0..4{
-   let mut row=div().flex().flex_col().gap_2().p_3().rounded_md().bg(rgb(0x1b2637)).child(format!("Ink {}",i+1));
-   for j in 1..4{
-    row=row.child(div().flex().gap_1().items_center().child(format!("Input {}% → {:.0}%",j*25,self.curve_points[i][j]*100.))
-     .child(button(("point-minus",i*5+j),"−5").on_click(cx.listener(move|v,_,_,cx|{if !v.busy{let p=&mut v.curve_points[i];p[j]=(p[j]-0.05).max(p[j-1]);cx.notify();}})))
-     .child(button(("point-plus",i*5+j),"+5").on_click(cx.listener(move|v,_,_,cx|{if !v.busy{let p=&mut v.curve_points[i];p[j]=(p[j]+0.05).min(p[j+1]);cx.notify();}}))));
-   }
-   p=p.child(row);
-  }
-  p.child(button("reset-points","Reset multipoint curves").on_click(cx.listener(|v,_,_,cx|{if !v.busy{v.curve_points=IDENTITY_POINTS;cx.notify();}})))
+  div().flex().flex_col().gap_2().child(heading("Bounded multipoint curves","Drag three control points per ink. Endpoints locked; monotonic output enforced."))
+   .child(self.curve_cards(true,cx))
+   .child("Piecewise-linear device correction; independent B2A intents, source caps and explicit TAC. Supported simple v4 CMYK/Lab mBA.")
+   .child(seg("reset-points","Reset all points",false).on_click(cx.listener(|v,_,_,cx|{if !v.busy{v.curve_points=IDENTITY_POINTS;cx.notify();}})))
    .child(self.correction_options(cx))
    .child(button("save-points","Generate bounded curves ICC").on_click(cx.listener(|v,_,_,cx|v.save_edit(7,cx))))
  }
@@ -589,10 +623,10 @@ let chart=div().id("gamut-orbit").w_full().flex_shrink_0().cursor_pointer()
    .child(button("save-black","Generate black preference ICC").on_click(cx.listener(|v,_,_,cx|v.save_edit(6,cx))))
  }
  fn preference_snapshot(&self)->Preferences{
-  Preferences{schema:1,preview_open:self.preview_open,three_d:self.preview_options.three_d,wireframe:self.preview_options.wireframe,solid:self.preview_options.solid,profile_colors:self.preview_options.profile_colors,convex:self.preview_options.convex,layout:self.preview_options.layout,floor_contour:self.preview_options.floor_contour,direct_image:self.preview_direct_image,gamut_grid:self.gamut_grid,compare_grid:self.compare_grid,chart_dpi:self.chart_dpi,library:self.library_root.clone()}
+  Preferences{schema:1,preview_open:self.preview_open,three_d:self.preview_options.three_d,wireframe:self.preview_options.wireframe,solid:self.preview_options.solid,profile_colors:self.preview_options.profile_colors,convex:self.preview_options.convex,layout:self.preview_options.layout,floor_contour:self.preview_options.floor_contour,preview_width:self.preview_width,opacity_2d:self.preview_options.opacity_2d,gamut_grid:self.gamut_grid,compare_grid:self.compare_grid,chart_dpi:self.chart_dpi,library:self.library_root.clone()}
  }
  fn apply_preferences(&mut self,p:Preferences){
-  self.preview_open=p.preview_open;self.preview_options.three_d=p.three_d;self.preview_options.wireframe=p.wireframe;self.preview_options.solid=p.solid;self.preview_options.profile_colors=p.profile_colors;self.preview_options.convex=p.convex;self.preview_options.layout=p.layout;self.preview_options.floor_contour=p.floor_contour;self.preview_direct_image=p.direct_image;
+  self.preview_open=p.preview_open;self.preview_options.three_d=p.three_d;self.preview_options.wireframe=p.wireframe;self.preview_options.solid=p.solid;self.preview_options.profile_colors=p.profile_colors;self.preview_options.convex=p.convex;self.preview_options.layout=p.layout;self.preview_options.floor_contour=p.floor_contour;self.preview_width=p.preview_width;self.preview_options.opacity_2d=p.opacity_2d;
   self.gamut_grid=p.gamut_grid;self.compare_grid=p.compare_grid;self.chart_dpi=p.chart_dpi;
   self.library_root=p.library.filter(|p|p.is_dir());
   self.preview=None;self.comparison=None;self.compare_error=None;self.library_entries.clear();
@@ -694,9 +728,13 @@ let chart=div().id("gamut-orbit").w_full().flex_shrink_0().cursor_pointer()
  }
 }
 impl Render for Studio {
- fn render(&mut self,_window:&mut Window,cx:&mut Context<Self>)->impl IntoElement{
+ fn render(&mut self,window:&mut Window,cx:&mut Context<Self>)->impl IntoElement{
+  let viewport=window.viewport_size();let vw=f32::from(viewport.width);let vh=f32::from(viewport.height);
+  let width=self.preview_width.clamp(280.,(vw-460.).max(280.));
+  let display=(width-24.).min((vh-240.).max(180.));
+  if self.preview_fullscreen{return div().flex().size_full().bg(rgb(0x101a2a)).text_color(rgb(0xe2e8f0)).child(self.preview_panel(vw,(vw-28.).min((vh-220.).max(180.)),true,cx));}
   let sidebar=div().id("sidebar").flex().flex_col().w(px(224.)).flex_shrink_0().h_full().overflow_y_scroll().p_3().gap_1().bg(rgb(0x101a2a))
-   .child(div().text_lg().child("ICC Profile Studio")).child(div().text_xs().mb_3().child(format!("{} · Gamut R4",STUDIO_VERSION.trim())))
+   .child(div().text_lg().child("ICC Profile Studio")).child(div().text_xs().mb_3().child(format!("{} · Gamut R5",STUDIO_VERSION.trim())))
    .child(button("open-profile","Open ICC / ICM").on_click(cx.listener(|this,_,_,cx|{this.open(cx);cx.notify();})))
    .children(PAGES.into_iter().enumerate().map(|(i,(page,label))|{
     let active=self.page==page;
@@ -731,7 +769,15 @@ impl Render for Studio {
     .child(div().flex().items_center().justify_between().px_5().py_3().bg(rgb(0x1b2637)).child(self.source.as_ref().and_then(|p|p.file_name()).map(|p|p.to_string_lossy().into_owned()).unwrap_or("No profile selected".into())).child(button("toggle-preview",if self.preview_open{"Hide preview"}else{"Show preview"}).on_click(cx.listener(|this,_,_,cx|{this.preview_open=!this.preview_open;if this.preview_open&&this.preview.is_none(){this.refresh_gamut(cx);}cx.notify();}))))
     .child(div().id("content-scroll").flex_1().overflow_y_scroll().p_5().child(content))
     .child(div().px_5().py_3().bg(rgb(0x101a2a)).text_sm().child(self.status.clone())))
-   .when(self.preview_open,|root|root.child(self.preview_panel(cx)))
+   .when(self.preview_open,|root|root.child(div().id("gamut-resizer").w(px(6.)).h_full().flex_shrink_0().bg(rgb(0x24364b)).hover(|s|s.bg(rgb(0x60a5fa))).cursor_pointer()
+    .on_mouse_down(MouseButton::Left,cx.listener(|v,e:&MouseDownEvent,_,cx|{v.resize_last=Some(e.position.x);cx.stop_propagation();}))
+    .on_mouse_up(MouseButton::Left,cx.listener(|v,_,_,cx|{v.resize_last=None;cx.notify();})))
+    .child(self.preview_panel(width,display,false,cx)))
+   .on_mouse_move(cx.listener(move|v,e:&MouseMoveEvent,_,cx|{
+    if !e.dragging(){v.resize_last=None;return}
+    if let Some(last)=v.resize_last{v.preview_width=(v.preview_width-f32::from(e.position.x-last)).clamp(280.,(vw-460.).max(280.));v.resize_last=Some(e.position.x);cx.notify();}
+   }))
+   .on_mouse_up(MouseButton::Left,cx.listener(|v,_,_,cx|{v.resize_last=None;v.curve_drag=None;}))
  }
 }
 fn main(){

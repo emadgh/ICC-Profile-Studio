@@ -6,16 +6,16 @@ type R<T>=Result<T,String>;
 #[derive(Debug,Clone,Serialize,Deserialize,PartialEq)]
 #[serde(default)] // Ignore retired image-workflow keys in older preferences.
 pub struct Preferences {
- pub schema:u32,pub preview_open:bool,pub three_d:bool,pub wireframe:bool,pub solid:bool,pub profile_colors:bool,pub convex:bool,pub direct_image:bool,pub layout:crate::gamut_raster::CompareLayout,pub floor_contour:bool,
+ pub schema:u32,pub preview_open:bool,pub three_d:bool,pub wireframe:bool,pub solid:bool,pub profile_colors:bool,pub convex:bool,pub preview_width:f32,pub opacity_2d:u8,pub layout:crate::gamut_raster::CompareLayout,pub floor_contour:bool,
  pub gamut_grid:usize,pub compare_grid:usize,pub chart_dpi:u32,
  pub library:Option<PathBuf>,
 }
 impl Default for Preferences{
- fn default()->Self{Self{schema:1,preview_open:true,three_d:true,wireframe:false,solid:true,profile_colors:true,convex:false,direct_image:true,layout:crate::gamut_raster::CompareLayout::default(),floor_contour:true,gamut_grid:17,compare_grid:17,chart_dpi:300,library:None}}
+ fn default()->Self{Self{schema:1,preview_open:true,three_d:true,wireframe:false,solid:true,profile_colors:true,convex:false,preview_width:360.,opacity_2d:100,layout:crate::gamut_raster::CompareLayout::default(),floor_contour:true,gamut_grid:17,compare_grid:17,chart_dpi:300,library:None}}
 }
 impl Preferences{
  pub fn validate(&self)->R<()>{
-  if self.schema!=1||![9,17,33].contains(&self.gamut_grid)||![9,17,33].contains(&self.compare_grid)||!(50..=1200).contains(&self.chart_dpi){return Err("Unsupported preferences schema or setting range".into())}
+  if self.schema!=1||!self.preview_width.is_finite()||!(280. ..=4000.).contains(&self.preview_width)||self.opacity_2d>100||![9,17,33].contains(&self.gamut_grid)||![9,17,33].contains(&self.compare_grid)||!(50..=1200).contains(&self.chart_dpi){return Err("Unsupported preferences schema or setting range".into())}
   Ok(())
  }
 }

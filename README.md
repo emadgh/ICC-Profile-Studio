@@ -16,7 +16,7 @@ Download the Studio artifact from [GitHub Actions](https://github.com/emadgh/col
 - Profile Rebuilder, per-channel/TAC limits, strict LUT and native LittleCMS validation.
 - Comparison, neutral-axis plots, Gradient Analyzer, sampled gamut coverage and CSV reports.
 - Tone curves, channel reorder, metadata, selective LCh correction, LUT smoothing, black generation and ink/cost optimization.
-- Collapsible 2D/3D Gamut R4: colorized solid reference, wireframe candidate, BGRA default, shared Lab grid, floor contours, optional convex hull, nonconvex sampled surface. Surface is a Delta E00 <= 2 round-trip estimate, not a measured physical boundary. Display colors are approximate sRGB.
+- Collapsible 2D/3D Gamut R5: colorized solid reference, wireframe candidate, BGRA only, shared Lab grid, floor contours, optional convex hull, nonconvex sampled surface. Surface is a Delta E00 <= 2 round-trip estimate, not a measured physical boundary. Display colors are approximate sRGB.
 - ICC DeviceLink generator with sampled validation. No direct image application.
 - Profile Library and Ceramic Profiling Lab: generate direct-device characterization charts, import measured CSV/TI3, compare measured patches and build profiles with Argyll colprof. No instrument connection.
 - Settings and About/Updates. Local preferences retain preview/grid/chart DPI and library directory, not device-specific limits or jobs. Older image settings are ignored.
@@ -38,3 +38,5 @@ Stable Rust and Visual Studio Build Tools (Desktop development with C++) on Wind
 Default and only executable: target/release/icc-profile-studio.exe. The optional studio feature is enabled by default; disabling default features is for headless library tests only. The single Windows Studio workflow tests and packages the executable, SHA256 and documentation. STUDIO_VERSION tracks prerelease version; Cargo package version remains the historical core version. Preview publishing remains manual and does not overwrite releases. Older Rebuilder releases are historical, not actively built. The shared updater's latest-release/private-feed limitations remain; use compatible Studio release assets, not Rebuilder EXEs.
 
 See [ROADMAP.md](ROADMAP.md) for the active scope and remaining work, and [CERAMIC_WORKFLOW.md](CERAMIC_WORKFLOW.md) for characterization. CI does not establish print accuracy or interactive Windows runtime quality.
+
+R5 adds a resizable preview, expanded in-window view, compact controls, quad-style surface section grid, 2D outline/fill opacity, one projected footprint per visible profile and reusable two-column draggable curve editors. The wire grid is not an all-quad remeshing of the solid triangles.

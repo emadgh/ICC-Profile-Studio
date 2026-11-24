@@ -60,3 +60,11 @@ Checkbox indicates source implementation; runtime/print validation remains separ
 ## Architecture and status rules
 
 LittleCMS (static Rust binding) handles ICC parsing/transforms, color metrics and DeviceLinks. Official Argyll tools are used for supported revfix/colprof. Custom Rust handles constrained separation optimization, validated LUT serialization, and gamut geometry. GPUI and rfd are the only frontend/dialog stack; image crate is retained for generated gamut graphics and UI resources, tiff only for characterization chart export. All ICC edits create a new file. Update this roadmap with each feature commit; distinguish CI from runtime and physical validation.
+
+## Gamut R5 and curve UI (beta.6)
+
+- [x] beta.5 ICC-only GPUI CI succeeded (45458550421).
+- [x] Source: BGRA only; remove native cell rendering and settings. Fix yaw sign, resize right pane via drag handle, expanded in-app gamut view, responsive plot size, compact grouped controls and collapsed advanced options.
+- [x] Source: preserve RGB hue in Both (uniform brightness multiplier), quad-style wire grid via constant L* rings and hue meridians (not an all-quad mesh), 2D projected/sliced outline and 0–100% fill opacity, union floor silhouette per visible profile, clear/select candidate and active-profile count.
+- [x] Source: reusable Curve graph with two-column gamma and bounded five-point cards, draggable handles, reset and numeric steps; endpoints and monotonicity preserved.
+- [ ] CI and actual Windows interactive validation of resizer/orbit/expanded mode/curves and display quality. Expanded mode is within the app window, not OS-exclusive fullscreen. BGRA raster remains 640px and scales to fit. Floor can have disconnected contours where the projection is disconnected.
