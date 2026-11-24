@@ -114,3 +114,7 @@ The preview uses a CPU raster image rendered with the existing image crate, show
 ### Gamut R2 troubleshooting
 
 The plot is fixed above the preview scroll area and duplicated on Gamut Viewer. Native cells is default (ordinary GPUI rectangles without a texture), BGRA is an alternative predecoded image path. Axes and three diagnostic color swatches should appear even without opening an ICC. Check the sidebar version and Gamut R2 label; compare visible-point and span counts. If still blank, export a PNG and report whether the border, swatches and count text are visible. Actual Windows interaction remains a release gate.
+
+### Gamut R3
+
+Default BGRA renderer (confirmed by owner in R2). Profile Colors render approximate display sRGB from D50 Lab; Compare Tint identifies reference/candidate. Four modes: Points, Wireframe, Solid, Solid + Wire. Default sampled surface is an adaptive Lab round-trip ΔE00 ≤ 2 isosurface (25/41/57 lattice resolution, marching tetrahedra), not a convex hull or a measured exact boundary. Convex geometry is optional; mesh unavailable falls back to points. 2D projections and L* plane slices are available. Settings save display/geometry modes. CI and Windows runtime validation pending.

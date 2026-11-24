@@ -163,3 +163,11 @@ Check boxes mean source implementation, not verified runtime unless explicitly m
 - [x] Pin plot above and outside settings scroll, add fixed-size frame, independent colored test swatches, visible point and native span counts, render ID R2 in header, duplicate plot on Gamut Viewer page.
 - [x] Default native colored Div spans (no Canvas or image path); alternate synchronous predecoded BGRA RenderImage bypasses PNG asset decoding. Both use identical cached raster. Add tests for nonempty native axes with no ICC and changing span output when profile visibility toggled.
 - [ ] Confirm Windows visual display in both paths, at common display scales, with actual printer ICC. Do not mark as fixed until confirmed.
+
+## Gamut R3 — profile colors and nonconvex surface
+
+- Owner confirmed BGRA display works in R2; keep both paths, default BGRA in R3. R2 Windows CI succeeded (run 45419934663).
+- [x] Source: Profile Colors (D50 Lab to approximate sRGB, clipped to display) and Compare Tint; points, wireframe, solid and solid + wire; separate per-profile depth buffer and overlap blending. Same raster for BGRA/native and exported PNG.
+- [x] Source: adaptive 25³/41³/57³ Lab lattice, LCMS round-trip ΔE00 ≤ 2 isosurface using marching tetrahedra, no convex closure. Keep optional convex geometry and label tolerance-based approximation; 2D projection and mesh plane slices; points fallback reported if no surface is found. No exact gamut-volume claim.
+- [x] Source: persist new settings, direct BGRA default, show triangle counts, tests for disjoint regions, color conversion, depth and slice.
+- [ ] Windows CI and user visual verification, performance and surface convergence on real printer profiles. Surface field box/padding and tolerance can affect extent; not a physical measured gamut. No measurement instrument integration.

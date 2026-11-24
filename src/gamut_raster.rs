@@ -4,8 +4,8 @@
 use crate::gamut::{Overlay,Cloud,project};
 use image::{Rgb,RgbImage,ImageEncoder};
 #[derive(Clone,Copy,Debug,PartialEq)]
-pub struct ViewOptions{pub three_d:bool,pub reference:bool,pub candidate:bool,pub slice:bool,pub light:f32,pub yaw:f32,pub pitch:f32,pub zoom:f32,pub wireframe:bool}
-impl Default for ViewOptions{fn default()->Self{Self{three_d:true,reference:true,candidate:true,slice:false,light:50.,yaw:0.65,pitch:0.45,zoom:1.,wireframe:false}}}
+pub struct ViewOptions{pub three_d:bool,pub reference:bool,pub candidate:bool,pub slice:bool,pub light:f32,pub yaw:f32,pub pitch:f32,pub zoom:f32,pub wireframe:bool,pub solid:bool,pub profile_colors:bool,pub convex:bool}
+impl Default for ViewOptions{fn default()->Self{Self{three_d:true,reference:true,candidate:true,slice:false,light:50.,yaw:0.65,pitch:0.45,zoom:1.,wireframe:false,solid:true,profile_colors:true,convex:false}}}
 pub const SIZE:u32=640;
 const BEFORE:[u8;3]=[96,165,250];
 const AFTER:[u8;3]=[251,191,36];
@@ -41,6 +41,67 @@ fn outline(mut p:Vec<[f32;2]>)->Vec<[f32;2]>{
  let half=|points:&[[f32;2]]|{let mut h=Vec::new();for &v in points{while h.len()>1&&cross(h[h.len()-2],h[h.len()-1],v)<=0.{h.pop();}h.push(v);}h};
  let mut lo=half(&p);p.reverse();let mut hi=half(&p);lo.pop();hi.pop();lo.extend(hi);lo
 }
+/// D50 Lab -> D50 XYZ -> Bradford-adapted linear sRGB -> sRGB.
+/// Display gamut clipping is intentional; the numerical Lab is unchanged.
+/// This is an uncalibrated visualization, not a monitor soft proof.
+pub fn lab_rgb(v:[f32;3])->[u8;3]{
+ let fy=(v[0]+16.)/116.;let fx=fy+v[1]/500.;let fz=fy-v[2]/200.;
+ let inv=|t:f32|if t>6./29.{t*t*t}else{3.*(6_f32/29.).powi(2)*(t-4./29.)};
+ let [x,y,z]=[0.9642*inv(fx),inv(fy),0.8249*inv(fz)];
+ let rgb=[3.1338561*x-1.6168667*y-0.4906146*z,-0.9787684*x+1.9161415*y+0.0334540*z,0.0719453*x-0.2289914*y+1.4052427*z];
+ rgb.map(|v|{let v=v.clamp(0.,1.);let s=if v<=0.0031308{12.92*v}else{1.055*v.powf(1./2.4)-0.055};(255.*s).round() as u8})
+}
+fn triangles(c:&Cloud,convex:bool)->Vec<[[f32;3];3]>{
+ if convex{c.hull.as_ref().map(|h|h.faces.iter().map(|f|f.map(|i|h.vertices[i])).collect()).unwrap_or_default()}
+ else{c.surface.as_ref().map(|s|s.triangles.clone()).unwrap_or_default()}
+}
+fn slice_segment(t:[[f32;3];3],light:f32)->Option<[[f32;3];2]>{
+ let mut points=Vec::new();
+ for (a,b) in [(t[0],t[1]),(t[1],t[2]),(t[2],t[0])]{
+  if (a[0]<=light&&b[0]>light)||(b[0]<=light&&a[0]>light){
+   let f=(light-a[0])/(b[0]-a[0]);points.push([light,a[1]+(b[1]-a[1])*f,a[2]+(b[2]-a[2])*f]);
+  }
+ }
+ if points.len()==2{Some([points[0],points[1]])}else{None}
+}
+struct Layer{depth:Vec<f32>,color:Vec<[u8;3]>}
+impl Layer{
+ fn new()->Self{Self{depth:vec![f32::NEG_INFINITY;(SIZE*SIZE) as usize],color:vec![[0;3];(SIZE*SIZE) as usize]}}
+ fn pixel(&mut self,x:i32,y:i32,z:f32,color:[u8;3]){
+  if x<0||y<0||x>=SIZE as i32||y>=SIZE as i32{return}
+  let i=y as usize*SIZE as usize+x as usize;
+  if z>=self.depth[i]{self.depth[i]=z;self.color[i]=color;}
+ }
+ fn triangle(&mut self,p:[[f32;3];3],colors:[[u8;3];3]){
+  let edge=|a:[f32;3],b:[f32;3],x:f32,y:f32|(b[0]-a[0])*(y-a[1])-(b[1]-a[1])*(x-a[0]);
+  let area=edge(p[0],p[1],p[2][0],p[2][1]);
+  if area.abs()<0.00001{return}
+  let bound=|axis:usize,high:bool|{let v=if high{p.iter().map(|p|p[axis]).fold(f32::NEG_INFINITY,f32::max).ceil()}else{p.iter().map(|p|p[axis]).fold(f32::INFINITY,f32::min).floor()};(v as i32).clamp(0,SIZE as i32-1)};
+  for y in bound(1,false)..=bound(1,true){for x in bound(0,false)..=bound(0,true){
+   let (fx,fy)=(x as f32+0.5,y as f32+0.5);
+   let a=edge(p[1],p[2],fx,fy)/area;let b=edge(p[2],p[0],fx,fy)/area;let c=1.-a-b;
+   if a>=-0.00001&&b>=-0.00001&&c>=-0.00001{
+    let weights=[a,b,c];let z=(0..3).map(|j|weights[j]*p[j][2]).sum();
+    let color=std::array::from_fn(|i|(0..3).map(|j|weights[j]*colors[j][i] as f32).sum::<f32>().round().clamp(0.,255.) as u8);
+    self.pixel(x,y,z,color);
+   }
+  }}
+ }
+ fn wire(&mut self,a:[f32;3],b:[f32;3],ca:[u8;3],cb:[u8;3],solid:bool){
+  let n=((a[0]-b[0]).abs().max((a[1]-b[1]).abs()).ceil() as usize).clamp(1,2048);
+  for i in 0..=n{
+   let t=i as f32/n as f32;let x=(a[0]+(b[0]-a[0])*t).round() as i32;let y=(a[1]+(b[1]-a[1])*t).round() as i32;
+   let z=a[2]+(b[2]-a[2])*t;
+   let mut c=std::array::from_fn(|j|(ca[j] as f32+(cb[j] as f32-ca[j] as f32)*t).round() as u8);
+   if solid{c=c.map(|v|if v>125{(v as f32*0.6) as u8}else{v.saturating_add(55)});}
+   if x>=0&&y>=0&&x<SIZE as i32&&y<SIZE as i32{
+    let idx=y as usize*SIZE as usize+x as usize;
+    if !solid||z+1.0>=self.depth[idx]{self.pixel(x,y,z+if solid{1.0}else{0.},c);}
+   }
+  }
+ }
+}
+
 pub fn render(data:Option<&Overlay>,o:ViewOptions)->Rendered{
  let mut img=RgbImage::from_pixel(SIZE,SIZE,Rgb(BG));
  let clouds:[Option<&Cloud>;2]=[data.and_then(|d|d.reference.as_ref().ok()),data.and_then(|d|d.candidate.as_ref()).and_then(|d|d.as_ref().ok())];
@@ -69,26 +130,54 @@ pub fn render(data:Option<&Overlay>,o:ViewOptions)->Rendered{
   for t in 0..=10{let f=t as f32/10.;let v=std::array::from_fn(|j|a[j]+(b[j]-a[j])*f);dot(&mut img,p(v),c,3,220);}
   dot(&mut img,p(b),c,5,255);
  }
- let mut dots=Vec::new();let mut visible=[0;2];
+ let mut visible=[0;2];
+ let mut layers:[Option<Layer>;2]=[None,None];
  for (i,cloud) in clouds.into_iter().enumerate(){
   if !(if i==0{o.reference}else{o.candidate}){continue}
-  let Some(c)=cloud else{continue};let color=if i==0{BEFORE}else{AFTER};
+  let Some(c)=cloud else{continue};let tint=if i==0{BEFORE}else{AFTER};
+  let color=|lab:[f32;3]|if o.profile_colors{lab_rgb(lab)}else{tint};
+  let screen=|v:[f32;3]|{let q=projected(v,o);let xy=at(q);[xy[0],xy[1],if o.three_d{q[2]}else{v[0]}]};
   let points:Vec<_>=c.points.iter().copied().filter(|v|v.iter().all(|v|v.is_finite())&&in_slice(*v,o)).collect();
-  visible[i]=points.len();
-  if o.wireframe&&o.three_d{
-   if let Some(h)=&c.hull{
-    for &[a,b] in &h.edges{if let (Some(&a),Some(&b))=(h.vertices.get(a),h.vertices.get(b)){line(&mut img,p(a),p(b),color,1,210);}}
-    continue
+  visible[i]=points.len();let mut layer=Layer::new();
+  let mesh=if o.solid||o.wireframe{triangles(c,o.convex)}else{Vec::new()};
+  if !mesh.is_empty(){
+   if !o.three_d&&o.slice{
+    let segments:Vec<_>=mesh.iter().filter_map(|&t|slice_segment(t,o.light)).collect();
+    if o.solid{
+     let segs:Vec<_>=segments.iter().map(|s|s.map(screen)).collect();
+     for y in 0..SIZE as i32{
+      let fy=y as f32+0.5;let mut xs=Vec::new();
+      for [a,b] in &segs{if (a[1]<=fy&&b[1]>fy)||(b[1]<=fy&&a[1]>fy){xs.push(a[0]+(b[0]-a[0])*(fy-a[1])/(b[1]-a[1]));}}
+      xs.sort_by(f32::total_cmp);
+      for pair in xs.chunks_exact(2){for x in (pair[0].ceil() as i32).max(0)..=(pair[1].floor() as i32).min(SIZE as i32-1){
+       let lab=[o.light,(x as f32+0.5-SIZE as f32/2.)/scale,(SIZE as f32/2.-fy)/scale];
+       layer.pixel(x,y,o.light,color(lab));
+      }}
+     }
+    }
+    if o.wireframe{for [a,b] in segments{layer.wire(screen(a),screen(b),color(a),color(b),o.solid);}}
+   }else{
+    if o.solid{for &t in &mesh{layer.triangle(t.map(screen),t.map(color));}}
+    if o.wireframe{for t in mesh{for (a,b) in [(0,1),(1,2),(2,0)]{layer.wire(screen(t[a]),screen(t[b]),color(t[a]),color(t[b]),o.solid);}}}
    }
+  }else{
+   // Explicitly reported by UI as points fallback if no surface is found.
+   for v in points{let p=screen(v);let c=color(v);for dx in -3..=3{for dy in -3..=3{if dx*dx+dy*dy<=9{layer.pixel(p[0].round() as i32+dx,p[1].round() as i32+dy,p[2],c);}}}}
   }
-  if o.wireframe&&!o.three_d&&points.len()>=3{
-   let h=outline(points.iter().map(|v|[v[1],v[2]]).collect());
-   if h.len()>=3{for j in 0..h.len(){let a=h[j];let b=h[(j+1)%h.len()];line(&mut img,at([a[0],a[1],0.]),at([b[0],b[1],0.]),color,2,235);}continue}
-  }
-  for v in points{dots.push((projected(v,o),color));}
+  layers[i]=Some(layer);
  }
- if o.three_d{dots.sort_by(|a,b|a.0[2].total_cmp(&b.0[2]));}
- for (v,c) in dots{dot(&mut img,at(v),c,3,210);}
+ // Per-profile Z-buffer prevents the far surface from painting over near
+ // triangles. When both profiles overlap, blend in depth order.
+ for y in 0..SIZE{for x in 0..SIZE{
+  let i=(y*SIZE+x) as usize;
+  let a=layers[0].as_ref().filter(|l|l.depth[i].is_finite());
+  let b=layers[1].as_ref().filter(|l|l.depth[i].is_finite());
+  match (a,b){
+   (Some(a),Some(b))=>{let (far,near)=if a.depth[i]<=b.depth[i]{(a,b)}else{(b,a)};paint(&mut img,x as i32,y as i32,far.color[i],255);paint(&mut img,x as i32,y as i32,near.color[i],155);},
+   (Some(l),None)|(None,Some(l))=>paint(&mut img,x as i32,y as i32,l.color[i],255),
+   _=>{}
+  }
+ }}
  Rendered{image:img,visible,units_per_half:range/zoom}
 }
 /// A second presentation backend uses ordinary GPUI rectangle elements,
@@ -122,8 +211,18 @@ pub fn native_spans(image:&RgbImage)->Vec<Span>{
  use super::*;
  fn example()->Overlay{
   let points=vec![[30.,-4.,-40.],[50.,12.,20.],[98.,0.,0.],[70.,22.,-25.]];
-  Overlay{reference:Ok(Cloud{points:points.clone(),sampled:4,errors:vec![0.;4],hull:None}),candidate:Some(Ok(Cloud{points,sampled:4,errors:vec![0.;4],hull:None}))}
+  Overlay{reference:Ok(Cloud{points:points.clone(),sampled:4,errors:vec![0.;4],hull:None,surface:None}),candidate:Some(Ok(Cloud{points,sampled:4,errors:vec![0.;4],hull:None,surface:None}))}
  }
+ #[test]fn lab_color_has_expected_neutrals_and_hue(){
+  let w=lab_rgb([100.,0.,0.]);assert!(w.iter().all(|&v|v>=254));assert_eq!(lab_rgb([0.,0.,0.]),[0;3]);
+  let red=lab_rgb([55.,65.,40.]);assert!(red[0]>red[1]&&red[0]>red[2]);
+ }
+ #[test]fn solid_triangle_and_depth(){
+  let mut l=Layer::new();let p=[[10.,10.,2.],[100.,10.,2.],[10.,100.,2.]];
+  l.triangle(p,[[255,0,0];3]);l.triangle(p.map(|mut p|{p[2]=1.;p}),[[0,0,255];3]);
+  assert_eq!(l.color[20*SIZE as usize+20],[255,0,0]);assert!(l.depth[20*SIZE as usize+20].is_finite());
+ }
+ #[test]fn slice_crosses_triangle(){let r=slice_segment([[20.,0.,0.],[80.,10.,0.],[80.,0.,10.]],50.).unwrap();assert_eq!(r,[[50.,5.,0.],[50.,0.,5.]]);}
  #[test]fn native_spans_include_grid_even_without_icc(){
   for three_d in [false,true]{
    let r=render(None,ViewOptions{three_d,..Default::default()});
@@ -133,7 +232,7 @@ pub fn native_spans(image:&RgbImage)->Vec<Span>{
   }
  }
  #[test]fn native_spans_change_with_profile(){
-  let d=example();let o=ViewOptions{three_d:false,candidate:false,..Default::default()};
+  let d=example();let o=ViewOptions{three_d:false,candidate:false,profile_colors:false,solid:false,..Default::default()};
   let a=native_spans(&render(Some(&d),o).image);
   let b=native_spans(&render(Some(&d),ViewOptions{reference:false,..o}).image);
   assert_ne!(a,b);
@@ -141,7 +240,7 @@ pub fn native_spans(image:&RgbImage)->Vec<Span>{
  #[test]fn actual_pixels_change_in_both_views(){
   let d=example();
   for three_d in [false,true]{
-   let o=ViewOptions{three_d,candidate:false,..Default::default()};
+   let o=ViewOptions{three_d,candidate:false,profile_colors:false,solid:false,..Default::default()};
    let r=render(Some(&d),o);let hidden=render(Some(&d),ViewOptions{reference:false,..o});
    assert_eq!(r.visible,[4,0]);assert_eq!(hidden.visible,[0,0]);assert_eq!(r.units_per_half,hidden.units_per_half);
    assert_ne!(r.image.as_raw(),hidden.image.as_raw());
@@ -156,6 +255,6 @@ pub fn native_spans(image:&RgbImage)->Vec<Span>{
  #[test]fn native_icc_renders_nonempty(){
   let d=tempfile::tempdir().unwrap();let p=d.path().join("native.icc");crate::synthetic_cmyk_v4(true).save_new(&p).unwrap();
   let data=crate::gamut::overlay(&p,None,9);assert!(data.reference.as_ref().unwrap().points.len()>5);
-  for three_d in [false,true]{let r=render(Some(&data),ViewOptions{three_d,..Default::default()});assert!(r.visible[0]>5);assert!(r.image.pixels().any(|p|p[2]>160&&p[2]>p[0]));}
+  for three_d in [false,true]{let r=render(Some(&data),ViewOptions{three_d,profile_colors:false,solid:false,..Default::default()});assert!(r.visible[0]>5);assert!(r.image.pixels().any(|p|p[2]>160&&p[2]>p[0]));}
  }
 }

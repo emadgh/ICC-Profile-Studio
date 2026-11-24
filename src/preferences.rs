@@ -6,13 +6,13 @@ type R<T>=Result<T,String>;
 #[derive(Debug,Clone,Serialize,Deserialize,PartialEq)]
 #[serde(default,deny_unknown_fields)]
 pub struct Preferences {
- pub schema:u32,pub preview_open:bool,pub three_d:bool,pub wireframe:bool,
+ pub schema:u32,pub preview_open:bool,pub three_d:bool,pub wireframe:bool,pub solid:bool,pub profile_colors:bool,pub convex:bool,pub direct_image:bool,
  pub gamut_grid:usize,pub compare_grid:usize,pub dpi:u32,pub stream_enabled:bool,
  pub bigtiff:bool,pub separations:bool,pub proof_media:bool,pub proof_bpc:bool,
  pub monitor:Option<PathBuf>,pub library:Option<PathBuf>,pub output:Option<PathBuf>,
 }
 impl Default for Preferences{
- fn default()->Self{Self{schema:1,preview_open:true,three_d:true,wireframe:false,gamut_grid:17,compare_grid:17,dpi:300,stream_enabled:false,bigtiff:false,separations:false,proof_media:true,proof_bpc:false,monitor:None,library:None,output:None}}
+ fn default()->Self{Self{schema:1,preview_open:true,three_d:true,wireframe:false,solid:true,profile_colors:true,convex:false,direct_image:true,gamut_grid:17,compare_grid:17,dpi:300,stream_enabled:false,bigtiff:false,separations:false,proof_media:true,proof_bpc:false,monitor:None,library:None,output:None}}
 }
 impl Preferences{
  pub fn validate(&self)->R<()>{
