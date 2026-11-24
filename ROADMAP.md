@@ -36,3 +36,5 @@ Lean, vendor-independent GPUI application for CMYK and multichannel output ICCs 
 - Five-language UI dictionary: English, Persian, Italian, Arabic, Russian, persisted language; translated navigation, headings and mapped controls, English fallback for unmapped descriptions and engine diagnostics. RTL navigation order only; complete RTL layout and translation coverage pending.
 - Removed convex hull renderer, report and dependency. Fixed high quality 33³ target grid / 57³ adaptive field. Approximate nonconvex Lab³ volume via cell-corner occupancy at ΔE00 ≤ 2, not exact mesh or physical volume. Test sphere approximation; convergence and runtime verification pending.
 - beta.11 Windows GPUI CI passed (45476241161); beta.12 CI pending. Next: parametric curves and broader LUT structures, dynamic multichannel.
+
+- Expanded locale tables to additional editing/analysis labels and descriptions; detailed diagnostics and some dynamic strings remain English. Navigation and key action icons use lightweight monochrome glyphs; no icon-font dependency.

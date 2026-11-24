@@ -193,15 +193,15 @@ impl Studio {
    p=p.child(button("export-comparison","Export analysis CSV").on_click(cx.listener(|v,_,_,cx|{if !v.busy{if let Some(r)=&v.comparison{if let Some(path)=rfd::FileDialog::new().add_filter("CSV",&["csv"]).set_file_name("comparison.csv").save_file(){v.status=reports::comparison(&path,r).map(|_|format!("Saved {}",path.display())).unwrap_or_else(|e|format!("Error: {e}"));cx.notify();}}}})));
    p=p.child(div().flex().gap_3().children([("Mean ΔE00",r.mean_de),("P95 ΔE00",r.p95_de),("Max ΔE00",r.max_de)].map(|(label,v)|div().flex_1().p_3().rounded_md().bg(rgb(0x292929)).child(div().text_sm().child(label)).child(div().text_2xl().child(format!("{v:.2}"))))))
     .child(format!("{} samples · worst source RGB {:?}",r.count,r.worst_rgb))
-    .child(div().text_lg().child("Delta E distribution"));
+    .child(div().text_lg().child(tr("Delta E distribution")));
    for (i,label) in ["< 1","1–2","2–3","3–5","≥ 5"].into_iter().enumerate(){
     let fraction=r.histogram[i] as f32/r.count as f32;
     p=p.child(div().flex().items_center().gap_2().child(div().w(px(55.)).child(label)).child(div().w(px(200.)).h(px(9.)).rounded_md().bg(rgb(0x3b3b3b)).child(div().w(px(200.*fraction)).h_full().rounded_md().bg(rgb(0x60a5fa)))).child(format!("{:.1}%",100.*fraction)));
    }
-   p=p.child(div().text_lg().child("Ink distribution (sampled)"));
+   p=p.child(div().text_lg().child(tr("Ink distribution (sampled)")));
    for j in 0..4{p=p.child(format!("{} — mean {:.2}% → {:.2}% | max {:.2}% → {:.2}%",["C","M","Y","K"][j],r.reference.mean[j],r.candidate.mean[j],r.reference.max[j],r.candidate.max[j]));}
    p=p.child(format!("Mean TAC {:.2}% → {:.2}%  |  Max sampled TAC {:.2}% → {:.2}%",r.reference.mean_tac,r.candidate.mean_tac,r.reference.max_tac,r.candidate.max_tac))
-    .child(div().text_lg().child("Neutral axis — all 33 samples"))
+    .child(div().text_lg().child(tr("Neutral axis — all 33 samples")))
     .child("Blue = before; amber = after. L* and ink bars use fixed 0–100 scales.")
     .child(neutral_plot(&r.neutral,0))
     .child("L* (input gray 0 → 255)");
@@ -261,7 +261,7 @@ impl Studio {
      .child(div().flex().items_center().justify_between().child(div().text_sm().child(name))
       .child(seg((if point_mode{"point-reset"}else{"gamma-reset"},i),"Reset",false).on_click(cx.listener(move|v,_,_,cx|{if !v.busy{if point_mode{v.curve_points[i]=IDENTITY_POINTS[i];}else{v.gamma[i]=1.;}cx.notify();}}))))
      .child(graph)
-     .child(div().flex().justify_between().text_xs().text_color(rgb(0xa1a1aa)).child("0%").child("Input →").child("100%"));
+     .child(div().flex().justify_between().text_xs().text_color(rgb(0xa1a1aa)).child("0%").child(tr("Input →")).child("100%"));
     if point_mode{
      for j in 1..4{card=card.child(div().flex().gap_1().items_center().text_xs().child(format!("{}% → {:.0}%",j*25,self.curve_points[i][j]*100.))
       .child(seg(("point-minus",i*5+j),"−",false).on_click(cx.listener(move|v,_,_,cx|{if !v.busy{let p=&mut v.curve_points[i];p[j]=(p[j]-0.05).max(p[j-1]);cx.notify();}})))
@@ -278,8 +278,8 @@ impl Studio {
  }
  fn curves_page(&self,cx:&mut Context<Self>)->Div{
   let mut p=div().flex().flex_col().gap_3().child(heading("Tone Curves","Drag curve handles or use numeric steps. Curves represent corrections, not measured ink response."));
-  let Some(profile)=&self.profile else{return p.child("Open a supported printer profile first.")};
-  if !profile.cmyk(){return p.child("This editor supports four-channel CMYK printer profiles.")}
+  let Some(profile)=&self.profile else{return p.child(tr("Open a supported printer profile first."))};
+  if !profile.cmyk(){return p.child(tr("This editor supports four-channel CMYK printer profiles."))}
   p=p.child(self.curve_cards(false,cx))
    .child("Gamma modifies output separations; A2B stays unchanged. Recheck TAC and channel limits.")
    .child(button("save-curves","Save gamma ICC").on_click(cx.listener(|v,_,_,cx|v.save_edit(0,cx))))
@@ -288,7 +288,7 @@ impl Studio {
  }
  fn reorder_page(&self,cx:&mut Context<Self>)->Div{
   let mut p=div().flex().flex_col().gap_3().child(heading("Channel Reorder","New channel index → original physical ink."));
-  let Some(profile)=&self.profile else{return p.child("Open a supported four-channel profile first.")};
+  let Some(profile)=&self.profile else{return p.child(tr("Open a supported four-channel profile first."))};
   let names=profile.channels();
   for i in 0..4{p=p.child(div().flex().items_center().gap_2().child(div().w(px(200.)).child(format!("{} → {}",i+1,names[self.order[i]])))
    .child(button(("order-up",i),"↑").on_click(cx.listener(move|this,_,_,cx|{if !this.busy&&i>0{this.order.swap(i,i-1);cx.notify();}})))
@@ -299,8 +299,8 @@ impl Studio {
  }
  fn version_page(&self,cx:&mut Context<Self>)->Div{
   let mut p=div().flex().flex_col().gap_3().child(heading("ICC Version Conversion","Structural conversion of CMYK / Lab printer profiles, verified in LittleCMS."));
-  let Some(profile)=&self.profile else{return p.child("Open an ICC/ICM printer profile.")};
-  if !profile.cmyk()||profile.pcs()!="Lab "||!matches!(profile.version_major(),2|4){return p.child("Only simple v2/v4 CMYK / Lab printer profiles are supported.")}
+  let Some(profile)=&self.profile else{return p.child(tr("Open an ICC/ICM printer profile."))};
+  if !profile.cmyk()||profile.pcs()!="Lab "||!matches!(profile.version_major(),2|4){return p.child(tr("Only simple v2/v4 CMYK / Lab printer profiles are supported."))}
   let target=if profile.version_major()==2{4}else{2};
   let omitted=versioning::omitted_tags(profile);
   p=p.child(format!("ICC v{} → v{} · {}",profile.version_major(),target,if target==2{"lut16 (mft2)"}else{"mAB / mBA"}))
@@ -482,7 +482,7 @@ impl Studio {
   let mut p=div().flex().flex_col().gap_3().child(heading("Gamut Viewer","Effective separation coverage and sampled nonconvex surface."))
    .child(self.gamut_plot(320.,"gamut-page-orbit",cx))
    .child(button("open-gamut-page-preview","Show preview pane").on_click(cx.listener(|this,_,_,cx|{this.preview_open=true;if this.preview.is_none(){this.refresh_gamut(cx);}cx.notify();})))
-   .child(div().flex().gap_2().items_center().child("Target tolerance ΔE00").children([1usize,2,3,5].map(|v|button(("threshold",v),if self.coverage_threshold==v as f64{format!("{v} ✓")}else{v.to_string()}).on_click(cx.listener(move|this,_,_,cx|{this.coverage_threshold=v as f64;cx.notify();})))));
+   .child(div().flex().gap_2().items_center().child(tr("Target tolerance ΔE00")).children([1usize,2,3,5].map(|v|button(("threshold",v),if self.coverage_threshold==v as f64{format!("{v} ✓")}else{v.to_string()}).on_click(cx.listener(move|this,_,_,cx|{this.coverage_threshold=v as f64;cx.notify();})))));
   if let Some(data)=&self.preview{
    if let (Ok(a),Some(Ok(b)))=(&data.reference,&data.candidate){
     if let Some(c)=gamut::coverage(a,b,self.coverage_threshold){
@@ -503,7 +503,7 @@ impl Studio {
  fn correction_options(&self,cx:&mut Context<Self>)->Div{
   let estimate=self.profile.as_ref().and_then(|p|p.estimated_tac_percent());
   let mut p=div().flex().flex_col().gap_2()
-   .child(div().flex().items_center().gap_1().child("CLUT grid").children([17usize,33,49,65].map(|g|button(("edit-grid",g),if self.correction_grid==g{format!("{g} ✓")}else{g.to_string()}).on_click(cx.listener(move|this,_,_,cx|{if !this.busy{this.correction_grid=g;cx.notify();}})))))
+   .child(div().flex().items_center().gap_1().child(tr("CLUT grid")).children([17usize,33,49,65].map(|g|button(("edit-grid",g),if self.correction_grid==g{format!("{g} ✓")}else{g.to_string()}).on_click(cx.listener(move|this,_,_,cx|{if !this.busy{this.correction_grid=g;cx.notify();}})))))
    .child(div().flex().items_center().gap_2().child(format!("TAC ceiling: {:.0}%",self.correction_tac))
     .child(button("edit-tac-minus","−5").on_click(cx.listener(|this,_,_,cx|{if !this.busy{this.correction_tac=(this.correction_tac-5.).max(0.);cx.notify();}})))
     .child(button("edit-tac-plus","+5").on_click(cx.listener(|this,_,_,cx|{if !this.busy{this.correction_tac=(this.correction_tac+5.).min(400.);cx.notify();}}))));
@@ -547,7 +547,7 @@ impl Studio {
   p=p.child(div().flex().items_center().gap_2().child(format!("Strength: {:.0}%",self.smoothing*100.))
    .child(button("smooth-minus","−5").on_click(cx.listener(|this,_,_,cx|{if !this.busy{this.smoothing=(this.smoothing-0.05).max(0.05);cx.notify();}})))
    .child(button("smooth-plus","+5").on_click(cx.listener(|this,_,_,cx|{if !this.busy{this.smoothing=(this.smoothing+0.05).min(0.5);cx.notify();}}))))
-   .child(div().flex().gap_1().items_center().child("Passes").children([1usize,2,3,4,5].map(|n|button(("smooth-pass",n),if n==self.smoothing_passes{format!("{n} ✓")}else{n.to_string()}).on_click(cx.listener(move|this,_,_,cx|{if !this.busy{this.smoothing_passes=n;cx.notify();}})))));
+   .child(div().flex().gap_1().items_center().child(tr("Passes")).children([1usize,2,3,4,5].map(|n|button(("smooth-pass",n),if n==self.smoothing_passes{format!("{n} ✓")}else{n.to_string()}).on_click(cx.listener(move|this,_,_,cx|{if !this.busy{this.smoothing_passes=n;cx.notify();}})))));
   p.child(self.correction_options(cx))
    .child("Lattice boundaries are not averaged; initial resampling and ink constraints can still change them. Use Gradient Analyzer and Profile Comparison after saving to check the trade-off between smoothness and color accuracy.")
    .child(button("save-smoothing","Generate smoothed ICC").on_click(cx.listener(|this,_,_,cx|this.save_edit(4,cx))))
@@ -579,7 +579,7 @@ impl Studio {
     .child(button(("weight-plus",j),"+0.25").on_click(cx.listener(move|v,_,_,cx|{if !v.busy{v.recipe_settings.weights[j]=(v.recipe_settings.weights[j]+0.25).min(100.);v.recipe_result=None;cx.notify();}}))));
   }
   p=p.child(format!("Caps and TAC from Rebuilder settings: {:?} / {:.0}%",self.caps,self.tac))
-   .child(div().flex().gap_1().items_center().child("ΔE00 tolerance").children([1usize,2,3,5].map(|n|button(("recipe-tolerance",n),if self.recipe_settings.tolerance==n as f64{format!("{n} ✓")}else{n.to_string()}).on_click(cx.listener(move|v,_,_,cx|{if !v.busy{v.recipe_settings.tolerance=n as f64;v.recipe_result=None;cx.notify();}})))))
+   .child(div().flex().gap_1().items_center().child(tr("ΔE00 tolerance")).children([1usize,2,3,5].map(|n|button(("recipe-tolerance",n),if self.recipe_settings.tolerance==n as f64{format!("{n} ✓")}else{n.to_string()}).on_click(cx.listener(move|v,_,_,cx|{if !v.busy{v.recipe_settings.tolerance=n as f64;v.recipe_result=None;cx.notify();}})))))
    .child(button("solve-recipe","Find ink recipes").on_click(cx.listener(|v,_,_,cx|{
     if v.busy{return}let Some(p)=v.source.clone()else{return};let target=v.recipe_target;let mut s=v.recipe_settings;s.caps=v.caps;s.tac=v.tac;
     v.busy=true;v.recipe_result=None;v.status="Searching feasible ink recipes…".into();cx.notify();
@@ -600,9 +600,9 @@ impl Studio {
  }
  fn lab_page(&self,cx:&mut Context<Self>)->Div{
   let mut p=div().flex().flex_col().gap_3().child(heading("Profiling Lab","Direct-ink test charts, measured patch comparison and ArgyllCMS profiling."))
-   .child("Record printer, glaze, ink batch, firing schedule and measurement conditions externally. Use identical measurement geometry and D50 Lab for both charts.")
-   .child(div().text_lg().child("Generate device test chart"))
-   .child(div().flex().gap_1().items_center().child("Levels per ink").children([3usize,5,7].map(|n|button(("chart-level",n),if self.lab_levels==n{format!("{n} ✓")}else{n.to_string()}).on_click(cx.listener(move|v,_,_,cx|{if !v.busy{v.lab_levels=n;cx.notify();}})))))
+   .child("Record device, substrate, ink configuration and measurement conditions externally. Use identical geometry and D50 Lab for both charts.")
+   .child(div().text_lg().child(tr("Generate device test chart")))
+   .child(div().flex().gap_1().items_center().child(tr("Levels per ink")).children([3usize,5,7].map(|n|button(("chart-level",n),if self.lab_levels==n{format!("{n} ✓")}else{n.to_string()}).on_click(cx.listener(move|v,_,_,cx|{if !v.busy{v.lab_levels=n;cx.notify();}})))))
    .child(format!("Rebuilder caps {:?}, TAC {:.0}%; Chart DPI {}. 8 mm patches, 2 mm gaps.",self.caps,self.tac,self.chart_dpi))
    .child(div().flex().gap_2().items_center().child(format!("Chart resolution: {} DPI",self.chart_dpi))
     .child(button("chart-dpi-minus","−10").on_click(cx.listener(|v,_,_,cx|{if !v.busy{v.chart_dpi=v.chart_dpi.saturating_sub(10).max(50);cx.notify();}})))
@@ -616,8 +616,8 @@ impl Studio {
      let _=this.update(cx,|v,cx|{v.busy=false;v.status=result.unwrap_or_else(|e|format!("Error: {e}"));cx.notify();});
     }).detach();
    })))
-   .child("Print the chart with no RIP color conversion; verify safe ink limits first. Fill blank measured L,a,b after firing; blank values are rejected.")
-   .child(div().text_lg().child("Measured machine / glaze / firing / ink batch comparison"));
+   .child("Print the chart with no RIP color conversion; verify safe ink limits first. Fill blank measured L,a,b after printing; blank values are rejected.")
+   .child(div().text_lg().child(tr("Measured condition comparison")));
   for i in 0..2{p=p.child(button(("measured-file",i),if i==0{"Select measured baseline CSV"}else{"Select measured changed-condition CSV"}).on_click(cx.listener(move|v,_,_,cx|{if !v.busy{if let Some(p)=rfd::FileDialog::new().add_filter("CSV",&["csv"]).pick_file(){v.measured[i]=Some(p);v.measurement_result=None;cx.notify();}}}))).child(self.measured[i].as_ref().map(|p|p.display().to_string()).unwrap_or("Not selected".into()));}
   p=p.child(button("compare-measured","Compare measurements").on_click(cx.listener(|v,_,_,cx|{
    if v.busy{return}let [Some(a),Some(b)]=v.measured.clone()else{return};v.busy=true;v.measurement_result=None;v.status="Comparing actual measurements…".into();cx.notify();
@@ -627,7 +627,7 @@ impl Studio {
    }).detach();
   })));
   if let Some(r)=&self.measurement_result{p=p.child(format!("{} patches | Mean ΔE {:.3} | P95 {:.3} | Max {:.3} ({}) | Mean ΔLab (after−before) {:.3?}",r.count,r.mean,r.p95,r.max,r.worst,r.bias));}
-  p.child(div().text_lg().child("Profile measured printing condition (Argyll colprof)"))
+  p.child(div().text_lg().child(tr("Profile measured printing condition (Argyll colprof)")))
    .child("Supply an actual CMYK .ti3 file from a measurement workflow. Builds a new ICC with explicit TAC and Argyll default black generation. Validate it before production. No automatic compensation or matching is assumed.")
    .child(button("colprof","Build ICC from measured TI3").on_click(cx.listener(|v,_,_,cx|{
     if v.busy{return}let Some(source)=rfd::FileDialog::new().add_filter("Measured Argyll TI3",&["ti3"]).pick_file()else{return};
@@ -730,7 +730,7 @@ impl Studio {
    }))
    .on_mouse_up(MouseButton::Left,cx.listener(|v,_,_,cx|{v.curve_drag=None;}));
   p=p.child(div().text_sm().child("Requested K preference (before constraints, chroma and tolerance)"))
-   .child(graph).child(div().flex().justify_between().text_xs().child("0% darkness").child("100% darkness")).child(div().text_xs().child("Drag midpoint for gamma or right handle for maximum K. The solver remains constrained; requested curve is not guaranteed."))
+   .child(graph).child(div().flex().justify_between().text_xs().child(tr("0% darkness")).child(tr("100% darkness"))).child(div().text_xs().child("Drag midpoint for gamma or right handle for maximum K. The solver remains constrained; requested curve is not guaranteed."))
    .child(button("reset-black","Reset").on_click(cx.listener(|v,_,_,cx|{if !v.busy{v.black=BlackGeneration::default();cx.notify();}})));
   p.child(self.correction_options(cx))
    .child("Initial implementation: ICC v4 mBA, 17/33 grid. Per-node predicted appearance constraint, not a measured GCR/UCR calibration or a guarantee between nodes. Compare color, gradients and K distribution before production.")
@@ -808,7 +808,7 @@ impl Studio {
    }
    panel=panel.child("729 sRGB samples per intent. Sampled values are not exhaustive.");
    if let Some(bounds)=&r.strict_bounds{
-    panel=panel.child(div().text_lg().child("Strict LUT bounds"));
+    panel=panel.child(div().text_lg().child(tr("Strict LUT bounds")));
     match bounds{
      Ok(b)=>{panel=panel.child(format!("Channel ceilings: {:.4?}%",b.channels.map(|v|v*100.))).child(format!("TAC upper bound: {:.4}% ({})",b.tac*100.,if b.exact_node_tac{"affine output curves; exact node maximum"}else{"conservative per-cell envelope; may overestimate"}));},
      Err(e)=>{panel=panel.child(format!("Not certifiable with supported LUT parser: {e}"));}
@@ -831,14 +831,14 @@ impl Studio {
     .child(button(("off",i),"0%").on_click(cx.listener(move|this,_,_,cx|{if !this.busy{this.caps[i]=0.;cx.notify();}})))
     .child(button(("full",i),"100%").on_click(cx.listener(move|this,_,_,cx|{if !this.busy{this.caps[i]=100.;cx.notify();}}))));
   }
-  panel=panel.child(div().flex().gap_2().items_center().child("K presets:").children([0,5,10].into_iter().map(|v|button(("k-preset",v as usize),format!("{v}%")).on_click(cx.listener(move|this,_,_,cx|{if !this.busy{this.caps[3]=v as f64;cx.notify();}})))))
+  panel=panel.child(div().flex().gap_2().items_center().child(tr("K presets:")).children([0,5,10].into_iter().map(|v|button(("k-preset",v as usize),format!("{v}%")).on_click(cx.listener(move|this,_,_,cx|{if !this.busy{this.caps[3]=v as f64;cx.notify();}})))))
    .child(div().flex().items_center().gap_2().child(format!("TAC: {:.0}%",self.tac))
     .child(button("tac-down","−5").on_click(cx.listener(|this,_,_,cx|{if !this.busy{this.tac=(this.tac-5.).max(0.);cx.notify();}})))
     .child(button("tac-up","+5").on_click(cx.listener(|this,_,_,cx|{if !this.busy{this.tac=(this.tac+5.).min(400.);cx.notify();}}))))
    .child(div().flex().gap_2().items_center().child(format!("Grid: {}³",self.grid)).children([9,17,25,33].into_iter().map(|v|button(("grid",v),v.to_string()).on_click(cx.listener(move|this,_,_,cx|{if !this.busy{this.grid=v;cx.notify();}})))))
    .child(format!("Engine: {}",if self.mode==Mode::Argyll&&self.caps[..3].iter().all(|&v|v==100.){"ArgyllCMS revfix"}else{"Custom constrained LUT"}))
    .child(button("generate",if self.busy{"Working…"}else{"Generate and verify ICC"}).on_click(cx.listener(|this,_,_,cx|this.generate(cx))))
-   .child("Confirm the physical ink order and safe TAC. Validate the printed result after firing.");
+   .child("Confirm the physical ink order and safe TAC. Validate the printed result.");
   panel
  }
 }
