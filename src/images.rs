@@ -52,12 +52,12 @@ fn to_cmyk(input:&Input,dst:&Profile,intent:Intent)->R<Vec<[u16;4]>>{
   Pixels::Cmyk(v)=>{let t:Transform<[u16;4],[u16;4]>=Transform::new(&input.profile,PixelFormat::CMYK_16,dst,PixelFormat::CMYK_16,intent).map_err(err)?;t.transform_pixels(v,&mut out);}
  }Ok(out)
 }
-fn thumb_indices(w:u32,h:u32)->(u32,u32,Vec<usize>){
+pub(crate) fn thumb_indices(w:u32,h:u32)->(u32,u32,Vec<usize>){
  let ratio=(640.0/w.max(h) as f64).min(1.);let tw=((w as f64*ratio).round() as u32).max(1);let th=((h as f64*ratio).round() as u32).max(1);
  let mut idx=Vec::with_capacity((tw*th) as usize);for y in 0..th{for x in 0..tw{idx.push(((y as u64*h as u64/th as u64)*w as u64+x as u64*w as u64/tw as u64) as usize);}}
  (tw,th,idx)
 }
-fn proof(pixels:&[[u16;4]],p:&Profile,idx:&[usize],w:u32,h:u32,path:&Path)->R<()>{
+pub(crate) fn proof(pixels:&[[u16;4]],p:&Profile,idx:&[usize],w:u32,h:u32,path:&Path)->R<()>{
  let srgb=Profile::new_srgb();let t:Transform<[u16;4],[u8;3]>=Transform::new(p,PixelFormat::CMYK_16,&srgb,PixelFormat::RGB_8,Intent::RelativeColorimetric).map_err(err)?;
  let selected:Vec<_>=idx.iter().map(|&i|pixels[i]).collect();let mut rgb=vec![[0u8;3];idx.len()];t.transform_pixels(&selected,&mut rgb);
  ImageBuffer::<Rgb<u8>,_>::from_raw(w,h,rgb.into_iter().flatten().collect::<Vec<_>>()).ok_or("Invalid proof dimensions")?.save(path).map_err(err)

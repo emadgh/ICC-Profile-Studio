@@ -9,6 +9,8 @@ use color_convert_rust::correction::{Operation,Selective,BlackGeneration,IDENTIT
 use color_convert_rust::gamut::{self,Overlay};
 use gamut_view::ViewOptions;
 use color_convert_rust::images::{self,Options as ImageOptions,Output as ImageOutput};
+use color_convert_rust::streaming::{self,StreamOptions};
+use std::sync::{Arc,atomic::{AtomicBool,Ordering}};
 use color_convert_rust::gradient::{self,GradientReport};
 use color_convert_rust::{library,reports};
 #[cfg(windows)] use update_via_github::{UpdateConfig,UpdateManager,UpdateStatus};
@@ -23,10 +25,10 @@ const PAGES: [(Page,&str);20] = [
 enum Event { Progress(String), Done(Result<String,String>) }
 struct Studio {
  page:Page, source:Option<PathBuf>, profile:Option<Profile>, report:Option<Inspection>, error:Option<String>,
- caps:[f64;4],tac:f64,grid:usize,mode:Mode,status:String,busy:bool, candidate:Option<PathBuf>,comparison:Option<Comparison>,compare_error:Option<String>,compare_grid:usize,gamma:[f64;4],order:[usize;4], preview_open:bool, preview:Option<Overlay>, preview_options:ViewOptions, gamut_grid:usize,gradient:Option<GradientReport>,gradient_error:Option<String>,coverage_threshold:f64, selective:[f64;5], correction_grid:usize, correction_tac:f64, smoothing:f64, smoothing_passes:usize,orbit_last:Option<Point<Pixels>>,image_files:Vec<PathBuf>,image_root:Option<PathBuf>,image_options:ImageOptions,image_results:Vec<ImageOutput>,image_errors:Vec<String>,image_preview:usize,recipe_target:[f64;3],recipe_settings:RecipeSettings,recipe_result:Option<RecipeReport>,lab_levels:usize,measured:[Option<PathBuf>;2],measurement_result:Option<MeasuredComparison>,black:BlackGeneration,curve_points:[[f64;5];4],library_root:Option<PathBuf>,library_entries:Vec<library::Entry>,logo:std::sync::Arc<gpui::Image>,#[cfg(windows)] updater:UpdateManager,
+ caps:[f64;4],tac:f64,grid:usize,mode:Mode,status:String,busy:bool, candidate:Option<PathBuf>,comparison:Option<Comparison>,compare_error:Option<String>,compare_grid:usize,gamma:[f64;4],order:[usize;4], preview_open:bool, preview:Option<Overlay>, preview_options:ViewOptions, gamut_grid:usize,gradient:Option<GradientReport>,gradient_error:Option<String>,coverage_threshold:f64, selective:[f64;5], correction_grid:usize, correction_tac:f64, smoothing:f64, smoothing_passes:usize,orbit_last:Option<Point<Pixels>>,image_files:Vec<PathBuf>,image_root:Option<PathBuf>,image_options:ImageOptions,image_results:Vec<ImageOutput>,image_errors:Vec<String>,image_preview:usize,stream_options:StreamOptions,stream_enabled:bool,batch_cancel:Option<Arc<AtomicBool>>,recipe_target:[f64;3],recipe_settings:RecipeSettings,recipe_result:Option<RecipeReport>,lab_levels:usize,measured:[Option<PathBuf>;2],measurement_result:Option<MeasuredComparison>,black:BlackGeneration,curve_points:[[f64;5];4],library_root:Option<PathBuf>,library_entries:Vec<library::Entry>,logo:std::sync::Arc<gpui::Image>,#[cfg(windows)] updater:UpdateManager,
 }
 impl Default for Studio {
- fn default()->Self{Self{page:Page::Dashboard,source:None,profile:None,report:None,error:None,caps:[100.,100.,100.,0.],tac:240.,grid:33,mode:Mode::Custom,status:"Open an ICC or ICM profile to start.".into(),busy:false,candidate:None,comparison:None,compare_error:None,compare_grid:17,gamma:[1.;4],order:[0,1,2,3],preview_open:true,preview:None,preview_options:ViewOptions::default(),gamut_grid:17,gradient:None,gradient_error:None,coverage_threshold:2.,selective:[135.,45.,0.,0.,0.],correction_grid:33,correction_tac:400.,smoothing:0.20,smoothing_passes:1,orbit_last:None,image_files:vec![],image_root:None,image_options:ImageOptions::default(),image_results:vec![],image_errors:vec![],image_preview:0,recipe_target:[50.,0.,0.],recipe_settings:RecipeSettings::default(),recipe_result:None,lab_levels:5,measured:[None,None],measurement_result:None,black:BlackGeneration::default(),curve_points:IDENTITY_POINTS,library_root:None,library_entries:vec![],logo:std::sync::Arc::new(gpui::Image::from_bytes(gpui::ImageFormat::Png,include_bytes!("../../assets/icon.png").to_vec())),#[cfg(windows)] updater:UpdateManager::new(UpdateConfig::new("emadgh/color-convert-rust","ICC-Profile-Studio.exe",env!("CARGO_PKG_VERSION")).with_app_name("ICC Profile Studio").with_checksum_asset("ICC-Profile-Studio.exe.sha256").with_required_checksum(true))}}
+ fn default()->Self{Self{page:Page::Dashboard,source:None,profile:None,report:None,error:None,caps:[100.,100.,100.,0.],tac:240.,grid:33,mode:Mode::Custom,status:"Open an ICC or ICM profile to start.".into(),busy:false,candidate:None,comparison:None,compare_error:None,compare_grid:17,gamma:[1.;4],order:[0,1,2,3],preview_open:true,preview:None,preview_options:ViewOptions::default(),gamut_grid:17,gradient:None,gradient_error:None,coverage_threshold:2.,selective:[135.,45.,0.,0.,0.],correction_grid:33,correction_tac:400.,smoothing:0.20,smoothing_passes:1,orbit_last:None,image_files:vec![],image_root:None,image_options:ImageOptions::default(),image_results:vec![],image_errors:vec![],image_preview:0,stream_options:StreamOptions::default(),stream_enabled:true,batch_cancel:None,recipe_target:[50.,0.,0.],recipe_settings:RecipeSettings::default(),recipe_result:None,lab_levels:5,measured:[None,None],measurement_result:None,black:BlackGeneration::default(),curve_points:IDENTITY_POINTS,library_root:None,library_entries:vec![],logo:std::sync::Arc::new(gpui::Image::from_bytes(gpui::ImageFormat::Png,include_bytes!("../../assets/icon.png").to_vec())),#[cfg(windows)] updater:UpdateManager::new(UpdateConfig::new("emadgh/color-convert-rust","ICC-Profile-Studio.exe",env!("CARGO_PKG_VERSION")).with_app_name("ICC Profile Studio").with_checksum_asset("ICC-Profile-Studio.exe.sha256").with_required_checksum(true))}}
 }
 fn button(id: impl Into<ElementId>,label:impl Into<SharedString>)->Stateful<Div>{
  div().id(id).px_3().py_2().rounded_md().bg(rgb(0x263449)).text_color(rgb(0xe6eefb)).cursor_pointer().hover(|s|s.bg(rgb(0x354963))).child(label.into())
@@ -338,17 +340,26 @@ impl Studio {
  fn convert_images(&mut self,cx:&mut Context<Self>){
   if self.busy{return}let (Some(reference),Some(root))=(self.source.clone(),self.image_root.clone())else{self.status="Choose reference ICC and output folder.".into();cx.notify();return};
   if self.image_files.is_empty(){return}
-  let dest=self.candidate.clone().unwrap_or_else(||reference.clone());let files=self.image_files.clone();let options=self.image_options;
+  let dest=self.candidate.clone().unwrap_or_else(||reference.clone());let files=self.image_files.clone();let options=self.image_options;let stream=self.stream_options;let streaming_enabled=self.stream_enabled;let cancel=Arc::new(AtomicBool::new(false));self.batch_cancel=Some(cancel.clone());self.image_preview=0;
   self.busy=true;self.image_results.clear();self.image_errors.clear();self.status="Converting image batch with LittleCMS…".into();cx.notify();
   cx.spawn(async move|this,cx|{
-   let (tx,rx)=mpsc::channel();
+   enum BatchEvent{Progress(String),Result(PathBuf,Result<ImageOutput,String>)}
+   let (tx,rx)=mpsc::channel();let worker_cancel=cancel.clone();
    std::thread::spawn(move||{
-    for path in files{let result=images::convert(&path,&reference,&dest,&root,options);let _=tx.send((path,result));}
+    for path in files{
+     if worker_cancel.load(Ordering::Relaxed){break}
+     let is_tiff=path.extension().and_then(|s|s.to_str()).is_some_and(|s|s.eq_ignore_ascii_case("tif")||s.eq_ignore_ascii_case("tiff"));
+     let result=if streaming_enabled&&is_tiff{
+      streaming::convert(&path,&reference,&dest,&root,options,stream,&worker_cancel,|i,n|{if i==1||i==n||i%8==0{let _=tx.send(BatchEvent::Progress(format!("{}: strip {i}/{n}",path.display())));}})
+     }else{images::convert(&path,&reference,&dest,&root,options)};
+     let _=tx.send(BatchEvent::Result(path,result));
+    }
    });
    loop{
     match rx.try_recv(){
-     Ok((path,result))=>{if this.update(cx,|v,cx|{match result{Ok(r)=>v.image_results.push(r),Err(e)=>v.image_errors.push(format!("{}: {e}",path.display()))}v.status=format!("Converted {} / failed {}",v.image_results.len(),v.image_errors.len());cx.notify();}).is_err(){break}},
-     Err(mpsc::TryRecvError::Disconnected)=>{let _=this.update(cx,|v,cx|{v.busy=false;v.status=format!("Batch finished: {} succeeded, {} failed.",v.image_results.len(),v.image_errors.len());cx.notify();});break},
+     Ok(BatchEvent::Progress(s))=>{if this.update(cx,|v,cx|{v.status=s;cx.notify();}).is_err(){break}},
+     Ok(BatchEvent::Result(path,result))=>{if this.update(cx,|v,cx|{match result{Ok(r)=>v.image_results.push(r),Err(e)=>v.image_errors.push(format!("{}: {e}",path.display()))}v.status=format!("Converted {} / failed {}",v.image_results.len(),v.image_errors.len());cx.notify();}).is_err(){break}},
+     Err(mpsc::TryRecvError::Disconnected)=>{let _=this.update(cx,|v,cx|{v.busy=false;v.batch_cancel=None;v.status=format!("Batch {}: {} succeeded, {} failed.",if cancel.load(Ordering::Relaxed){"cancelled"}else{"finished"},v.image_results.len(),v.image_errors.len());cx.notify();});break},
      Err(mpsc::TryRecvError::Empty)=>cx.background_executor().timer(Duration::from_millis(70)).await,
     }
    }
@@ -369,7 +380,11 @@ impl Studio {
    .child(div().flex().gap_1().items_center().child(format!("Reject above TAC {:.0}%",self.image_options.tac))
     .child(button("image-tac-down","−5").on_click(cx.listener(|v,_,_,cx|{if !v.busy{v.image_options.tac=(v.image_options.tac-5.).max(0.);cx.notify();}})))
     .child(button("image-tac-up","+5").on_click(cx.listener(|v,_,_,cx|{if !v.busy{v.image_options.tac=(v.image_options.tac+5.).min(400.);cx.notify();}}))))
-   .child("Set physical DPI deliberately: source resolution/metadata is not copied. 24 MP limit, no alpha, no multi-page or planar TIFF. Destination ICC is embedded. Diagnostic images are thumbnails.")
+   .child(button("stream-mode",if self.stream_enabled{"Stream interleaved strip TIFF ✓"}else{"In-memory conversion (24 MP)"}).on_click(cx.listener(|v,_,_,cx|{if !v.busy{v.stream_enabled=!v.stream_enabled;cx.notify();}})))
+   .child(button("bigtiff-mode",if self.stream_options.bigtiff{"BigTIFF ✓ (verify RIP support)"}else{"Classic TIFF output"}).on_click(cx.listener(|v,_,_,cx|{if !v.busy{v.stream_options.bigtiff=!v.stream_options.bigtiff;cx.notify();}})))
+   .child(button("full-separations",if self.stream_options.separations{"Full-resolution 16-bit separations ✓"}else{"Thumbnail separations only"}).on_click(cx.listener(|v,_,_,cx|{if !v.busy{v.stream_options.separations=!v.stream_options.separations;cx.notify();}})))
+   .child("BigTIFF and full-size separations apply only to streaming TIFF. Strips ≤ 2 MP each, total ≤ 2 billion pixels. Tiled, planar, multipage and alpha TIFF not supported by this path. PNG/JPEG or disabled streaming remains limited to 24 MP. Set physical DPI deliberately; source metadata is not copied.")
+   .child(button("cancel-batch","Cancel batch").on_click(cx.listener(|v,_,_,cx|{if let Some(c)=&v.batch_cancel{c.store(true,Ordering::Relaxed);v.status="Cancellation requested; current non-streamed file may finish.".into();cx.notify();}})))
    .child(button("convert-batch",if self.busy{"Working…"}else{"Convert selected images"}).on_click(cx.listener(|v,_,_,cx|v.convert_images(cx))));
   for e in &self.image_errors{p=p.child(div().text_color(rgb(0xfca5a5)).child(e.clone()));}
   for (i,r) in self.image_results.iter().enumerate(){

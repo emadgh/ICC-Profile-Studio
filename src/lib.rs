@@ -1,3 +1,4 @@
+pub mod streaming;
 pub mod library;
 pub mod reports;
 pub mod optimizer;

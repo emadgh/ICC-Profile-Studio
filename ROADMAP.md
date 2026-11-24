@@ -64,7 +64,7 @@
 - [x] Export relative sRGB before/after previews, four reduced-size separation PNGs and TAC heatmap; show in GPUI with sampled full-image ink stats and reject pixels over selected TAC without silent clipping.
 - [x] Native LCMS CMYK-to-CMYK DeviceLink v4.3 export, reopen and validate transform creation, no overwrite.
 - [x] Batch per-file error/progress and staged result directories, basic TIFF round-trip tests.
-- [ ] CI and real ICC/image regression; 24 MP preview limit, larger streaming/BigTIFF support, DPI metadata preservation, exact calibrated monitor proof, full-size separations, cancellation, alpha and multipage workflows.
+- [ ] CI and real ICC/image regression; real large-image regression, DPI metadata preservation, exact calibrated monitor proof, alpha, tiled/planar and multipage workflows.
 - [ ] DeviceLink numeric equivalence, strict caps/TAC, black-preserving link modes and direct DeviceLink image application.
 
 ## v0.9 / v1.0 — ink recipes and ceramic lab (source implementation)
@@ -85,6 +85,12 @@
 - [x] Monotone five-point per-channel output correction, bounded v4 mBA resampling, strict source caps and explicit TAC.
 - [x] Unit tests for K0, UCR saturated-color protection and point monotonicity.
 - [ ] New CI, complete real-profile checks, richer editable curves, black generation interpolation validation; this is a predictive preference, not measured profiling.
+
+## v1.0 — large TIFF workflow (source implementation)
+
+- [x] Interleaved single-image RGB/CMYK 8/16-bit strip TIFF streaming, 2 MP per strip and up to 2 billion pixels total; per-strip LCMS conversion, strict TAC rejection, staged output, thumbnails and stats.
+- [x] Explicit classic/BigTIFF selection for streaming, optional full-resolution 16-bit grayscale separation TIFFs, per-strip progress and cancellation (in-memory jobs cancel between files).
+- [ ] CI and end-to-end real large-file/RIP regression; tiled TIFF, planar input, metadata preservation and calibrated monitor proof. No claim of unrestricted file-size support.
 
 ## Next milestones
 

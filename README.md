@@ -82,3 +82,7 @@ Whole-profile ink optimization (v4 CMYK/Lab simple mBA): the original predicted 
 ### Advanced separations
 
 Black Generation is a bounded K preference (GCR/UCR-like) based on original A2B1 appearance, with darkness onset, max target, gamma, preference strength and node ΔE00 tolerance. Source caps, including K0, are preserved. UCR affects dark near-neutrals, while GCR uses broader chroma weighting. The local solver does not guarantee a target curve or interpolation error. Five-point monotone curves offer a second, bounded alternative to the original gamma editor. Both initial implementations require v4 CMYK/Lab mBA. New source awaits CI.
+
+### Large TIFF workflow
+
+Streaming is selectable for interleaved strip-based TIFF, with up to 2 million pixels per strip and 2 billion total pixels. Explicit BigTIFF is available if the RIP supports it, and full-size grayscale 16-bit separation TIFFs can be written alongside the CMYK file. Per-strip progress, cancellation and staged output prevent publishing a partial streamed job. Standard TIFF remains default; tiled/planar, multipage and alpha are not supported by this streaming path. Other formats retain the original 24 MP limit. Pending CI and real printer validation.
