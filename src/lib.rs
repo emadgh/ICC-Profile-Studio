@@ -1,3 +1,4 @@
+pub mod comparison;
 pub mod backend;
 pub mod inspection;
 use std::collections::BTreeMap;

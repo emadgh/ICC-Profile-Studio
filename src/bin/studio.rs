@@ -2,6 +2,7 @@
 use gpui::{prelude::*, *};
 use color_convert_rust::{Profile, backend::{self,Job,Mode}, inspection::{self,Inspection}};
 use std::{path::PathBuf,sync::mpsc,time::Duration};
+use color_convert_rust::comparison::{self,Comparison};
 
 #[derive(Clone,Copy,PartialEq,Eq)]
 enum Page { Dashboard, Inspector, Validator, Rebuilder, Comparison, Curves, Gamut, Correction, Converter, Lab, Settings, About }
@@ -12,10 +13,10 @@ const PAGES: [(Page,&str);12] = [
 enum Event { Progress(String), Done(Result<String,String>) }
 struct Studio {
  page:Page, source:Option<PathBuf>, profile:Option<Profile>, report:Option<Inspection>, error:Option<String>,
- caps:[f64;4],tac:f64,grid:usize,mode:Mode,status:String,busy:bool,
+ caps:[f64;4],tac:f64,grid:usize,mode:Mode,status:String,busy:bool, candidate:Option<PathBuf>,comparison:Option<Comparison>,compare_error:Option<String>,compare_grid:usize,
 }
 impl Default for Studio {
- fn default()->Self{Self{page:Page::Dashboard,source:None,profile:None,report:None,error:None,caps:[100.,100.,100.,0.],tac:240.,grid:33,mode:Mode::Custom,status:"Open an ICC or ICM profile to start.".into(),busy:false}}
+ fn default()->Self{Self{page:Page::Dashboard,source:None,profile:None,report:None,error:None,caps:[100.,100.,100.,0.],tac:240.,grid:33,mode:Mode::Custom,status:"Open an ICC or ICM profile to start.".into(),busy:false,candidate:None,comparison:None,compare_error:None,compare_grid:17}}
 }
 fn button(id: impl Into<ElementId>,label:impl Into<SharedString>)->Stateful<Div>{
  div().id(id).px_3().py_2().rounded_md().bg(rgb(0x263449)).text_color(rgb(0xe6eefb)).cursor_pointer().hover(|s|s.bg(rgb(0x354963))).child(label.into())
@@ -25,7 +26,7 @@ impl Studio {
  fn open(&mut self) {
   if self.busy{return}
   let Some(path)=rfd::FileDialog::new().add_filter("ICC profile",&["icc","icm"]).pick_file() else{return};
-  self.source=Some(path.clone());self.report=None;self.profile=None;self.error=None;
+  self.source=Some(path.clone());self.comparison=None;self.compare_error=None;self.report=None;self.profile=None;self.error=None;
   match inspection::inspect(&path){Ok(r)=>self.report=Some(r),Err(e)=>self.error=Some(e)}
   if let Ok(p)=Profile::read(&path){
    if p.check().is_ok(){
@@ -65,6 +66,46 @@ impl Studio {
     cx.background_executor().timer(Duration::from_millis(70)).await;
    }
   }).detach();
+ }
+ fn compare_profiles(&mut self,cx:&mut Context<Self>){
+  if self.busy{return}
+  let (Some(a),Some(b))=(self.source.clone(),self.candidate.clone())else{return};
+  let grid=self.compare_grid;
+  self.busy=true;self.comparison=None;self.compare_error=None;self.status="Comparing profile predictions with LittleCMS...".into();cx.notify();
+  cx.spawn(async move |this,cx|{
+   let result=cx.background_spawn(async move{comparison::compare(&a,&b,grid,lcms2::Intent::RelativeColorimetric)}).await;
+   let _=this.update(cx,|view,cx|{
+    match result{Ok(r)=>{view.status=format!("Compared {} sRGB samples and 33 neutrals.",r.count);view.comparison=Some(r)},Err(e)=>{view.status="Comparison failed".into();view.compare_error=Some(e)}}
+    view.busy=false;cx.notify();
+   });
+  }).detach();
+ }
+ fn comparison_page(&self,cx:&mut Context<Self>)->Div{
+  let mut p=div().flex().flex_col().gap_3().child(heading("Profile Comparison","Predicted D50 media-relative Lab appearance and CMYK separation."));
+  p=p.child(format!("Reference: {}",self.source.as_ref().map(|p|p.display().to_string()).unwrap_or("Not selected".into())))
+   .child(button("pick-candidate","Select candidate ICC").on_click(cx.listener(|this,_,_,cx|{
+    if !this.busy{if let Some(path)=rfd::FileDialog::new().add_filter("ICC profile",&["icc","icm"]).pick_file(){this.candidate=Some(path);this.comparison=None;this.compare_error=None;cx.notify();}}
+   })))
+   .child(format!("Candidate: {}",self.candidate.as_ref().map(|p|p.display().to_string()).unwrap_or("Not selected".into())))
+   .child(div().flex().items_center().gap_2().child(format!("RGB sample grid: {}³",self.compare_grid)).children([9usize,17,33].into_iter().map(|v|button(("compare-grid",v),v.to_string()).on_click(cx.listener(move|this,_,_,cx|{if !this.busy{this.compare_grid=v;this.comparison=None;cx.notify();}})))))
+   .child(button("compare-run",if self.busy{"Working…"}else{"Compare profiles"}).on_click(cx.listener(|this,_,_,cx|this.compare_profiles(cx))));
+  if let Some(e)=&self.compare_error{p=p.child(div().text_color(rgb(0xfca5a5)).child(e.clone()));}
+  if let Some(r)=&self.comparison{
+   p=p.child(div().flex().gap_3().children([("Mean ΔE00",r.mean_de),("P95 ΔE00",r.p95_de),("Max ΔE00",r.max_de)].map(|(label,v)|div().flex_1().p_3().rounded_md().bg(rgb(0x1b2637)).child(div().text_sm().child(label)).child(div().text_2xl().child(format!("{v:.2}"))))))
+    .child(format!("{} samples · worst source RGB {:?}",r.count,r.worst_rgb))
+    .child(div().text_lg().child("Delta E distribution"));
+   for (i,label) in ["< 1","1–2","2–3","3–5","≥ 5"].into_iter().enumerate(){
+    let fraction=r.histogram[i] as f32/r.count as f32;
+    p=p.child(div().flex().items_center().gap_2().child(div().w(px(55.)).child(label)).child(div().w(px(200.)).h(px(9.)).rounded_md().bg(rgb(0x283a51)).child(div().w(px(200.*fraction)).h_full().rounded_md().bg(rgb(0x60a5fa)))).child(format!("{:.1}%",100.*fraction)));
+   }
+   p=p.child(div().text_lg().child("Ink distribution (sampled)"));
+   for j in 0..4{p=p.child(format!("{} — mean {:.2}% → {:.2}% | max {:.2}% → {:.2}%",["C","M","Y","K"][j],r.reference.mean[j],r.candidate.mean[j],r.reference.max[j],r.candidate.max[j]));}
+   p=p.child(format!("Mean TAC {:.2}% → {:.2}%  |  Max sampled TAC {:.2}% → {:.2}%",r.reference.mean_tac,r.candidate.mean_tac,r.reference.max_tac,r.candidate.max_tac))
+    .child(div().text_lg().child("Neutral axis (selected samples)"));
+   for n in r.neutral.iter().step_by(4){p=p.child(format!("Gray {:3} | L* {:.2} → {:.2} | ΔE00 {:.2} | K {:.1}% → {:.1}%",n.rgb,n.reference_lab[0],n.candidate_lab[0],n.delta_e,n.reference_ink[3],n.candidate_ink[3]));}
+   p=p.child("Relative Colorimetric, no black-point compensation. Predicted profile differences only; not measured print differences, gamut volume or production ink averages.");
+  }
+  p
  }
  fn inspector(&self)->Div{
   let mut panel=div().flex().flex_col().gap_3().child(heading("Profile Inspector","ICC metadata decoded by LittleCMS 2."));
@@ -133,6 +174,7 @@ impl Render for Studio {
    Page::Inspector=>self.inspector(),
    Page::Validator=>self.validator(),
    Page::Rebuilder=>self.rebuilder(cx),
+   Page::Comparison=>self.comparison_page(cx),
    Page::Settings=>div().flex().flex_col().gap_3().child(heading("Settings","Engine configuration")).child("LittleCMS is linked statically. ArgyllCMS is installed by the existing portable backend when required."),
    Page::About=>div().flex().flex_col().gap_3().child(heading("ICC Profile Studio","Experimental GPUI frontend")).child(format!("Core version {}",env!("CARGO_PKG_VERSION"))).child("Developed by emadgh. LittleCMS 2 · ArgyllCMS · Rust.").child("Updater integration is pending in this frontend. Use the stable executable for updates."),
    other=>div().flex().flex_col().gap_3().child(heading(PAGES.iter().find(|(p,_)|*p==other).map(|(_,n)|*n).unwrap_or("Tool"),"Planned module")).child("Not implemented yet. See ROADMAP.md."),

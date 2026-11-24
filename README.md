@@ -48,3 +48,7 @@ ICC v4.3 mAB/mBA profiles are automatically routed to the custom engine. Input a
 ## ICC Profile Studio migration
 
 See [ROADMAP.md](ROADMAP.md) for completed work, remaining milestones and the dependency-first architecture. Experimental GPUI frontend (not the default release yet): `cargo run --features studio --bin icc-profile-studio`. The stable egui executable remains the default while the new frontend is validated. LittleCMS 2 is statically linked through the lcms2 Rust crate for inspection and transform smoke tests; ArgyllCMS remains available for supported revfix operations.
+
+### Comparison preview
+
+Select a reference and candidate CMYK printer ICC in GPUI Studio. LittleCMS predicts both separations and their D50 media-relative Lab round trips for a uniform sRGB grid. The report uses native CIEDE2000 with unit weights, sampled ink means/maxima and 33 neutral samples. This is not a measured print result or a gamut-volume metric.

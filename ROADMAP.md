@@ -6,14 +6,22 @@
 - [x] Shared rebuild service extracted from legacy egui frontend.
 - [x] LittleCMS 2 (static Rust binding) added for profile opening, metadata, TAC estimate and CMYK transform smoke checks.
 - [x] GPUI sidebar shell and first Inspector/Validator/Rebuilder screens implemented in source.
-- [ ] Verify new code in Windows CI, run application and check layout.
+- [ ] Verify new code in Windows CI, run application and check layout. Initial CI failed because lcms2 6.2.0 was yanked; pinned 6.1.1 and rerun required.
 - [ ] Port all legacy controls, updater, progress, drag-and-drop, accessibility and About icon to GPUI before promoting it to the default release.
 - [ ] Run real Durst ICC v2/v4 regression tests and print/firing checks. Proprietary customer ICCs must stay out of the repository.
 - [ ] Add independent LCMS transform checks for generated profiles; enforce numerical bounds through the strict LUT validator as well as sampled transforms.
 
+## v0.4 — comparison (source implementation started)
+
+- [x] Compare two CMYK output profiles using LittleCMS transforms, media-relative D50 PCS and native CIEDE2000.
+- [x] Mean, P95, maximum Delta E, worst RGB, histogram, sampled per-channel means/maxima, TAC and 33 neutral-axis samples.
+- [x] Profile Comparison page in experimental GPUI frontend; background analysis and selectable 9/17/33 RGB cube.
+- [x] Reference CIEDE2000 test pair and ink-statistics tests added.
+- [ ] Verify CI and compare real printer profiles; add export, intent selector, complete neutral curves, measured validation and gamut visualization.
+
 ## Next milestones
 
-- v0.4: Profile Comparison, Delta E2000, neutral axis and ink distribution.
+- v0.4: Complete validation/export of Profile Comparison, Delta E2000, neutral axis and ink distribution.
 - v0.5: Tone Curves, channel mapping/reordering, profile metadata editing.
 - v0.6: Gamut analysis and 3D visualization, gradient continuity.
 - v0.7: Selective Lab/LCh color correction, controlled LUT smoothing.
