@@ -28,12 +28,13 @@ const PAGES: [(Page,&str);17] = [
 enum Picker{Reference,Comparison,Gamut}
 enum Event { Progress(String), Done(Result<String,String>) }
 struct Studio {
+ link_grid:usize,link_tolerance:f64,link_intent:lcms2::Intent,link_report:Option<(PathBuf,PathBuf,PathBuf,device_link::MultiLinkReport)>,
  slider_drag:Option<(&'static str,usize)>,embedded_names:bool,display_profile:Option<Profile>,language:Language,nav_collapsed:[bool;5],picker:Option<Picker>,system_catalog:Option<system_profiles::Catalog>,system_error:Option<String>,system_loading:bool,
  version_allow_omit:bool,version_relative_only:bool,version_de:f64,version_ink:f64,version_report:Option<versioning::Report>,page:Page, source:Option<PathBuf>, profile:Option<Profile>, report:Option<Inspection>, error:Option<String>,
  multi_caps:Vec<f64>,multi_tac:f64,caps:[f64;4],tac:f64,grid:usize,mode:Mode,status:String,busy:bool, candidate:Option<PathBuf>,comparison:Option<Comparison>,compare_error:Option<String>,compare_grid:usize,compare_intent:lcms2::Intent,gamma:Vec<f64>,order:Vec<usize>, preview_open:bool, preview:Option<Overlay>, preview_revision:u64, preview_width:f32,preview_fullscreen:bool,resize_last:Option<Pixels>,gamut_advanced:bool,curve_drag:Option<(usize,usize,Pixels)>, preview_cache:std::cell::RefCell<gamut_view::PreviewCache>, preview_options:ViewOptions, gamut_grid:usize,gradient:Option<GradientReport>,gradient_detail:Option<usize>,gradient_error:Option<String>,coverage_threshold:f64, regions:[Selective;MAX_REGIONS],region_count:usize,region_selected:usize, correction_grid:usize, correction_tac:f64, smoothing:f64, smoothing_passes:usize,orbit_last:Option<Point<Pixels>>,chart_dpi:u32,recipe_target:[f64;3],recipe_settings:RecipeSettings,recipe_result:Option<RecipeReport>,lab_levels:usize,measured:[Option<PathBuf>;2],measurement_result:Option<MeasuredComparison>,black:BlackGeneration,curve_points:Vec<[f64;5]>,logo:std::sync::Arc<gpui::Image>,#[cfg(windows)] updater:UpdateManager,
 }
 impl Default for Studio {
- fn default()->Self{Self{slider_drag:None,embedded_names:true,display_profile:None,language:Language::En,nav_collapsed:[false;5],picker:None,system_catalog:None,system_error:None,system_loading:false,version_allow_omit:false,version_relative_only:false,version_de:0.5,version_ink:0.5,version_report:None,page:Page::Inspector,source:None,profile:None,report:None,error:None,multi_caps:vec![],multi_tac:0.,caps:[100.,100.,100.,0.],tac:240.,grid:33,mode:Mode::Custom,status:"Open an ICC or ICM profile to start.".into(),busy:false,candidate:None,comparison:None,compare_error:None,compare_grid:17,compare_intent:lcms2::Intent::RelativeColorimetric,gamma:vec![],order:vec![],preview_open:true,preview:None,preview_revision:0,preview_width:360.,preview_fullscreen:false,resize_last:None,gamut_advanced:false,curve_drag:None,preview_cache:std::cell::RefCell::new(gamut_view::PreviewCache::default()),preview_options:ViewOptions::default(),gamut_grid:33,gradient:None,gradient_detail:None,gradient_error:None,coverage_threshold:2.,regions:[Selective::default();MAX_REGIONS],region_count:1,region_selected:0,correction_grid:33,correction_tac:400.,smoothing:0.20,smoothing_passes:1,orbit_last:None,chart_dpi:300,recipe_target:[50.,0.,0.],recipe_settings:RecipeSettings::default(),recipe_result:None,lab_levels:5,measured:[None,None],measurement_result:None,black:BlackGeneration::default(),curve_points:IDENTITY_POINTS.to_vec(),logo:std::sync::Arc::new(gpui::Image::from_bytes(gpui::ImageFormat::Png,include_bytes!("../../assets/icon.png").to_vec())),#[cfg(windows)] updater:UpdateManager::new(UpdateConfig::new("emadgh/color-convert-rust","ICC-Profile-Studio.exe",STUDIO_VERSION.trim()).with_app_name("ICC Profile Studio").with_checksum_asset("ICC-Profile-Studio.exe.sha256").with_required_checksum(true))}}
+ fn default()->Self{Self{link_grid:0,link_tolerance:2.,link_intent:lcms2::Intent::RelativeColorimetric,link_report:None,slider_drag:None,embedded_names:true,display_profile:None,language:Language::En,nav_collapsed:[false;5],picker:None,system_catalog:None,system_error:None,system_loading:false,version_allow_omit:false,version_relative_only:false,version_de:0.5,version_ink:0.5,version_report:None,page:Page::Inspector,source:None,profile:None,report:None,error:None,multi_caps:vec![],multi_tac:0.,caps:[100.,100.,100.,0.],tac:240.,grid:33,mode:Mode::Custom,status:"Open an ICC or ICM profile to start.".into(),busy:false,candidate:None,comparison:None,compare_error:None,compare_grid:17,compare_intent:lcms2::Intent::RelativeColorimetric,gamma:vec![],order:vec![],preview_open:true,preview:None,preview_revision:0,preview_width:360.,preview_fullscreen:false,resize_last:None,gamut_advanced:false,curve_drag:None,preview_cache:std::cell::RefCell::new(gamut_view::PreviewCache::default()),preview_options:ViewOptions::default(),gamut_grid:33,gradient:None,gradient_detail:None,gradient_error:None,coverage_threshold:2.,regions:[Selective::default();MAX_REGIONS],region_count:1,region_selected:0,correction_grid:33,correction_tac:400.,smoothing:0.20,smoothing_passes:1,orbit_last:None,chart_dpi:300,recipe_target:[50.,0.,0.],recipe_settings:RecipeSettings::default(),recipe_result:None,lab_levels:5,measured:[None,None],measurement_result:None,black:BlackGeneration::default(),curve_points:IDENTITY_POINTS.to_vec(),logo:std::sync::Arc::new(gpui::Image::from_bytes(gpui::ImageFormat::Png,include_bytes!("../../assets/icon.png").to_vec())),#[cfg(windows)] updater:UpdateManager::new(UpdateConfig::new("emadgh/color-convert-rust","ICC-Profile-Studio.exe",STUDIO_VERSION.trim()).with_app_name("ICC Profile Studio").with_checksum_asset("ICC-Profile-Studio.exe.sha256").with_required_checksum(true))}}
 }
 fn button(id: impl Into<ElementId>,label:impl Into<SharedString>)->Stateful<Div>{
  let label:SharedString=label.into();
@@ -749,17 +750,61 @@ impl Studio {
    .child(button("save-smoothing","Generate smoothed ICC").on_click(cx.listener(|this,_,_,cx|this.save_edit(4,cx))))
  }
  fn link_page(&self,cx:&mut Context<Self>)->Div{
-  div().flex().flex_col().gap_3().child(heading("DeviceLink Generator","LittleCMS CMYK → CMYK ICC v4.3."))
-   .child("Reference is source CMYK and candidate is destination. Select the candidate in Gamut Preview or Profile Comparison. Relative colorimetric; no special black preservation or certified channel cap guarantee.")
-   .child(button("save-link","Generate DeviceLink").on_click(cx.listener(|v,_,_,cx|{
+  let mut p=div().flex().flex_col().gap_3().child(heading("DeviceLink Generator","CMYK / nCLR → CMYK / nCLR · ICC v4.3"))
+   .child(tr("Reference and candidate may have different channel counts. Source and destination ink orders are independent."));
+  p=p.child(div().flex().flex_col().gap_2().p_3().rounded_md().bg(rgb(0x282828))
+   .child(div().text_sm().child(tr("Source profile")))
+   .child(self.source.as_ref().map(|p|p.display().to_string()).unwrap_or_else(||tr("Not selected")))
+   .child(div().flex().flex_wrap().gap_1().child(button("link-source","Open ICC").on_click(cx.listener(|v,_,_,cx|{v.open(cx);if v.source.is_some(){v.page=Page::DeviceLink;cx.notify();}}))).child(self.system_dropdown(Picker::Reference,cx)))
+   .child(div().text_sm().child(tr("Destination profile")))
+   .child(self.candidate.as_ref().map(|p|p.display().to_string()).unwrap_or_else(||tr("Not selected")))
+   .child(div().flex().flex_wrap().gap_1().child(button("link-candidate","Select candidate ICC").on_click(cx.listener(|v,_,_,cx|{
+    if !v.busy{if let Some(path)=rfd::FileDialog::new().add_filter("ICC profile",&["icc","icm"]).pick_file(){v.candidate=Some(path);v.preview=None;v.comparison=None;v.compare_error=None;v.gradient=None;v.gradient_detail=None;v.gradient_error=None;if v.preview_open{v.refresh_gamut(cx);}cx.notify();}}
+   }))).child(self.system_dropdown(Picker::Comparison,cx))));
+  p=p.child(div().flex().flex_wrap().gap_1().items_center().child(tr("Rendering intent"))
+   .children([("Relative",lcms2::Intent::RelativeColorimetric),("Perceptual",lcms2::Intent::Perceptual),("Saturation",lcms2::Intent::Saturation),("Absolute",lcms2::Intent::AbsoluteColorimetric)].into_iter().enumerate().map(|(i,(label,intent))|seg(("link-intent",i),label,self.link_intent==intent).on_click(cx.listener(move|v,_,_,cx|{if !v.busy{v.link_intent=intent;cx.notify();}})))));
+  p=p.child(div().flex().flex_wrap().gap_1().items_center().child(tr("CLUT grid"))
+   .children([0usize,2,3,4,5,7,9,13,17,25,33].into_iter().map(|g|seg(("link-grid",g),if g==0{tr("Automatic")}else{g.to_string()},self.link_grid==g).on_click(cx.listener(move|v,_,_,cx|{if !v.busy{v.link_grid=g;cx.notify();}})))))
+   .child(tr("Automatic selects the largest supported grid within a 2,000,000-value CLUT budget. High input-channel counts may require a coarse grid."));
+  p=p.child(div().flex().flex_wrap().items_center().gap_2().child(format!("{}: {:.1} pp",tr("Maximum channel deviation"),self.link_tolerance))
+   .child(seg("link-tol-minus","−",false).on_click(cx.listener(|v,_,_,cx|{if !v.busy{v.link_tolerance=(v.link_tolerance-0.5).max(0.1);cx.notify();}})))
+   .child(self.numeric_slider(("link-tolerance",0),self.link_tolerance,0.1,10.,0.1,|v,x|v.link_tolerance=x,cx))
+   .child(seg("link-tol-plus","+",false).on_click(cx.listener(|v,_,_,cx|{if !v.busy{v.link_tolerance=(v.link_tolerance+0.5).min(10.);cx.notify();}}))))
+   .child(tr("The selected intent is baked into the link. No special black preservation, BPC, or certified physical ink-limit guarantee. Excessive sampled channel error prevents saving."));
+  p=p.child(button("save-link",if self.busy{"Working…"}else{"Generate DeviceLink"}).on_click(cx.listener(|v,_,_,cx|{
     if v.busy{return}let (Some(a),Some(b))=(v.source.clone(),v.candidate.clone())else{v.status="Select two printer profiles.".into();cx.notify();return};
-    let Some(mut dest)=rfd::FileDialog::new().add_filter("ICC",&["icc"]).set_file_name("CMYK_to_CMYK.icc").save_file()else{return};if dest.extension().is_none(){dest.set_extension("icc");}
-    v.busy=true;v.status="Generating DeviceLink…".into();cx.notify();
+    let Some(mut dest)=rfd::FileDialog::new().add_filter("ICC",&["icc"]).set_file_name("print_DeviceLink.icc").save_file()else{return};if dest.extension().is_none(){dest.set_extension("icc");}
+    let settings=device_link::LinkSettings{grid:v.link_grid,max_ink_pp:v.link_tolerance,intent:v.link_intent};
+    v.busy=true;v.link_report=None;v.status="Generating DeviceLink…".into();cx.notify();
     cx.spawn(async move|this,cx|{
-     let result=cx.background_spawn(async move{device_link::device_link(&a,&b,&dest,lcms2::Intent::RelativeColorimetric).map(|r|format!("Saved {} | {} samples | Max link/direct channel deviation {:.3} pp | Peak sampled TAC {:.2}% | Max channels {:.2?}%",dest.display(),r.sample_count,r.max_channel_difference,r.peak_tac,r.maxima))}).await;
-     let _=this.update(cx,|v,cx|{v.busy=false;v.status=result.unwrap_or_else(|e|format!("Error: {e}"));cx.notify();});
+     let aa=a.clone();let bb=b.clone();let dd=dest.clone();
+     let result=cx.background_spawn(async move{device_link::device_link_multi(&aa,&bb,&dd,settings)}).await;
+     let _=this.update(cx,|v,cx|{v.busy=false;match result{Ok(r)=>{v.status=format!("Saved DeviceLink: {} | {} samples",dest.display(),r.sample_count);v.link_report=Some((a,b,dest,r));},Err(e)=>v.status=format!("Error: {e}")}cx.notify();});
     }).detach();
-   })))
+   })));
+  if let Some((source,destination,output,r))=&self.link_report{
+   let mut report=div().flex().flex_col().gap_2().p_3().rounded_md().bg(rgb(0x282828))
+    .child(div().text_lg().child(tr("Last generated DeviceLink")))
+    .child(output.display().to_string())
+    .child(format!("{} → {}",source.display(),destination.display()))
+    .child(format!("{} ({} {}) → {} ({} {})",r.source_space,r.source_channels.len(),tr("Channels"),r.destination_space,r.destination_channels.len(),tr("Channels")))
+    .child(format!("{:?} · {}^{} = {} {} · {:.2} MiB",r.intent,r.grid,r.source_channels.len(),r.nodes,tr("CLUT nodes"),r.byte_count as f64/1048576.))
+    .child(format!("{}: {}",tr("Validation samples"),r.sample_count))
+    .child(format!("{}: {:.3} pp",tr("Maximum channel deviation"),r.max_channel_difference))
+    .child(format!("{}: {:.3} pp",tr("Maximum TAC deviation"),r.max_tac_difference))
+    .child(format!("{}: {:.3}%",tr("Peak sampled TAC"),r.peak_tac))
+    .child(format!("ΔE00 {} {:.3} · P95 {:.3} · {} {:.3}",tr("Mean"),r.mean_de,r.p95_de,tr("Maximum"),r.max_de))
+    .child(div().text_sm().child(tr("Source channel order")))
+    .child(div().flex().flex_wrap().gap_2().children(r.source_channels.iter().enumerate().map(|(j,ch)|div().flex().items_center().gap_1().child(swatch(visible_ink(ch.swatch(self.embedded_names)),16.)).child(format!("{} · {}",j+1,color_convert_rust::rtl::visual(ch.label(self.embedded_names)))))))
+    .child(div().text_sm().child(tr("Destination sampled channel maxima")));
+   for (j,ch) in r.destination_channels.iter().enumerate(){
+    let name=color_convert_rust::rtl::visual(ch.label(self.embedded_names));let color=visible_ink(ch.swatch(self.embedded_names));
+    report=report.child(div().flex().gap_2().items_center().child(swatch(color,16.)).child(div().w(px(115.)).child(format!("{} · {name}",j+1))).child(div().flex_1().child(bar(r.maxima[j]/100.,color,12.))).child(format!("{:.2}%",r.maxima[j])));
+   }
+   if r.generated_colorant_tables>0{report=report.child(div().text_xs().text_color(rgb(0xfbbf24)).child(tr("Missing or incompatible colorant tables were reconstructed from predicted single-ink Lab values, not measured spectra. Generic channel names are used if none exist.")));}
+   p=p.child(report.child(tr("Validation compares the link with the direct profile chain, not measured print color. Sampled results are not exhaustive.")));
+  }
+  p
  }
  fn recipe_page(&self,cx:&mut Context<Self>)->Div{
   if !self.profile.as_ref().is_some_and(|p|p.cmyk()){return div().child(tr("Requires CMYK printer profile."))}
