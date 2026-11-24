@@ -263,11 +263,11 @@ let chart=div().id("gamut-orbit").w_full().flex_shrink_0().cursor_pointer()
   let o=self.preview_options;
   let mut p=div().flex().flex_col().gap_3();
   p=p
-   .child(div().flex().gap_2().items_center().child(div().size(px(9.)).bg(rgb(0x60a5fa))).child("Reference").child(div().size(px(9.)).bg(rgb(0xfbbf24))).child("Candidate"))
+   .child(if o.profile_colors{div().text_sm().child("Profile colors · use Before/After separately to identify surfaces, or switch to Compare tint.")}else{div().flex().gap_2().items_center().child(div().size(px(9.)).bg(rgb(0x60a5fa))).child("Reference").child(div().size(px(9.)).bg(rgb(0xfbbf24))).child("Candidate")})
    .child(div().text_xs().child(format!("Before: {}",self.source.as_ref().and_then(|p|p.file_name()).map(|n|n.to_string_lossy().into_owned()).unwrap_or("Not selected".into()))))
    .child(div().text_xs().child(format!("After: {}",self.candidate.as_ref().and_then(|p|p.file_name()).map(|n|n.to_string_lossy().into_owned()).unwrap_or("Not selected".into()))))
    .child(button("preview-pick","Select comparison ICC").on_click(cx.listener(|this,_,_,cx|{if !this.busy{if let Some(path)=rfd::FileDialog::new().add_filter("ICC profile",&["icc","icm"]).pick_file(){this.candidate=Some(path);this.preview=None;this.comparison=None;this.gradient=None;this.gradient_error=None;this.refresh_gamut(cx);cx.notify();}}})))
-   .child(div().flex().items_center().gap_1().child("Grid").children([9usize,17,33].map(|v|button(("gamut-grid",v),if self.gamut_grid==v{format!("{v} ✓")}else{v.to_string()}).on_click(cx.listener(move|this,_,_,cx|{if !this.busy{this.gamut_grid=v;this.refresh_gamut(cx);cx.notify();}})))))
+   .child(div().flex().items_center().gap_1().child("Quality").children([9usize,17,33].map(|v|button(("gamut-grid",v),{let label=match v{9=>"Draft",17=>"Normal",_=>"High"};if self.gamut_grid==v{format!("{label} ✓")}else{label.to_owned()}}).on_click(cx.listener(move|this,_,_,cx|{if !this.busy{this.gamut_grid=v;this.refresh_gamut(cx);cx.notify();}})))))
    .child(button("refresh-gamut",if self.busy{"Working…"}else{"Refresh gamut"}).on_click(cx.listener(|this,_,_,cx|this.refresh_gamut(cx))));
   if o.three_d{
    p=p.child(div().flex().gap_1().child(button("yaw-left","↶").on_click(cx.listener(|this,_,_,cx|{this.preview_options.yaw-=0.20;cx.notify();})))

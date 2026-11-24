@@ -34,13 +34,6 @@ fn line(img:&mut RgbImage,a:[f32;2],b:[f32;2],color:[u8;3],radius:i32,alpha:u16)
  let n=((a[0]-b[0]).abs().max((a[1]-b[1]).abs()).ceil() as usize).clamp(1,4096);
  for i in 0..=n{let t=i as f32/n as f32;dot(img,[a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t],color,radius,alpha);}
 }
-fn outline(mut p:Vec<[f32;2]>)->Vec<[f32;2]>{
- p.sort_by(|a,b|a[0].total_cmp(&b[0]).then(a[1].total_cmp(&b[1])));p.dedup();
- if p.len()<3{return p}
- fn cross(a:[f32;2],b:[f32;2],c:[f32;2])->f32{(b[0]-a[0])*(c[1]-a[1])-(b[1]-a[1])*(c[0]-a[0])}
- let half=|points:&[[f32;2]]|{let mut h=Vec::new();for &v in points{while h.len()>1&&cross(h[h.len()-2],h[h.len()-1],v)<=0.{h.pop();}h.push(v);}h};
- let mut lo=half(&p);p.reverse();let mut hi=half(&p);lo.pop();hi.pop();lo.extend(hi);lo
-}
 /// D50 Lab -> D50 XYZ -> Bradford-adapted linear sRGB -> sRGB.
 /// Display gamut clipping is intentional; the numerical Lab is unchanged.
 /// This is an uncalibrated visualization, not a monitor soft proof.
@@ -195,14 +188,14 @@ pub fn native_spans(image:&RgbImage)->Vec<Span>{
    let score=p.iter().zip(BG).map(|(&a,b)|u32::from(a.abs_diff(b))).sum::<u32>();
    if score>best{best=score;chosen=p;}
   }}
-  if best==0{0}else{u32::from(chosen[0])<<16|u32::from(chosen[1])<<8|u32::from(chosen[2])}
+  if best==0{u32::MAX}else{u32::from(chosen[0])<<16|u32::from(chosen[1])<<8|u32::from(chosen[2])}
  };
  for y in 0..CELL_GRID{
   let mut x=0;
   while x<CELL_GRID{
    let rgb=color_at(x,y);let start=x;x+=1;
    while x<CELL_GRID&&color_at(x,y)==rgb{x+=1;}
-   if rgb!=0{spans.push(Span{x:start,y,width:x-start,rgb});}
+   if rgb!=u32::MAX{spans.push(Span{x:start,y,width:x-start,rgb});}
   }
  }
  spans
@@ -221,6 +214,19 @@ pub fn native_spans(image:&RgbImage)->Vec<Span>{
   let mut l=Layer::new();let p=[[10.,10.,2.],[100.,10.,2.],[10.,100.,2.]];
   l.triangle(p,[[255,0,0];3]);l.triangle(p.map(|mut p|{p[2]=1.;p}),[[0,0,255];3]);
   assert_eq!(l.color[20*SIZE as usize+20],[255,0,0]);assert!(l.depth[20*SIZE as usize+20].is_finite());
+ }
+ #[test]fn native_cells_keep_black(){
+  let mut img=RgbImage::from_pixel(SIZE,SIZE,Rgb(BG));
+  img.put_pixel(8,8,Rgb([0;3]));
+  assert!(native_spans(&img).iter().any(|s|s.rgb==0));
+ }
+ #[test]fn solid_surface_fills_interior(){
+  let mut d=example();
+  let c=d.reference.as_mut().unwrap();
+  c.surface=Some(crate::gamut_surface::Surface{triangles:vec![[[50.,-20.,-20.],[50.,20.,-20.],[50.,0.,20.]]],resolution:25});
+  let o=ViewOptions{three_d:false,candidate:false,profile_colors:false,solid:true,..Default::default()};
+  let result=render(Some(&d),o);
+  assert_eq!(result.image.get_pixel(SIZE/2,SIZE/2).0,BEFORE);
  }
  #[test]fn slice_crosses_triangle(){let r=slice_segment([[20.,0.,0.],[80.,10.,0.],[80.,0.,10.]],50.).unwrap();assert_eq!(r,[[50.,5.,0.],[50.,0.,5.]]);}
  #[test]fn native_spans_include_grid_even_without_icc(){
