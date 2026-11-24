@@ -108,14 +108,15 @@ impl Profile{
   out.clean_stale();Ok(out)
  }
 }
-pub enum Edit{Tone([f64;4]),Reorder([usize;4]),ToneMulti(Vec<f64>),ReorderMulti(Vec<usize>),Rename(String),Correction(crate::correction::Operation,usize,f64)}
+pub enum Edit{Tone([f64;4]),Reorder([usize;4]),ToneMulti(Vec<f64>),ReorderMulti(Vec<usize>),Rename(String),CorrectionMulti(crate::correction::DynamicCorrection,usize,f64),Correction(crate::correction::Operation,usize,f64)}
 pub fn edit_file(source:&Path,destination:&Path,edit:Edit)->R<String>{
  let p=Profile::read(source)?;
- let multi_edit=matches!(&edit,Edit::ToneMulti(_)|Edit::ReorderMulti(_));
+ let multi_edit=matches!(&edit,Edit::ToneMulti(_)|Edit::ReorderMulti(_)|Edit::CorrectionMulti(..));
  let (mut out,name)=match edit{
   Edit::Tone(g)=>(p.tone_gamma(g)?,None),
   Edit::ToneMulti(g)=>(p.tone_gamma_multi(&g)?,None),
   Edit::ReorderMulti(o)=>(p.reorder_channels_multi(&o)?,None),
+  Edit::CorrectionMulti(op,grid,tac)=>(p.bounded_correction_multi(op,grid,tac)?,None),
   Edit::Correction(op,grid,tac)=>(p.bounded_correction(op,grid,tac)?,None),
   Edit::Reorder(o)=>(p.reorder_channels(o)?,None),
   Edit::Rename(n)=>{if n.trim().is_empty()||n.len()>240{return Err("Profile name must contain 1–240 UTF-8 bytes".into())}(p,Some(n))}
