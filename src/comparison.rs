@@ -16,7 +16,7 @@ fn open_printer(p:&Path)->Result<Profile,String>{
  let meta=std::fs::metadata(p).map_err(|e|e.to_string())?;
  if meta.len()>128*1024*1024{return Err("ICC exceeds 128 MiB".into())}
  let profile=Profile::new_icc(&std::fs::read(p).map_err(|e|e.to_string())?).map_err(|e|e.to_string())?;
- if profile.color_space()!=ColorSpaceSignature::CmykData||profile.device_class()!=ProfileClassSignature::Output{return Err("Comparison requires CMYK output/printer profiles.".into())}
+ if profile.color_space()!=ColorSpaceSignature::CmykData||profile.device_class()!=ProfileClassSignature::OutputClass{return Err("Comparison requires CMYK output/printer profiles.".into())}
  Ok(profile)
 }
 fn percentages(pixel:[u16;4])->[f64;4]{pixel.map(|v|v as f64*100./65535.)}

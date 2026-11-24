@@ -17,7 +17,7 @@ pub fn sample(path:&Path,grid:usize)->Result<Cloud,String>{
  if !(5..=33).contains(&grid){return Err("Grid must be 5..33".into())}
  if std::fs::metadata(path).map_err(|e|e.to_string())?.len()>128*1024*1024{return Err("ICC exceeds 128 MiB".into())}
  let p=Profile::new_icc(&std::fs::read(path).map_err(|e|e.to_string())?).map_err(|e|e.to_string())?;
- if p.color_space()!=ColorSpaceSignature::CmykData||p.device_class()!=ProfileClassSignature::Output{return Err("Gamut preview requires a CMYK printer ICC.".into())}
+ if p.color_space()!=ColorSpaceSignature::CmykData||p.device_class()!=ProfileClassSignature::OutputClass{return Err("Gamut preview requires a CMYK printer ICC.".into())}
  let xyz=Profile::new_xyz();let white=CIEXYZ{X:0.9642,Y:1.,Z:0.8249};
  let values:Vec<[f64;3]>=targets(grid).into_iter().filter_map(|v|{
   let t=CIELab{L:v[0],a:v[1],b:v[2]}.to_xyz(&white);

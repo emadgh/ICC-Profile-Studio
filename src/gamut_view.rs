@@ -20,7 +20,7 @@ pub fn plot(data:&Overlay,o:ViewOptions)->impl IntoElement{
  canvas(move|_,_,_|{},move|bounds,_,window,_|{
   window.paint_quad(fill(bounds,rgb(0x0b1220)));
   let center=point(bounds.origin.x+bounds.size.width/2.,bounds.origin.y+bounds.size.height/2.);
-  let side=bounds.size.width.min(bounds.size.height);
+  let side=if bounds.size.width<bounds.size.height{bounds.size.width}else{bounds.size.height};
   let scale=side/360.*o.zoom;
   let at=|v:[f32;3]|point(center.x+scale*v[0],center.y-scale*v[1]);
   let plot_coord=|v:[f32;3]|if o.three_d{project(v,o.yaw,o.pitch)}else{[v[1],v[2],0.]};

@@ -6,7 +6,7 @@
 - [x] Shared rebuild service extracted from legacy egui frontend.
 - [x] LittleCMS 2 (static Rust binding) added for profile opening, metadata, TAC estimate and CMYK transform smoke checks.
 - [x] GPUI sidebar shell and first Inspector/Validator/Rebuilder screens implemented in source.
-- [ ] Verify new code in Windows CI, run application and check layout. Initial CI failed because lcms2 6.2.0 and 6.1.1 were yanked; allow Cargo to select a non-yanked compatible 6.x release. CI still unverified.
+- [ ] Verify new code in Windows CI, run application and check layout. Initial CI failed because lcms2 6.2.0 and 6.1.1 were yanked; allow Cargo to select a non-yanked compatible 6.x release. Dependency resolution succeeded; the next CI failure was the LittleCMS enum variant Output, now corrected to OutputClass in comparison and gamut. New CI still unverified.
 - [ ] Port all legacy controls, updater, progress, drag-and-drop, accessibility and About icon to GPUI before promoting it to the default release.
 - [ ] Run real Durst ICC v2/v4 regression tests and print/firing checks. Proprietary customer ICCs must stay out of the repository.
 - [ ] Add independent LCMS transform checks for generated profiles; enforce numerical bounds through the strict LUT validator as well as sampled transforms.
