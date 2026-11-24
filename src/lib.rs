@@ -32,6 +32,7 @@ impl Profile {
  }
  pub fn space(&self)->String{signature(&self.header[16..20])}
  pub fn pcs(&self)->String{signature(&self.header[20..24])}
+ pub fn version_major(&self)->u8{self.header[8]}
  pub fn cmyk(&self)->bool{&self.header[16..20]==b"CMYK"}
  pub fn channels(&self)->Vec<String>{
   let s=self.space();
@@ -81,7 +82,7 @@ impl Profile {
   }
   self.tags.insert(*b"desc",t);
  }
- pub fn clean_stale(&mut self){for k in [b"gamt",b"pre0",b"pre1",b"pre2"]{self.tags.remove(k);}}
+ pub fn clean_stale(&mut self){for k in [b"gamt",b"pre0",b"pre1",b"pre2",b"gbd0",b"gbd1",b"gbd2",b"gbd3"]{self.tags.remove(k);}}
  pub fn verify(&self,caps:[f64;4])->R<[f64;4]>{
   self.check()?;let mut max:[f64;4]=[0.;4];
   for k in [b"B2A0",b"B2A1",b"B2A2"]{
@@ -106,7 +107,8 @@ impl Profile {
   self.check()?;
   if self.pcs()!="Lab " || !(self.header[8]==2||self.header[8]==4){return Err("Custom engine requires ICC v2/v4 Lab PCS".into())}
   let forward=self.tags.get(b"A2B1").ok_or("Custom engine requires A2B1")?;
-  if !forward.starts_with(b"mft2"){return Err("Custom engine requires A2B1 lut16Type (mft2); try Argyll for CMYK K-only profiles".into())}
+  if self.header[8]==4 && !forward.starts_with(b"mAB "){return Err("ICC v4 custom engine requires A2B1 mAB (lutAToBType); v4 legacy LUT encoding is not supported".into())}
+  if self.header[8]==2 && !forward.starts_with(b"mft2"){return Err("ICC v2 custom engine requires A2B1 mft2".into())}
   let lut=Lut::parse(forward)?;
   if lut.inputs!=4 || lut.outputs!=3{return Err("Expected A2B1 4 -> 3".into())}
   if !(9..=33).contains(&grid) || !(0.0..=4.0).contains(&tac) || caps.iter().any(|v|!v.is_finite()||!(0.0..=1.0).contains(v)){return Err("Invalid settings".into())}
@@ -144,12 +146,15 @@ impl Profile {
     for v in best{put16(&mut table,(v.clamp(0.,1.)*65535.).floor() as u16);}
    }}
   }
-  let mut t=Vec::new();t.extend(b"mft2\0\0\0\0");t.extend([3,4,grid as u8,0]);
+  let mut t=Vec::new();
+  if self.header[8]==4 {t=make_mba(grid,&table);} else {
+  t.extend(b"mft2\0\0\0\0");t.extend([3,4,grid as u8,0]);
   for i in 0..9{put32(&mut t,if i%4==0{65536}else{0})}
   put16(&mut t,2);put16(&mut t,2);
   for _ in 0..3{put16(&mut t,0);put16(&mut t,65535)}
   t.extend(table);
   for _ in 0..4{put16(&mut t,0);put16(&mut t,65535)}
+  }
   let mut p=self.clone();
   for k in [b"B2A0",b"B2A1",b"B2A2"]{p.tags.insert(*k,t.clone());}
   p.clean_stale();p.verify(caps)?;Ok(p)
@@ -162,6 +167,7 @@ fn interp(curve:&[f64],x:f64)->f64{
 struct Lut {inputs:usize,outputs:usize,grid:usize,in_curves:Vec<Vec<f64>>,clut:Vec<f64>,out_curves:Vec<Vec<f64>>}
 impl Lut{
  fn parse(t:&[u8])->R<Self>{
+  if t.starts_with(b"mAB ")||t.starts_with(b"mBA "){return Self::parse_v4(t)}
   if t.len()<52{return Err("Truncated LUT".into())}
   let (width,mut off,ni,no)=match &t[..4]{b"mft1"=>(1,48,256,256),b"mft2"=>(2,52,u16at(t,48)? as usize,u16at(t,50)? as usize),_=>return Err("Only mft1/mft2 output LUTs can be verified".into())};
   let (inputs,outputs,grid)=(t[8] as usize,t[9] as usize,t[10] as usize);
@@ -177,6 +183,27 @@ impl Lut{
   let mut out_curves=Vec::new();for _ in 0..outputs{out_curves.push(take(no)?)}
   Ok(Self{inputs,outputs,grid,in_curves,clut,out_curves})
  }
+ fn parse_v4(t:&[u8])->R<Self>{
+  if t.len()<32{return Err("Truncated ICC v4 LUT".into())}
+  let inputs=t[8] as usize;let outputs=t[9] as usize;
+  if !(1..=4).contains(&inputs)||!(1..=4).contains(&outputs){return Err("Invalid v4 LUT channel count".into())}
+  let b=u32at(t,12)? as usize;let matrix=u32at(t,16)? as usize;
+  let m=u32at(t,20)? as usize;let cl=u32at(t,24)? as usize;let a=u32at(t,28)? as usize;
+  if matrix!=0||m!=0{return Err("v4 LUT with matrix/M curves is not supported by this engine".into())}
+  if cl<32||cl%4!=0||cl.checked_add(20).filter(|&v|v<=t.len()).is_none(){return Err("Invalid v4 CLUT offset".into())}
+  let grid=t[cl] as usize;
+  if grid<2||t[cl..cl+inputs].iter().any(|&v|v as usize!=grid){return Err("Only equal-grid v4 CLUTs are supported".into())}
+  let width=t[cl+16] as usize;
+  if width!=1&&width!=2{return Err("Unsupported v4 CLUT precision".into())}
+  let count=grid.checked_pow(inputs as u32).and_then(|v|v.checked_mul(outputs)).ok_or("CLUT overflow")?;
+  let end=(cl+20).checked_add(count.checked_mul(width).ok_or("CLUT overflow")?).ok_or("CLUT overflow")?;
+  if count>16_000_000||end>t.len(){return Err("Truncated or oversized v4 CLUT".into())}
+  let clut=if width==1{t[cl+20..end].iter().map(|&v|v as f64/255.).collect()}else{t[cl+20..end].chunks_exact(2).map(|v|u16::from_be_bytes([v[0],v[1]]) as f64/65535.).collect()};
+  let (input_offset,output_offset)=if t.starts_with(b"mAB "){(a,b)}else{(b,a)};
+  let in_curves=read_curve_set(t,input_offset,inputs)?;
+  let out_curves=read_curve_set(t,output_offset,outputs)?;
+  Ok(Self{inputs,outputs,grid,in_curves,clut,out_curves})
+ }
  fn eval4(&self,x:[f64;4])->[f64;3]{
   let mut lo=[0usize;4];let mut hi=[0usize;4];let mut frac=[0.;4];
   for j in 0..4{let p=interp(&self.in_curves[j],x[j])*(self.grid-1) as f64;lo[j]=p.floor() as usize;hi[j]=(lo[j]+1).min(self.grid-1);frac[j]=p-lo[j] as f64;}
@@ -187,6 +214,39 @@ impl Lut{
   for j in 0..3{y[j]=interp(&self.out_curves[j],y[j])}y
  }
 }
+
+// ICC v4 curveType sets are four-byte aligned. The production profile
+// uses sampled curves (4096 entries) and two-point identity curves.
+fn read_curve_set(t:&[u8],mut off:usize,n:usize)->R<Vec<Vec<f64>>>{
+ if off==0{return Ok(vec![vec![0.,1.];n])}
+ if off<32||off%4!=0{return Err("Invalid v4 curve offset".into())}
+ let mut out=Vec::new();
+ for _ in 0..n{
+  if off.checked_add(12).filter(|&v|v<=t.len()).is_none(){return Err("Truncated v4 curve".into())}
+  if &t[off..off+4]!=b"curv"{return Err("Only sampled v4 curveType (curv) is supported; parametric curves are not approximated".into())}
+  let count=u32at(t,off+8)? as usize;
+  if count==1{return Err("Gamma-encoded single-entry curves are unsupported".into())}
+  let end=(off+12).checked_add(count.checked_mul(2).ok_or("Curve size overflow")?).ok_or("Curve size overflow")?;
+  if end>t.len()||count>65536{return Err("Invalid v4 curve size".into())}
+  let curve=if count==0{vec![0.,1.]}else{t[off+12..end].chunks_exact(2).map(|v|u16::from_be_bytes([v[0],v[1]]) as f64/65535.).collect()};
+  out.push(curve);off=(end+3)&!3;
+ }
+ Ok(out)
+}
+fn identity_curves(t:&mut Vec<u8>,n:usize){
+ for _ in 0..n{t.extend(b"curv\0\0\0\0");put32(t,2);put16(t,0);put16(t,65535);}
+}
+fn make_mba(grid:usize,table:&[u8])->Vec<u8>{
+ let mut t=b"mBA \0\0\0\0".to_vec();
+ t.extend([3,4,0,0]);put32(&mut t,32);put32(&mut t,0);put32(&mut t,0);
+ let cl=32+3*16;let a=(cl+20+table.len()+3)&!3;
+ put32(&mut t,cl as u32);put32(&mut t,a as u32);
+ identity_curves(&mut t,3);
+ t.extend([grid as u8;3]);t.extend([0;13]);t.extend([2,0,0,0]);
+ t.extend(table);while t.len()%4!=0{t.push(0)}
+ identity_curves(&mut t,4);t
+}
+
 #[cfg(test)]
 mod tests{
  use super::*;
@@ -197,6 +257,20 @@ mod tests{
   for i in 0..16{let c=(i>>3)&1;let m=(i>>2)&1;let y=(i>>1)&1;let k=i&1;put16(&mut t,(65535-10000*(c+m+y+k)) as u16);put16(&mut t,(20000+20000*m) as u16);put16(&mut t,(20000+20000*y) as u16)}
   for _ in 0..3{put16(&mut t,0);put16(&mut t,65535)}
   let mut tags=BTreeMap::new();tags.insert(*b"A2B1",t);Profile{header,tags}
+ }
+ #[test]fn v4_mab_mba_rebuild(){
+  let mut p=fixture();p.header[8]=4;p.header[9]=0x30;
+  let old=p.tags.get(b"A2B1").unwrap();
+  // mAB: 4 input curves, 17-style 4D CLUT, 3 output curves.
+  let mut t=b"mAB \0\0\0\0".to_vec();t.extend([4,3,0,0]);
+  let cl=32+3*16;let a=cl+20+16*3*2;
+  put32(&mut t,32);put32(&mut t,0);put32(&mut t,0);put32(&mut t,cl as u32);put32(&mut t,a as u32);
+  identity_curves(&mut t,3);t.extend([2;4]);t.extend([0;12]);t.extend([2,0,0,0]);
+  t.extend(&old[68..68+96]);identity_curves(&mut t,4);
+  p.tags.insert(*b"A2B1",t);
+  let caps=[1.,1.,1.,0.];let result=p.custom_rebuild(caps,3.,9,|_|{}).unwrap();
+  assert_eq!(result.version_major(),4);assert!(result.tags[b"B2A1"].starts_with(b"mBA "));
+  assert_eq!(Profile::parse(&result.bytes().unwrap()).unwrap().verify(caps).unwrap()[3],0.);
  }
  #[test]fn rejects_bad_header(){assert!(Profile::parse(&[0;132]).is_err());}
  #[test]fn channel_names(){assert_eq!(fixture().channels(),vec!["Cyan","Magenta","Yellow","Black"]);}

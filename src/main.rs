@@ -39,7 +39,7 @@ fn run(j:Job,progress:impl Fn(String))->R<String>{
  let reference=Profile::read(&j.source)?;reference.check()?;
  if j.destination.exists(){return Err("Output already exists. Choose a new filename; the reference is never overwritten.".into())}
  let caps=j.caps.map(|v|v/100.);
- if j.mode==Mode::Argyll && (!reference.cmyk()||caps[..3].iter().any(|v|*v!=1.)){return Err("Argyll supports CMYK K-only limits. Choose Custom for other channels.".into())}
+ if j.mode==Mode::Argyll && (reference.version_major()!=2||!reference.cmyk()||caps[..3].iter().any(|v|*v!=1.)){return Err("Argyll revfix requires ICC v2 CMYK and K-only limits. Use Custom for ICC v4 or other channels.".into())}
  let mut output=match j.mode{
   Mode::Custom=>reference.custom_rebuild(caps,j.tac/100.,j.grid,&progress)?,
   Mode::Argyll=>{
@@ -74,8 +74,8 @@ impl App{
  fn open(&mut self,p:PathBuf){
   self.source=Some(p.clone());self.profile=None;self.destination=None;self.names.clear();
   match Profile::read(&p){Ok(profile)=>{
-   self.names=profile.channels();self.caps=[100.;4];if profile.cmyk(){self.caps[3]=0.;self.mode=Mode::Argyll}else{self.mode=Mode::Custom}
-   match profile.check(){Ok(())=>{self.status=format!("Detected {} / PCS {}. Confirm physical ink order before rebuilding.",profile.space(),profile.pcs());self.profile=Some(profile);self.destination=Some(p.with_file_name(format!("{}_limited.icc",p.file_stem().unwrap_or_default().to_string_lossy())));}
+   self.names=profile.channels();self.caps=[100.;4];if profile.cmyk(){self.caps[3]=0.;self.mode=if profile.version_major()==4{Mode::Custom}else{Mode::Argyll}}else{self.mode=Mode::Custom}
+   match profile.check(){Ok(())=>{self.status=format!("Detected ICC v{} / {} / PCS {}. Confirm physical ink order before rebuilding.",profile.version_major(),profile.space(),profile.pcs());if profile.version_major()==4{self.grid=33;}self.profile=Some(profile);self.destination=Some(p.with_file_name(format!("{}_limited.icc",p.file_stem().unwrap_or_default().to_string_lossy())));}
    Err(e)=>self.status=e}
   }Err(e)=>self.status=e}
  }
@@ -119,7 +119,7 @@ impl eframe::App for App{
       }
      });
      ui.horizontal(|ui|{ui.label("K presets:");for v in [0.,5.,10.,100.]{if ui.button(format!("{v}%")).clicked(){self.caps[3]=v;}}});
-     let can_argyll=self.profile.as_ref().map(|p|p.cmyk()).unwrap_or(false)&&self.caps[..3].iter().all(|&v|v==100.);
+     let can_argyll=self.profile.as_ref().map(|p|p.cmyk()&&p.version_major()==2).unwrap_or(false)&&self.caps[..3].iter().all(|&v|v==100.);
      if !can_argyll{self.mode=Mode::Custom}
      ui.separator();ui.horizontal(|ui|{
       ui.label("Engine:");
@@ -130,7 +130,8 @@ impl eframe::App for App{
       ui.label("Argyll is installed beside the EXE automatically on first generation.");
       ui.checkbox(&mut self.estimate,"Estimate total ink from reference ICC");
      }else{
-      ui.label("Experimental: Lab PCS / A2B1 mft2 only. Specify a safe TAC from your print calibration.");
+      if self.profile.as_ref().is_some_and(|p|p.version_major()==4){ui.label("ICC v4 detected: Argyll revfix disabled; original version preserved.");}
+      ui.label("Custom ICC v2 mft2 / v4 mAB (sampled curves). Specify a safe TAC from your print calibration.");
      }
      if self.mode==Mode::Custom||!self.estimate{ui.add(egui::Slider::new(&mut self.tac,0.0..=400.).step_by(1.).suffix("%").text("Total ink (TAC)"));}
      ui.horizontal(|ui|{ui.label("CLUT grid:");egui::ComboBox::from_id_salt("grid").selected_text(format!("{}³",self.grid)).show_ui(ui,|ui|{for v in [9,17,25,33]{ui.selectable_value(&mut self.grid,v,format!("{v}³"));}});});
