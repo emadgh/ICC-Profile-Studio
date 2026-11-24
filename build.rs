@@ -11,7 +11,7 @@ fn main() {
     std::fs::write(&path, ico).unwrap();
     let mut resource = winresource::WindowsResource::new();
     resource.set_icon(path.to_str().unwrap());
-    resource.set("FileDescription","ICC Profile Rebuilder");
-    resource.set("ProductName","ICC Profile Rebuilder");
+    resource.set("FileDescription","ICC Profile Studio");
+    resource.set("ProductName","ICC Profile Studio");
     resource.compile().expect("Embed Windows application icon");
 }

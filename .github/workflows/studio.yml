@@ -1,4 +1,4 @@
-name: Studio GPUI preview
+name: ICC Profile Studio Windows x64
 on:
   push:
     branches: [main]
@@ -12,7 +12,7 @@ on:
   workflow_dispatch:
     inputs:
       publish_preview:
-        description: Publish a separate private Studio prerelease after tests
+        description: Publish a Studio prerelease after tests
         required: false
         default: false
         type: boolean
@@ -29,9 +29,9 @@ jobs:
         with:
           targets: x86_64-pc-windows-msvc
       - name: Test LittleCMS inspection and ICC backend
-        run: cargo test --lib --release --target x86_64-pc-windows-msvc
+        run: cargo test --lib --no-default-features --release --target x86_64-pc-windows-msvc
       - name: Build GPUI preview
-        run: cargo build --release --features studio --bin icc-profile-studio --target x86_64-pc-windows-msvc
+        run: cargo build --release --bin icc-profile-studio --target x86_64-pc-windows-msvc
       - name: Package Studio preview
         shell: pwsh
         run: |
@@ -52,7 +52,7 @@ jobs:
           $tag = "studio-v$version"
           gh release view $tag --json tagName 2>$null
           if ($LASTEXITCODE -eq 0) { throw "Immutable Studio version exists; increment STUDIO_VERSION" }
-          gh release create $tag studio-dist/ICC-Profile-Studio.exe studio-dist/ICC-Profile-Studio.exe.sha256 ICC-Profile-Studio-Windows-x64.zip --target $env:GITHUB_SHA --prerelease --latest=false --title "ICC Profile Studio $version" --notes "Windows x64 preview. Automated tests passed; production printer and interactive runtime validation pending. Separate from the legacy Rebuilder release."
+          gh release create $tag studio-dist/ICC-Profile-Studio.exe studio-dist/ICC-Profile-Studio.exe.sha256 ICC-Profile-Studio-Windows-x64.zip --target $env:GITHUB_SHA --prerelease --latest=false --title "ICC Profile Studio $version" --notes "Windows x64 preview. Automated tests passed; production printer and interactive runtime validation pending. ICC-only GPUI application."
           if ($LASTEXITCODE -ne 0) { throw "Studio preview publication failed" }
       - uses: actions/upload-artifact@v4
         with:

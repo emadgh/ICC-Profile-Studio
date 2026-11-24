@@ -9,9 +9,7 @@ use color_convert_rust::correction::{Operation,Selective,BlackGeneration,IDENTIT
 use color_convert_rust::gamut::{self,Overlay};
 use gamut_view::ViewOptions;
 use color_convert_rust::gamut_raster::CompareLayout;
-use color_convert_rust::images::{self,Options as ImageOptions,Output as ImageOutput};
-use color_convert_rust::streaming::{self,StreamOptions};
-use std::sync::{Arc,atomic::{AtomicBool,Ordering}};
+use color_convert_rust::device_link;
 use color_convert_rust::gradient::{self,GradientReport};
 use color_convert_rust::{library,reports,preferences::{self,Preferences}};
 #[cfg(windows)] use update_via_github::{UpdateConfig,UpdateManager,UpdateStatus};
@@ -20,18 +18,18 @@ use color_convert_rust::{optimizer::{self,Settings as RecipeSettings,Report as R
 const STUDIO_VERSION:&str=include_str!("../../STUDIO_VERSION");
 
 #[derive(Clone,Copy,PartialEq,Eq)]
-enum Page { Dashboard, Library, Inspector, Validator, Rebuilder, Comparison, Curves, Reorder, Metadata, Gamut, Gradient, Correction, Smoothing, Converter, DeviceLink, Proof, Recipes, Black, Lab, Settings, About }
-const PAGES: [(Page,&str);21] = [
+enum Page { Dashboard, Library, Inspector, Validator, Rebuilder, Comparison, Curves, Reorder, Metadata, Gamut, Gradient, Correction, Smoothing, DeviceLink, Recipes, Black, Lab, Settings, About }
+const PAGES: [(Page,&str);19] = [
  (Page::Dashboard,"Dashboard"),(Page::Library,"Profile Library"),(Page::Inspector,"Profile Inspector"),(Page::Validator,"Profile Validator"),(Page::Rebuilder,"Profile Rebuilder"),
- (Page::Comparison,"Profile Comparison"),(Page::Curves,"Tone Curves"),(Page::Reorder,"Channel Reorder"),(Page::Metadata,"Profile Metadata"),(Page::Gamut,"Gamut Viewer"),(Page::Gradient,"Gradient Analyzer"),(Page::Correction,"Color Correction"),(Page::Smoothing,"LUT Smoothing"),(Page::Converter,"Image Converter"),(Page::DeviceLink,"DeviceLink"),(Page::Proof,"Soft Proof"),(Page::Recipes,"Ink Optimizer"),(Page::Black,"Black Generation"),(Page::Lab,"Profiling Lab"),(Page::Settings,"Settings"),(Page::About,"About & Updates")
+ (Page::Comparison,"Profile Comparison"),(Page::Curves,"Tone Curves"),(Page::Reorder,"Channel Reorder"),(Page::Metadata,"Profile Metadata"),(Page::Gamut,"Gamut Viewer"),(Page::Gradient,"Gradient Analyzer"),(Page::Correction,"Color Correction"),(Page::Smoothing,"LUT Smoothing"),(Page::DeviceLink,"DeviceLink Generator"),(Page::Recipes,"Ink Optimizer"),(Page::Black,"Black Generation"),(Page::Lab,"Profiling Lab"),(Page::Settings,"Settings"),(Page::About,"About & Updates")
 ];
 enum Event { Progress(String), Done(Result<String,String>) }
 struct Studio {
  page:Page, source:Option<PathBuf>, profile:Option<Profile>, report:Option<Inspection>, error:Option<String>,
- caps:[f64;4],tac:f64,grid:usize,mode:Mode,status:String,busy:bool, candidate:Option<PathBuf>,comparison:Option<Comparison>,compare_error:Option<String>,compare_grid:usize,compare_intent:lcms2::Intent,gamma:[f64;4],order:[usize;4], preview_open:bool, preview:Option<Overlay>, preview_revision:u64, preview_direct_image:bool, preview_cache:std::cell::RefCell<gamut_view::PreviewCache>, preview_options:ViewOptions, gamut_grid:usize,gradient:Option<GradientReport>,gradient_error:Option<String>,coverage_threshold:f64, selective:[f64;5], correction_grid:usize, correction_tac:f64, smoothing:f64, smoothing_passes:usize,orbit_last:Option<Point<Pixels>>,image_files:Vec<PathBuf>,image_root:Option<PathBuf>,image_options:ImageOptions,image_results:Vec<ImageOutput>,image_errors:Vec<String>,image_preview:usize,proof_source:Option<PathBuf>,monitor_profile:Option<PathBuf>,proof_media:bool,proof_bpc:bool,proof_output:Option<PathBuf>,stream_options:StreamOptions,stream_enabled:bool,batch_cancel:Option<Arc<AtomicBool>>,recipe_target:[f64;3],recipe_settings:RecipeSettings,recipe_result:Option<RecipeReport>,lab_levels:usize,measured:[Option<PathBuf>;2],measurement_result:Option<MeasuredComparison>,black:BlackGeneration,curve_points:[[f64;5];4],library_root:Option<PathBuf>,library_entries:Vec<library::Entry>,logo:std::sync::Arc<gpui::Image>,#[cfg(windows)] updater:UpdateManager,
+ caps:[f64;4],tac:f64,grid:usize,mode:Mode,status:String,busy:bool, candidate:Option<PathBuf>,comparison:Option<Comparison>,compare_error:Option<String>,compare_grid:usize,compare_intent:lcms2::Intent,gamma:[f64;4],order:[usize;4], preview_open:bool, preview:Option<Overlay>, preview_revision:u64, preview_direct_image:bool, preview_cache:std::cell::RefCell<gamut_view::PreviewCache>, preview_options:ViewOptions, gamut_grid:usize,gradient:Option<GradientReport>,gradient_error:Option<String>,coverage_threshold:f64, selective:[f64;5], correction_grid:usize, correction_tac:f64, smoothing:f64, smoothing_passes:usize,orbit_last:Option<Point<Pixels>>,chart_dpi:u32,recipe_target:[f64;3],recipe_settings:RecipeSettings,recipe_result:Option<RecipeReport>,lab_levels:usize,measured:[Option<PathBuf>;2],measurement_result:Option<MeasuredComparison>,black:BlackGeneration,curve_points:[[f64;5];4],library_root:Option<PathBuf>,library_entries:Vec<library::Entry>,logo:std::sync::Arc<gpui::Image>,#[cfg(windows)] updater:UpdateManager,
 }
 impl Default for Studio {
- fn default()->Self{Self{page:Page::Dashboard,source:None,profile:None,report:None,error:None,caps:[100.,100.,100.,0.],tac:240.,grid:33,mode:Mode::Custom,status:"Open an ICC or ICM profile to start.".into(),busy:false,candidate:None,comparison:None,compare_error:None,compare_grid:17,compare_intent:lcms2::Intent::RelativeColorimetric,gamma:[1.;4],order:[0,1,2,3],preview_open:true,preview:None,preview_revision:0,preview_direct_image:true,preview_cache:std::cell::RefCell::new(gamut_view::PreviewCache::default()),preview_options:ViewOptions::default(),gamut_grid:17,gradient:None,gradient_error:None,coverage_threshold:2.,selective:[135.,45.,0.,0.,0.],correction_grid:33,correction_tac:400.,smoothing:0.20,smoothing_passes:1,orbit_last:None,image_files:vec![],image_root:None,image_options:ImageOptions::default(),image_results:vec![],image_errors:vec![],image_preview:0,proof_source:None,monitor_profile:None,proof_media:true,proof_bpc:false,proof_output:None,stream_options:StreamOptions::default(),stream_enabled:false,batch_cancel:None,recipe_target:[50.,0.,0.],recipe_settings:RecipeSettings::default(),recipe_result:None,lab_levels:5,measured:[None,None],measurement_result:None,black:BlackGeneration::default(),curve_points:IDENTITY_POINTS,library_root:None,library_entries:vec![],logo:std::sync::Arc::new(gpui::Image::from_bytes(gpui::ImageFormat::Png,include_bytes!("../../assets/icon.png").to_vec())),#[cfg(windows)] updater:UpdateManager::new(UpdateConfig::new("emadgh/color-convert-rust","ICC-Profile-Studio.exe",STUDIO_VERSION.trim()).with_app_name("ICC Profile Studio").with_checksum_asset("ICC-Profile-Studio.exe.sha256").with_required_checksum(true))}}
+ fn default()->Self{Self{page:Page::Dashboard,source:None,profile:None,report:None,error:None,caps:[100.,100.,100.,0.],tac:240.,grid:33,mode:Mode::Custom,status:"Open an ICC or ICM profile to start.".into(),busy:false,candidate:None,comparison:None,compare_error:None,compare_grid:17,compare_intent:lcms2::Intent::RelativeColorimetric,gamma:[1.;4],order:[0,1,2,3],preview_open:true,preview:None,preview_revision:0,preview_direct_image:true,preview_cache:std::cell::RefCell::new(gamut_view::PreviewCache::default()),preview_options:ViewOptions::default(),gamut_grid:17,gradient:None,gradient_error:None,coverage_threshold:2.,selective:[135.,45.,0.,0.,0.],correction_grid:33,correction_tac:400.,smoothing:0.20,smoothing_passes:1,orbit_last:None,chart_dpi:300,recipe_target:[50.,0.,0.],recipe_settings:RecipeSettings::default(),recipe_result:None,lab_levels:5,measured:[None,None],measurement_result:None,black:BlackGeneration::default(),curve_points:IDENTITY_POINTS,library_root:None,library_entries:vec![],logo:std::sync::Arc::new(gpui::Image::from_bytes(gpui::ImageFormat::Png,include_bytes!("../../assets/icon.png").to_vec())),#[cfg(windows)] updater:UpdateManager::new(UpdateConfig::new("emadgh/color-convert-rust","ICC-Profile-Studio.exe",STUDIO_VERSION.trim()).with_app_name("ICC Profile Studio").with_checksum_asset("ICC-Profile-Studio.exe.sha256").with_required_checksum(true))}}
 }
 fn button(id: impl Into<ElementId>,label:impl Into<SharedString>)->Stateful<Div>{
  div().id(id).px_3().py_2().rounded_md().bg(rgb(0x263449)).text_color(rgb(0xe6eefb)).cursor_pointer().hover(|s|s.bg(rgb(0x354963))).child(label.into())
@@ -402,69 +400,6 @@ let chart=div().id("gamut-orbit").w_full().flex_shrink_0().cursor_pointer()
    .child("Lattice boundaries are not averaged; initial resampling and ink constraints can still change them. Use Gradient Analyzer and Profile Comparison after saving to check the trade-off between smoothness and color accuracy.")
    .child(button("save-smoothing","Generate smoothed ICC").on_click(cx.listener(|this,_,_,cx|this.save_edit(4,cx))))
  }
- fn convert_images(&mut self,cx:&mut Context<Self>){
-  if self.busy{return}let (Some(reference),Some(root))=(self.source.clone(),self.image_root.clone())else{self.status="Choose reference ICC and output folder.".into();cx.notify();return};
-  if self.image_files.is_empty(){return}
-  let dest=self.candidate.clone().unwrap_or_else(||reference.clone());let files=self.image_files.clone();let options=self.image_options;let stream=self.stream_options;let streaming_enabled=self.stream_enabled;let cancel=Arc::new(AtomicBool::new(false));self.batch_cancel=Some(cancel.clone());self.image_preview=0;
-  self.busy=true;self.image_results.clear();self.image_errors.clear();self.status="Converting image batch with LittleCMS…".into();cx.notify();
-  cx.spawn(async move|this,cx|{
-   enum BatchEvent{Progress(String),Result(PathBuf,Result<ImageOutput,String>)}
-   let (tx,rx)=mpsc::channel();let worker_cancel=cancel.clone();
-   std::thread::spawn(move||{
-    for path in files{
-     if worker_cancel.load(Ordering::Relaxed){break}
-     let is_tiff=path.extension().and_then(|s|s.to_str()).is_some_and(|s|s.eq_ignore_ascii_case("tif")||s.eq_ignore_ascii_case("tiff"));
-     let result=if streaming_enabled&&is_tiff{
-      streaming::convert(&path,&reference,&dest,&root,options,stream,&worker_cancel,|i,n|{if i==1||i==n||i%8==0{let _=tx.send(BatchEvent::Progress(format!("{}: strip {i}/{n}",path.display())));}})
-     }else{images::convert(&path,&reference,&dest,&root,options)};
-     let _=tx.send(BatchEvent::Result(path,result));
-    }
-   });
-   loop{
-    match rx.try_recv(){
-     Ok(BatchEvent::Progress(s))=>{if this.update(cx,|v,cx|{v.status=s;cx.notify();}).is_err(){break}},
-     Ok(BatchEvent::Result(path,result))=>{if this.update(cx,|v,cx|{match result{Ok(r)=>v.image_results.push(r),Err(e)=>v.image_errors.push(format!("{}: {e}",path.display()))}v.status=format!("Converted {} / failed {}",v.image_results.len(),v.image_errors.len());cx.notify();}).is_err(){break}},
-     Err(mpsc::TryRecvError::Disconnected)=>{let _=this.update(cx,|v,cx|{v.busy=false;v.batch_cancel=None;v.status=format!("Batch {}: {} succeeded, {} failed.",if cancel.load(Ordering::Relaxed){"cancelled"}else{"finished"},v.image_results.len(),v.image_errors.len());cx.notify();});break},
-     Err(mpsc::TryRecvError::Empty)=>cx.background_executor().timer(Duration::from_millis(70)).await,
-    }
-   }
-  }).detach();
- }
- fn image_page(&self,cx:&mut Context<Self>)->Div{
-  let mut p=div().flex().flex_col().gap_3().child(heading("Image Processing Studio","RGB PNG/JPEG, RGB/CMYK TIFF → tagged CMYK16 TIFF; batch processing."))
-   .child(button("image-files","Select images").on_click(cx.listener(|v,_,_,cx|{if !v.busy{if let Some(p)=rfd::FileDialog::new().add_filter("Images",&["png","jpg","jpeg","tif","tiff"]).pick_files(){v.image_files=p;v.image_results.clear();v.image_errors.clear();cx.notify();}}})))
-   .child(format!("{} image(s) selected",self.image_files.len()))
-   .child(button("image-root","Select output directory").on_click(cx.listener(|v,_,_,cx|{if !v.busy{if let Some(p)=rfd::FileDialog::new().pick_folder(){v.image_root=Some(p);cx.notify();}}})))
-   .child(self.image_root.as_ref().map(|p|p.display().to_string()).unwrap_or("No output folder".into()))
-   .child(format!("Destination: {}",self.candidate.as_ref().or(self.source.as_ref()).map(|p|p.display().to_string()).unwrap_or("Select a printer ICC".into())))
-   .child(button("assume-icc",if self.image_options.assume_untagged{"Untagged: assume sRGB / reference CMYK ✓"}else{"Untagged: reject (click to explicitly assume)"}).on_click(cx.listener(|v,_,_,cx|{if !v.busy{v.image_options.assume_untagged=!v.image_options.assume_untagged;cx.notify();}})))
-   .child(div().flex().gap_1().flex_wrap().children([("Relative",lcms2::Intent::RelativeColorimetric),("Perceptual",lcms2::Intent::Perceptual),("Saturation",lcms2::Intent::Saturation),("Absolute",lcms2::Intent::AbsoluteColorimetric)].into_iter().enumerate().map(|(i,(n,intent))|button(("image-intent",i),if self.image_options.intent==intent{format!("{n} ✓")}else{n.into()}).on_click(cx.listener(move|v,_,_,cx|{if !v.busy{v.image_options.intent=intent;cx.notify();}})))))
-   .child(div().flex().gap_1().items_center().child(format!("DPI {}",self.image_options.dpi))
-    .child(button("dpi-down","−10").on_click(cx.listener(|v,_,_,cx|{if !v.busy{v.image_options.dpi=v.image_options.dpi.saturating_sub(10).max(50);cx.notify();}})))
-    .child(button("dpi-up","+10").on_click(cx.listener(|v,_,_,cx|{if !v.busy{v.image_options.dpi=(v.image_options.dpi+10).min(2400);cx.notify();}}))))
-   .child(div().flex().gap_1().items_center().child(format!("Reject above TAC {:.0}%",self.image_options.tac))
-    .child(button("image-tac-down","−5").on_click(cx.listener(|v,_,_,cx|{if !v.busy{v.image_options.tac=(v.image_options.tac-5.).max(0.);cx.notify();}})))
-    .child(button("image-tac-up","+5").on_click(cx.listener(|v,_,_,cx|{if !v.busy{v.image_options.tac=(v.image_options.tac+5.).min(400.);cx.notify();}}))))
-   .child(button("stream-mode",if self.stream_enabled{"Stream interleaved strip TIFF ✓"}else{"In-memory conversion (24 MP)"}).on_click(cx.listener(|v,_,_,cx|{if !v.busy{v.stream_enabled=!v.stream_enabled;cx.notify();}})))
-   .child(button("bigtiff-mode",if self.stream_options.bigtiff{"BigTIFF ✓ (verify RIP support)"}else{"Classic TIFF output"}).on_click(cx.listener(|v,_,_,cx|{if !v.busy{v.stream_options.bigtiff=!v.stream_options.bigtiff;cx.notify();}})))
-   .child(button("full-separations",if self.stream_options.separations{"Full-resolution 16-bit separations ✓"}else{"Thumbnail separations only"}).on_click(cx.listener(|v,_,_,cx|{if !v.busy{v.stream_options.separations=!v.stream_options.separations;cx.notify();}})))
-   .child("BigTIFF and full-size separations apply only to streaming TIFF. Strips ≤ 2 MP each, total ≤ 2 billion pixels. Tiled, planar, multipage and alpha TIFF not supported by this path. PNG/JPEG or disabled streaming remains limited to 24 MP. Set physical DPI deliberately; source metadata is not copied.")
-   .child(button("cancel-batch","Cancel batch").on_click(cx.listener(|v,_,_,cx|{if let Some(c)=&v.batch_cancel{c.store(true,Ordering::Relaxed);v.status="Cancellation requested; current non-streamed file may finish.".into();cx.notify();}})))
-   .child(button("convert-batch",if self.busy{"Working…"}else{"Convert selected images"}).on_click(cx.listener(|v,_,_,cx|v.convert_images(cx))));
-  for e in &self.image_errors{p=p.child(div().text_color(rgb(0xfca5a5)).child(e.clone()));}
-  for (i,r) in self.image_results.iter().enumerate(){
-   p=p.child(div().p_3().rounded_md().bg(rgb(0x1b2637)).flex().flex_col().gap_1().child(r.directory.display().to_string()).child(format!("{} × {} · peak TAC {:.2}% · mean inks {:?}",r.width,r.height,r.peak_tac,r.mean))
-   .child(button(("pick-image-result",i),"Show image previews").on_click(cx.listener(move|v,_,_,cx|{v.image_preview=i;cx.notify();}))));
-  }
-  if let Some(r)=self.image_results.get(self.image_preview){
-   p=p.child(div().text_lg().child("Before / after — relative sRGB simulation"))
-    .child(div().flex().gap_2().children(["before.png","after.png"].map(|n|div().flex_1().min_w(px(0.)).child(n).child(img(r.directory.join(n)).w_full().h(px(200.))))))
-    .child(div().text_lg().child("Channel separations"))
-    .child(div().flex().gap_1().children((1..=4).map(|j|div().flex_1().min_w(px(0.)).child(format!("Ink {j}")).child(img(r.directory.join(format!("channel_{j}.png"))).w_full().h(px(100.))))))
-    .child("TAC coverage: blue = low, red = high").child(img(r.directory.join("coverage.png")).w_full().h(px(220.)));
-  }
-  p
- }
  fn link_page(&self,cx:&mut Context<Self>)->Div{
   div().flex().flex_col().gap_3().child(heading("DeviceLink Generator","LittleCMS CMYK → CMYK ICC v4.3."))
    .child("Reference is source CMYK and candidate is destination. Select the candidate in Gamut Preview or Profile Comparison. Relative colorimetric; no special black preservation or certified channel cap guarantee.")
@@ -473,7 +408,7 @@ let chart=div().id("gamut-orbit").w_full().flex_shrink_0().cursor_pointer()
     let Some(mut dest)=rfd::FileDialog::new().add_filter("ICC",&["icc"]).set_file_name("CMYK_to_CMYK.icc").save_file()else{return};if dest.extension().is_none(){dest.set_extension("icc");}
     v.busy=true;v.status="Generating DeviceLink…".into();cx.notify();
     cx.spawn(async move|this,cx|{
-     let result=cx.background_spawn(async move{images::device_link(&a,&b,&dest,lcms2::Intent::RelativeColorimetric).map(|r|format!("Saved {} | {} samples | Max link/direct channel deviation {:.3} pp | Peak sampled TAC {:.2}% | Max channels {:.2?}%",dest.display(),r.sample_count,r.max_channel_difference,r.peak_tac,r.maxima))}).await;
+     let result=cx.background_spawn(async move{device_link::device_link(&a,&b,&dest,lcms2::Intent::RelativeColorimetric).map(|r|format!("Saved {} | {} samples | Max link/direct channel deviation {:.3} pp | Peak sampled TAC {:.2}% | Max channels {:.2?}%",dest.display(),r.sample_count,r.max_channel_difference,r.peak_tac,r.maxima))}).await;
      let _=this.update(cx,|v,cx|{v.busy=false;v.status=result.unwrap_or_else(|e|format!("Error: {e}"));cx.notify();});
     }).detach();
    })))
@@ -516,10 +451,13 @@ let chart=div().id("gamut-orbit").w_full().flex_shrink_0().cursor_pointer()
    .child("Record printer, glaze, ink batch, firing schedule and measurement conditions externally. Use identical measurement geometry and D50 Lab for both charts.")
    .child(div().text_lg().child("Generate device test chart"))
    .child(div().flex().gap_1().items_center().child("Levels per ink").children([3usize,5,7].map(|n|button(("chart-level",n),if self.lab_levels==n{format!("{n} ✓")}else{n.to_string()}).on_click(cx.listener(move|v,_,_,cx|{if !v.busy{v.lab_levels=n;cx.notify();}})))))
-   .child(format!("Rebuilder caps {:?}, TAC {:.0}%; DPI {} (Image Converter setting). 8 mm patches, 2 mm gaps.",self.caps,self.tac,self.image_options.dpi))
+   .child(format!("Rebuilder caps {:?}, TAC {:.0}%; Chart DPI {}. 8 mm patches, 2 mm gaps.",self.caps,self.tac,self.chart_dpi))
+   .child(div().flex().gap_2().items_center().child(format!("Chart resolution: {} DPI",self.chart_dpi))
+    .child(button("chart-dpi-minus","−10").on_click(cx.listener(|v,_,_,cx|{if !v.busy{v.chart_dpi=v.chart_dpi.saturating_sub(10).max(50);cx.notify();}})))
+    .child(button("chart-dpi-plus","+10").on_click(cx.listener(|v,_,_,cx|{if !v.busy{v.chart_dpi=(v.chart_dpi+10).min(1200);cx.notify();}}))))
    .child(button("generate-chart","Export TIFF chart and measurement CSV").on_click(cx.listener(|v,_,_,cx|{
     if v.busy{return}let Some(p)=v.source.clone()else{return};let Some(root)=rfd::FileDialog::new().pick_folder()else{return};
-    let (levels,caps,tac,dpi)=(v.lab_levels,v.caps,v.tac,v.image_options.dpi);
+    let (levels,caps,tac,dpi)=(v.lab_levels,v.caps,v.tac,v.chart_dpi);
     v.busy=true;v.status="Generating device chart…".into();cx.notify();
     cx.spawn(async move|this,cx|{
      let result=cx.background_spawn(async move{lab::generate_chart(&p,&root,levels,caps,tac,dpi).map(|p|format!("Chart: {}",p.display()))}).await;
@@ -650,41 +588,14 @@ let chart=div().id("gamut-orbit").w_full().flex_shrink_0().cursor_pointer()
    .child("Initial implementation: ICC v4 mBA, 17/33 grid. Per-node predicted appearance constraint, not a measured GCR/UCR calibration or a guarantee between nodes. Compare color, gradients and K distribution before production.")
    .child(button("save-black","Generate black preference ICC").on_click(cx.listener(|v,_,_,cx|v.save_edit(6,cx))))
  }
- fn proof_page(&self,cx:&mut Context<Self>)->Div{
-  let mut p=div().flex().flex_col().gap_3().child(heading("Monitor Soft Proof","LittleCMS native proofing, tagged monitor-specific PNGs."))
-   .child("Reference and candidate are printer profiles. If no candidate is selected, both proof images use the reference. The monitor must be calibrated; view exported PNGs in an external color-managed viewer.")
-   .child(button("proof-source","Select image").on_click(cx.listener(|v,_,_,cx|{if !v.busy{if let Some(p)=rfd::FileDialog::new().add_filter("Image",&["png","jpg","jpeg","tif","tiff"]).pick_file(){v.proof_source=Some(p);v.proof_output=None;cx.notify();}}})))
-   .child(self.proof_source.as_ref().map(|p|p.display().to_string()).unwrap_or("No image selected".into()))
-   .child(button("proof-monitor","Select monitor ICC").on_click(cx.listener(|v,_,_,cx|{if !v.busy{if let Some(p)=rfd::FileDialog::new().add_filter("Display ICC",&["icc","icm"]).pick_file(){v.monitor_profile=Some(p);v.proof_output=None;cx.notify();}}})))
-   .child(self.monitor_profile.as_ref().map(|p|p.display().to_string()).unwrap_or("No monitor profile selected".into()))
-   .child(button("proof-media",if self.proof_media{"Simulate substrate white (absolute) ✓"}else{"Relative substrate simulation"}).on_click(cx.listener(|v,_,_,cx|{if !v.busy{v.proof_media=!v.proof_media;v.proof_output=None;cx.notify();}})))
-   .child(button("proof-bpc",if self.proof_bpc{"Black point compensation ✓ (relative only)"}else{"Black point compensation off"}).on_click(cx.listener(|v,_,_,cx|{if !v.busy{v.proof_bpc=!v.proof_bpc;v.proof_output=None;cx.notify();}})))
-   .child(format!("Separation intent: {:?} · untagged input: {} (Image Converter settings)",self.image_options.intent,if self.image_options.assume_untagged{"explicit assumption"}else{"reject"}))
-   .child("This export samples a preview up to 640 pixels on the longest side; source image loading is limited to 24 MP. No change is made to the source ICC or image.")
-   .child(button("export-monitor-proof","Export before / after monitor proof").on_click(cx.listener(|v,_,_,cx|{
-    if v.busy{return}
-    let (Some(source),Some(reference),Some(monitor))=(v.proof_source.clone(),v.source.clone(),v.monitor_profile.clone())else{v.status="Choose image, printer reference and monitor ICC.".into();cx.notify();return};
-    let candidate=v.candidate.clone().unwrap_or_else(||reference.clone());
-    let Some(root)=rfd::FileDialog::new().pick_folder()else{return};
-    let options=images::ProofOptions{intent:v.image_options.intent,simulate_media:v.proof_media,bpc:v.proof_bpc,assume_untagged:v.image_options.assume_untagged};
-    v.busy=true;v.proof_output=None;v.status="Rendering monitor proof…".into();cx.notify();
-    cx.spawn(async move|this,cx|{
-     let result=cx.background_spawn(async move{images::export_proof(&source,&reference,&candidate,&monitor,&root,options)}).await;
-     let _=this.update(cx,|v,cx|{v.busy=false;match result{Ok(p)=>{v.status=format!("Proof exported: {}",p.display());v.proof_output=Some(p)},Err(e)=>v.status=format!("Error: {e}")}cx.notify();});
-    }).detach();
-   })));
-  if let Some(path)=&self.proof_output{p=p.child(format!("Saved: {}",path.display())).child("before_monitor.png / after_monitor.png / proof_settings.txt");}
-  p
- }
  fn preference_snapshot(&self)->Preferences{
-  Preferences{schema:1,preview_open:self.preview_open,three_d:self.preview_options.three_d,wireframe:self.preview_options.wireframe,solid:self.preview_options.solid,profile_colors:self.preview_options.profile_colors,convex:self.preview_options.convex,layout:self.preview_options.layout,floor_contour:self.preview_options.floor_contour,direct_image:self.preview_direct_image,gamut_grid:self.gamut_grid,compare_grid:self.compare_grid,dpi:self.image_options.dpi,stream_enabled:self.stream_enabled,bigtiff:self.stream_options.bigtiff,separations:self.stream_options.separations,proof_media:self.proof_media,proof_bpc:self.proof_bpc,monitor:self.monitor_profile.clone(),library:self.library_root.clone(),output:self.image_root.clone()}
+  Preferences{schema:1,preview_open:self.preview_open,three_d:self.preview_options.three_d,wireframe:self.preview_options.wireframe,solid:self.preview_options.solid,profile_colors:self.preview_options.profile_colors,convex:self.preview_options.convex,layout:self.preview_options.layout,floor_contour:self.preview_options.floor_contour,direct_image:self.preview_direct_image,gamut_grid:self.gamut_grid,compare_grid:self.compare_grid,chart_dpi:self.chart_dpi,library:self.library_root.clone()}
  }
  fn apply_preferences(&mut self,p:Preferences){
   self.preview_open=p.preview_open;self.preview_options.three_d=p.three_d;self.preview_options.wireframe=p.wireframe;self.preview_options.solid=p.solid;self.preview_options.profile_colors=p.profile_colors;self.preview_options.convex=p.convex;self.preview_options.layout=p.layout;self.preview_options.floor_contour=p.floor_contour;self.preview_direct_image=p.direct_image;
-  self.gamut_grid=p.gamut_grid;self.compare_grid=p.compare_grid;self.image_options.dpi=p.dpi;
-  self.stream_enabled=p.stream_enabled;self.stream_options.bigtiff=p.bigtiff;self.stream_options.separations=p.separations;
-  self.proof_media=p.proof_media;self.proof_bpc=p.proof_bpc;self.monitor_profile=p.monitor.filter(|p|p.is_file());self.library_root=p.library.filter(|p|p.is_dir());self.image_root=p.output.filter(|p|p.is_dir());
-  self.preview=None;self.comparison=None;self.compare_error=None;self.library_entries.clear();self.proof_output=None;
+  self.gamut_grid=p.gamut_grid;self.compare_grid=p.compare_grid;self.chart_dpi=p.chart_dpi;
+  self.library_root=p.library.filter(|p|p.is_dir());
+  self.preview=None;self.comparison=None;self.compare_error=None;self.library_entries.clear();
  }
  fn startup()->Self{
   let mut s=Self::default();
@@ -697,7 +608,7 @@ let chart=div().id("gamut-orbit").w_full().flex_shrink_0().cursor_pointer()
   div().flex().flex_col().gap_3().child(heading("Settings","Local preferences and color engine configuration."))
    .child("LittleCMS is linked statically. Official ArgyllCMS tools are installed by the portable backend when required.")
    .child(preferences::location().map(|p|p.display().to_string()).unwrap_or_else(|e|e))
-   .child("Save preferences explicitly to restore preview mode, analysis grids, DPI, TIFF options, proof options, and last monitor/library/output paths next launch. No profile paths, TAC, ink caps, source assumptions or running jobs are restored automatically.")
+   .child("Save preferences explicitly to restore gamut preview mode, analysis grids, characterization chart DPI and last library folder next launch. No profile paths, TAC, ink caps or running jobs are restored automatically.")
    .child(button("prefs-save","Save current preferences as defaults").on_click(cx.listener(|v,_,_,cx|{
     if !v.busy{v.status=preferences::location().and_then(|p|preferences::save(&p,&v.preference_snapshot()).map(|_|format!("Preferences saved: {}",p.display()))).unwrap_or_else(|e|format!("Error: {e}"));cx.notify();}
    })))
@@ -794,7 +705,7 @@ impl Render for Studio {
      .on_click(cx.listener(move|this,_,_,cx|{this.page=page;if page==Page::Gamut&&this.preview.is_none(){this.refresh_gamut(cx);}cx.notify();}))
    }));
   let content=match self.page{
-   Page::Dashboard=>div().flex().flex_col().gap_3().child(heading("Dashboard","Color management workspace for ceramic printing.")).child("Open an ICC profile to inspect its structure or rebuild a separation."),
+   Page::Dashboard=>div().flex().flex_col().gap_3().child(heading("Dashboard","ICC profile inspection, editing and characterization.")).child("Open an ICC/ICM profile to inspect, edit, validate, compare or rebuild it. Image conversion and editing are outside the current Studio scope."),
    Page::Inspector=>self.inspector(),
    Page::Validator=>self.validator(),
    Page::Rebuilder=>self.rebuilder(cx),
@@ -806,9 +717,7 @@ impl Render for Studio {
    Page::Gradient=>self.gradient_page(cx),
    Page::Correction=>self.correction_page(cx),
    Page::Smoothing=>self.smoothing_page(cx),
-   Page::Converter=>self.image_page(cx),
    Page::DeviceLink=>self.link_page(cx),
-   Page::Proof=>self.proof_page(cx),
    Page::Recipes=>self.recipe_page(cx),
    Page::Black=>self.black_page(cx),
    Page::Lab=>self.lab_page(cx),

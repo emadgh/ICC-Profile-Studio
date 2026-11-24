@@ -62,7 +62,7 @@ pub fn generate_chart(reference:&Path,root:&Path,levels:usize,caps:[f64;4],tac:f
   layout.push_str(&format!("P{id:04},{},{},{x},{y},{patch}\n",i as u32/cols+1,i as u32%cols+1));
  }
  let stage=tempfile::tempdir_in(root).map_err(|e|e.to_string())?;
- crate::images::write_cmyk_tiff(&stage.path().join("chart.tif"),w,h,&pixels,&data,dpi)?;
+ crate::chart_tiff::write_cmyk_tiff(&stage.path().join("chart.tif"),w,h,&pixels,&data,dpi)?;
  fs::write(stage.path().join("measurements.csv"),csv).map_err(|e|e.to_string())?;
  fs::write(stage.path().join("layout.csv"),layout).map_err(|e|e.to_string())?;
  fs::write(stage.path().join("README.txt"),format!("{} patches, 8 mm patches, 2 mm gaps at {} DPI. Direct device CMYK values; RIP must preserve channel values with no reconversion. Print under documented glaze/ink/firing conditions. Measure D50 Lab consistently and fill the blank L,a,b fields. No measurements are generated. Verify physical safe ink limits before printing. CSV row/column are 1-based; x/y pixel coordinates are 0-based.",recipes.len(),dpi)).map_err(|e|e.to_string())?;

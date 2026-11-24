@@ -4,19 +4,18 @@ use serde::{Serialize,Deserialize};
 use std::{path::{Path,PathBuf},fs,io::Write};
 type R<T>=Result<T,String>;
 #[derive(Debug,Clone,Serialize,Deserialize,PartialEq)]
-#[serde(default,deny_unknown_fields)]
+#[serde(default)] // Ignore retired image-workflow keys in older preferences.
 pub struct Preferences {
  pub schema:u32,pub preview_open:bool,pub three_d:bool,pub wireframe:bool,pub solid:bool,pub profile_colors:bool,pub convex:bool,pub direct_image:bool,pub layout:crate::gamut_raster::CompareLayout,pub floor_contour:bool,
- pub gamut_grid:usize,pub compare_grid:usize,pub dpi:u32,pub stream_enabled:bool,
- pub bigtiff:bool,pub separations:bool,pub proof_media:bool,pub proof_bpc:bool,
- pub monitor:Option<PathBuf>,pub library:Option<PathBuf>,pub output:Option<PathBuf>,
+ pub gamut_grid:usize,pub compare_grid:usize,pub chart_dpi:u32,
+ pub library:Option<PathBuf>,
 }
 impl Default for Preferences{
- fn default()->Self{Self{schema:1,preview_open:true,three_d:true,wireframe:false,solid:true,profile_colors:true,convex:false,direct_image:true,layout:crate::gamut_raster::CompareLayout::default(),floor_contour:true,gamut_grid:17,compare_grid:17,dpi:300,stream_enabled:false,bigtiff:false,separations:false,proof_media:true,proof_bpc:false,monitor:None,library:None,output:None}}
+ fn default()->Self{Self{schema:1,preview_open:true,three_d:true,wireframe:false,solid:true,profile_colors:true,convex:false,direct_image:true,layout:crate::gamut_raster::CompareLayout::default(),floor_contour:true,gamut_grid:17,compare_grid:17,chart_dpi:300,library:None}}
 }
 impl Preferences{
  pub fn validate(&self)->R<()>{
-  if self.schema!=1||![9,17,33].contains(&self.gamut_grid)||![9,17,33].contains(&self.compare_grid)||!(50..=2400).contains(&self.dpi){return Err("Unsupported preferences schema or setting range".into())}
+  if self.schema!=1||![9,17,33].contains(&self.gamut_grid)||![9,17,33].contains(&self.compare_grid)||!(50..=1200).contains(&self.chart_dpi){return Err("Unsupported preferences schema or setting range".into())}
   Ok(())
  }
 }
@@ -39,6 +38,12 @@ pub fn save(path:&Path,p:&Preferences)->R<()>{
 }
 #[cfg(test)]mod tests{
  use super::*;
- #[test]fn roundtrip_and_update(){let d=tempfile::tempdir().unwrap();let p=d.path().join("settings.json");assert_eq!(load(&p).unwrap(),Preferences::default());let mut v=Preferences::default();v.dpi=600;v.preview_open=false;save(&p,&v).unwrap();assert_eq!(load(&p).unwrap(),v);v.dpi=360;save(&p,&v).unwrap();assert_eq!(load(&p).unwrap(),v);}
- #[test]fn rejects_invalid(){let d=tempfile::tempdir().unwrap();let p=d.path().join("settings.json");fs::write(&p,b"{\"schema\":1,\"dpi\":0}").unwrap();assert!(load(&p).is_err());fs::write(&p,b"{\"schema\":99}").unwrap();assert!(load(&p).is_err());}
+ #[test]fn roundtrip_and_update(){let d=tempfile::tempdir().unwrap();let p=d.path().join("settings.json");assert_eq!(load(&p).unwrap(),Preferences::default());let mut v=Preferences::default();v.chart_dpi=600;v.preview_open=false;save(&p,&v).unwrap();assert_eq!(load(&p).unwrap(),v);v.chart_dpi=360;save(&p,&v).unwrap();assert_eq!(load(&p).unwrap(),v);}
+ #[test]fn retired_image_settings_are_ignored(){
+ let d=tempfile::tempdir().unwrap();let p=d.path().join("settings.json");
+ fs::write(&p,br#"{"schema":1,"preview_open":false,"dpi":2400,"stream_enabled":true,"bigtiff":true,"proof_media":false,"monitor":"old.icc","output":"old"}"#).unwrap();
+ let v=load(&p).unwrap();assert!(!v.preview_open);assert_eq!(v.chart_dpi,300);
+ save(&p,&v).unwrap();let json:serde_json::Value=serde_json::from_slice(&fs::read(&p).unwrap()).unwrap();assert!(json.get("stream_enabled").is_none());assert!(json.get("monitor").is_none());assert!(json.get("dpi").is_none());
+ }
+ #[test]fn rejects_invalid(){let d=tempfile::tempdir().unwrap();let p=d.path().join("settings.json");fs::write(&p,b"{\"schema\":1,\"chart_dpi\":0}").unwrap();assert!(load(&p).is_err());fs::write(&p,b"{\"schema\":99}").unwrap();assert!(load(&p).is_err());}
 }
