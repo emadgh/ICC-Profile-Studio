@@ -21,15 +21,16 @@ Checkbox indicates source implementation; runtime/print validation remains separ
 - [x] Tone gamma, bounded five-point curves, channel permutation (reject unknown vendor tags), metadata rename.
 - [x] Single-region LCh correction, LUT smoothing, predictive GCR/UCR preference and bounded ink optimization; recipe finder.
 - [x] DeviceLink ICC generator and 6,561-sample numeric comparison, no direct image application.
-- [x] Gamut R4: 2D/3D, shared scale, BGRA/native rendering, actual Lab-derived approximate sRGB, nonconvex sampled Delta E00 <= 2 surface, optional convex hull, reference solid/candidate wireframe, labeled grid, floor contours, orbit, zoom, PNG export.
+- [x] Gamut R5: 2D/3D, shared scale, BGRA-only rendering, actual Lab-derived approximate sRGB, nonconvex sampled Delta E00 <= 2 surface, optional convex hull, reference solid/candidate wireframe, labeled grid, floor contours, orbit, zoom, PNG export.
 - [x] Profile Library, CSV metadata, persistent preferences, GPUI About and shared updater.
 - [x] Ceramic Lab: characterization chart, patch CSV comparison and colprof on real external TI3 data. No direct measurement instrument integration.
 
 ## Remaining active work
 
 ### Profile editing and analysis
-- [ ] Multi-region selective color correction with combined smooth masks.
-- [ ] Graphical editable tone and black-generation curves; explicit limit validation.
+- [x] Source: multi-region selective color correction (up to six; order-independent normalized overlap, original PCS masks, single resampling).
+- [x] Source: editable gamma, bounded multipoint and requested black-generation curves; numeric controls and bounds retained.
+- [ ] Windows interaction and real-profile/interpolation validation of all curve editors.
 - [ ] ICC v2/v4 conversion with real PCS/LUT re-encoding and transform-equivalence checks; never just change header version.
 - [ ] Support more LUT/tag structures and explicit Durst vendor tag adapters only with verified specifications; preserve unknown tags safely.
 - [ ] Improve constrained separation continuity, numerical comparison with LCMS, interpolation validation, full-profile optimization regression.
@@ -54,7 +55,7 @@ Checkbox indicates source implementation; runtime/print validation remains separ
 
 - Historical R4 commit 32e6b7899b42e8cbe3a0942795aa0cc02a3de19f: GPUI and legacy Windows CI passed, 67 tests, Studio run 45454105352. Earlier tests included now-retired image features; test count is expected to change.
 - R2 BGRA display confirmed by owner. R4 visual confirmation still pending.
-- Current beta.5 scope cleanup: CI pending at time of commit.
+- beta.5 ICC-only GPUI CI succeeded (45458550421).
 - Previous detailed tracker and image modules are recoverable from Git history: https://github.com/emadgh/color-convert-rust/blob/32e6b7899b42e8cbe3a0942795aa0cc02a3de19f/ROADMAP.md
 
 ## Architecture and status rules
@@ -68,3 +69,10 @@ LittleCMS (static Rust binding) handles ICC parsing/transforms, color metrics an
 - [x] Source: preserve RGB hue in Both (uniform brightness multiplier), quad-style wire grid via constant L* rings and hue meridians (not an all-quad mesh), 2D projected/sliced outline and 0–100% fill opacity, union floor silhouette per visible profile, clear/select candidate and active-profile count.
 - [x] Source: reusable Curve graph with two-column gamma and bounded five-point cards, draggable handles, reset and numeric steps; endpoints and monotonicity preserved.
 - [ ] CI and actual Windows interactive validation of resizer/orbit/expanded mode/curves and display quality. Expanded mode is within the app window, not OS-exclusive fullscreen. BGRA raster remains 640px and scales to fit. Floor can have disconnected contours where the projection is disconnected.
+
+## beta.7 — multi-region and curve completion
+
+- R5 library tests completed, GPUI failed E0308 because gamut_plot returned Div instead of Stateful<Div> (run 45462752947). Fixed return type; new CI pending.
+- [x] Source: 1–6 region editor with add/remove/select/reset and hue swatches; combine active regions using original Lab weights, normalize overlap and preserve near-neutrals/extremes; independent B2A resampling, original A2B and source caps preserved. Tests for overlap/order, disjoint masks, invalid settings and native ICC K0 regression.
+- [x] Source: reuse curve graph for black preference, draggable midpoint gamma and maximum K; existing start, tolerance, strength, UCR/GCR controls retained. Graph is requested preference before constraints, not measured separation.
+- [ ] Confirm beta.7 GPUI CI and Windows rendering/input; actual Durst profile and print regression. Next: structural ICC version conversion, project/session and vendor-tag support.

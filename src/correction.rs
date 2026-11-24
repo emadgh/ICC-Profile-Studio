@@ -18,16 +18,32 @@ impl Selective{
  }
 }
 fn smoothstep(v:f64)->f64{let v=v.clamp(0.,1.);v*v*(3.-2.*v)}
-/// D50 Lab to LCh, soft hue mask, protect neutrals and L*=0/100.
-pub fn corrected_lab(lab:[f64;3],c:Selective)->[f64;3]{
- let [l,a,b]=lab;let chroma=a.hypot(b);
- let hue=b.atan2(a).to_degrees().rem_euclid(360.);
- let distance=((hue-c.center+180.).rem_euclid(360.)-180.).abs();
- let weight=smoothstep(1.-distance/c.width)*smoothstep((chroma-3.)/12.)*smoothstep(l/8.)*smoothstep((100.-l)/8.);
- if weight==0.|| (c.light==0.&&c.chroma_percent==0.&&c.hue_shift==0.){return lab}
- let h=(hue+c.hue_shift*weight).to_radians();
- let ch=chroma*(1.+c.chroma_percent/100.*weight);
- [(l+c.light*weight).clamp(0.,100.),(ch*h.cos()).clamp(-128.,127.),(ch*h.sin()).clamp(-128.,127.)]
+pub const MAX_REGIONS:usize=6;
+impl Selective{
+ pub fn active(self)->bool{self.light!=0.||self.chroma_percent!=0.||self.hue_shift!=0.}
+ fn weight(self,l:f64,chroma:f64,hue:f64)->f64{
+  let distance=((hue-self.center+180.).rem_euclid(360.)-180.).abs();
+  smoothstep(1.-distance/self.width)*smoothstep((chroma-3.)/12.)*smoothstep(l/8.)*smoothstep((100.-l)/8.)
+ }
+}
+/// All active masks are evaluated against the original PCS color. Normalize
+/// overlapping contributions only when their sum exceeds one: no stacking
+/// beyond the largest requested adjustment. Inactive masks do not dilute
+/// active ones. Outside the masks, return the input bit-for-bit.
+pub fn corrected_regions(lab:[f64;3],regions:&[Selective])->[f64;3]{
+ let [l,a,b]=lab;let chroma=a.hypot(b);let hue=b.atan2(a).to_degrees().rem_euclid(360.);
+ let (mut total,mut dl,mut dc,mut dh)=(0.,0.,0.,0.);
+ for &r in regions{if !r.active(){continue}let w=r.weight(l,chroma,hue);total+=w;dl+=r.light*w;dc+=r.chroma_percent*w;dh+=r.hue_shift*w;}
+ if total==0.||(dl==0.&&dc==0.&&dh==0.){return lab}
+ let norm=total.max(1.);let h=(hue+dh/norm).to_radians();let ch=chroma*(1.+dc/(100.*norm));
+ [(l+dl/norm).clamp(0.,100.),(ch*h.cos()).clamp(-128.,127.),(ch*h.sin()).clamp(-128.,127.)]
+}
+pub fn corrected_lab(lab:[f64;3],c:Selective)->[f64;3]{corrected_regions(lab,&[c])}
+fn validate_regions(regions:&[Selective])->R<()>{
+ if regions.is_empty()||regions.len()>MAX_REGIONS{return Err("Choose 1–6 color regions".into())}
+ for &r in regions{r.check()?;}
+ if !regions.iter().any(|r|r.active()){return Err("Choose a nonzero color adjustment first".into())}
+ Ok(())
 }
 fn lab_at(i:usize,j:usize,k:usize,g:usize)->[f64;3]{
  let d=(g-1) as f64;[100.*i as f64/d,255.*j as f64/d-128.,255.*k as f64/d-128.]
@@ -149,7 +165,7 @@ fn curve_points(v:[f64;4],points:[[f64;5];4])->[f64;4]{
  std::array::from_fn(|i|super::interp(&points[i],v[i]))
 }
 #[derive(Clone,Copy,Debug)]
-pub enum Operation{Selective(Selective),Smooth{strength:f64,passes:usize},Optimize{weights:[f64;4],tolerance:f64},Black(BlackGeneration),Points([[f64;5];4])}
+pub enum Operation{Selective(Selective),Regions{regions:[Selective;MAX_REGIONS],count:usize},Smooth{strength:f64,passes:usize},Optimize{weights:[f64;4],tolerance:f64},Black(BlackGeneration),Points([[f64;5];4])}
 /// Explicit total ink cap is a user setting, not inferred physical calibration.
 /// Source per-channel upper bounds are independently obtained from LUT curves.
 impl Profile{
@@ -159,6 +175,7 @@ impl Profile{
   if ![17,33,49,65].contains(&grid)||!tac_percent.is_finite()||!(0.0..=400.).contains(&tac_percent){return Err("Invalid correction grid or TAC".into())}
   match op{
    Operation::Selective(c)=>{c.check()?;if c.light==0.&&c.chroma_percent==0.&&c.hue_shift==0.{return Err("Choose a nonzero color adjustment first".into())}},
+   Operation::Regions{regions,count}=>{if count>MAX_REGIONS{return Err("Too many correction regions".into())}validate_regions(&regions[..count])?;},
    Operation::Smooth{strength,passes}=>{if !strength.is_finite()||!(0.05..=0.5).contains(&strength)||!(1..=5).contains(&passes){return Err("Smoothing strength 5–50%, passes 1–5".into())}}
    Operation::Black(s)=>{s.check()?;if grid>33{return Err("Black generation grid must be 17 or 33".into())}},
    Operation::Points(p)=>validate_points(p)?,
@@ -183,7 +200,7 @@ impl Profile{
    let mut nodes=Vec::with_capacity(grid.pow(3));
    for l in 0..grid{for a in 0..grid{for b in 0..grid{
     let lab=lab_at(l,a,b,grid);
-    let lab=match op{Operation::Selective(c)=>corrected_lab(lab,c),_=>lab};
+    let lab=match op{Operation::Selective(c)=>corrected_lab(lab,c),Operation::Regions{regions,count}=>corrected_regions(lab,&regions[..count]),_=>lab};
     let mut result=[0f32;4];
     pipeline.eval(&normalized(lab),&mut result);
     let result=result.map(|v|v as f64);
@@ -222,6 +239,36 @@ impl Profile{
  #[test]fn neutral_and_white_locked(){let c=Selective{light:10.,chroma_percent:40.,hue_shift:30.,..Default::default()};for p in [[50.,0.,0.],[100.,-30.,30.],[0.,-30.,30.]]{assert_eq!(corrected_lab(p,c),p);}}
  #[test]fn hue_wrap_is_continuous(){let c=Selective{center:0.,width:30.,light:10.,..Default::default()};let a=corrected_lab([50.,40.,0.01],c);let b=corrected_lab([50.,40.,-0.01],c);assert!((a[0]-b[0]).abs()<1e-9);assert!(a[0]>59.);}
  #[test]fn selective_leaves_other_hues(){let c=Selective{center:135.,width:25.,light:10.,..Default::default()};let p=[50.,40.,0.];assert_eq!(corrected_lab(p,c),p);}
+ #[test]fn regions_overlap_is_bounded_and_order_independent(){
+ let a=Selective{center:0.,width:45.,light:10.,chroma_percent:20.,hue_shift:15.};
+ let b=Selective{light:20.,chroma_percent:-10.,hue_shift:-5.,..a};
+ let input=[50.,40.,0.];let x=corrected_regions(input,&[a,b]);let y=corrected_regions(input,&[b,a]);
+ for i in 0..3{assert!((x[i]-y[i]).abs()<1e-10);}
+ assert!((x[0]-65.).abs()<1e-10);
+ assert_eq!(corrected_regions(input,&[a,Selective{light:0.,chroma_percent:0.,hue_shift:0.,..a}]),corrected_lab(input,a));
+ assert_eq!(corrected_regions([50.,-40.,0.],&[a,b]),[50.,-40.,0.]);
+ assert_eq!(corrected_regions([50.,0.,0.],&[a,b]),[50.,0.,0.]);
+ }
+ #[test]fn regions_disjoint_and_invalid(){
+ let a=Selective{center:0.,width:20.,light:6.,..Default::default()};
+ let b=Selective{center:180.,light:-5.,..a};
+ assert_eq!(corrected_regions([50.,40.,0.],&[a,b]),corrected_lab([50.,40.,0.],a));
+ assert_eq!(corrected_regions([50.,-40.,0.],&[a,b]),corrected_lab([50.,-40.,0.],b));
+ assert!(validate_regions(&[]).is_err());assert!(validate_regions(&[Selective::default()]).is_err());
+ assert!(validate_regions(&[Selective{width:f64::NAN,..a}]).is_err());
+ }
+ #[test]fn native_multi_region_preserves_forward_and_k0(){
+ let p=crate::synthetic_cmyk_v4(true);
+ let mut regions=[Selective::default();MAX_REGIONS];
+ regions[0]=Selective{light:4.,center:40.,..Default::default()};
+ regions[1]=Selective{chroma_percent:15.,center:270.,..Default::default()};
+ let out=p.bounded_correction(Operation::Regions{regions,count:2},17,100.).unwrap();
+ assert_eq!(out.verify([1.,1.,1.,0.]).unwrap()[3],0.);
+ for tag in [b"A2B0",b"A2B1",b"A2B2"]{assert_eq!(p.tags.get(tag),out.tags.get(tag));}
+ let dir=tempfile::tempdir().unwrap();let path=dir.path().join("multi.icc");out.save_new(&path).unwrap();
+ assert!(crate::inspection::inspect(&path).unwrap().intents.iter().all(|i|i.result.as_ref().is_ok_and(|v|v[3]==0.)));
+ assert!(p.bounded_correction(Operation::Regions{regions,count:MAX_REGIONS+1},17,100.).is_err());
+ }
  #[test]fn zero_k_and_tac_preserved(){let mut n=vec![[0.1,0.1,0.1,0.];27];n[13]=constrained([1.,1.,1.,1.],[1.,1.,1.,0.],2.4).unwrap();let boundary=n[0];smooth_nodes(&mut n,3,0.5,3);assert_eq!(n[0],boundary);assert!(n[13][0]<0.8);for p in n{assert_eq!(p[3],0.);assert!(p.iter().sum::<f64>()<=2.4+1e-12)}}
  #[test]fn optimization_keeps_tolerance_and_cost(){
  let predict=|v:[f64;4]|Ok(CIELab{L:100.-20.*v.iter().sum::<f64>(),a:0.,b:0.});

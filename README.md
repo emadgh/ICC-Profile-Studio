@@ -15,7 +15,7 @@ Download the Studio artifact from [GitHub Actions](https://github.com/emadgh/col
 - Profile Inspector and Validator, stored media white point (wtpt) with derived D50 Lab and approximate sRGB swatch.
 - Profile Rebuilder, per-channel/TAC limits, strict LUT and native LittleCMS validation.
 - Comparison, neutral-axis plots, Gradient Analyzer, sampled gamut coverage and CSV reports.
-- Tone curves, channel reorder, metadata, selective LCh correction, LUT smoothing, black generation and ink/cost optimization.
+- Tone curves, channel reorder, metadata, multi-region selective LCh correction, LUT smoothing, black generation and ink/cost optimization.
 - Collapsible 2D/3D Gamut R5: colorized solid reference, wireframe candidate, BGRA only, shared Lab grid, floor contours, optional convex hull, nonconvex sampled surface. Surface is a Delta E00 <= 2 round-trip estimate, not a measured physical boundary. Display colors are approximate sRGB.
 - ICC DeviceLink generator with sampled validation. No direct image application.
 - Profile Library and Ceramic Profiling Lab: generate direct-device characterization charts, import measured CSV/TI3, compare measured patches and build profiles with Argyll colprof. No instrument connection.
@@ -40,3 +40,5 @@ Default and only executable: target/release/icc-profile-studio.exe. The optional
 See [ROADMAP.md](ROADMAP.md) for the active scope and remaining work, and [CERAMIC_WORKFLOW.md](CERAMIC_WORKFLOW.md) for characterization. CI does not establish print accuracy or interactive Windows runtime quality.
 
 R5 adds a resizable preview, expanded in-window view, compact controls, quad-style surface section grid, 2D outline/fill opacity, one projected footprint per visible profile and reusable two-column draggable curve editors. The wire grid is not an all-quad remeshing of the solid triangles.
+
+Beta.7 adds up to six independent color regions, overlap-normalized original-Lab masks in a single edit, and a shared interactive black-preference graph. R5 plot return type compilation error is corrected; Windows CI and interactive checks remain pending.
