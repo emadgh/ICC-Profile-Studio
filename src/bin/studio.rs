@@ -10,7 +10,7 @@ use color_convert_rust::gamut::{self,Overlay};
 use gamut_view::ViewOptions;
 #[path = "../curve_view.rs"] mod curve_view;
 use color_convert_rust::gamut_raster::CompareLayout;
-use color_convert_rust::{device_link,versioning,project};
+use color_convert_rust::{device_link,versioning,project,system_profiles,tags};
 use color_convert_rust::gradient::{self,GradientReport};
 use color_convert_rust::{library,reports,preferences::{self,Preferences}};
 #[cfg(windows)] use update_via_github::{UpdateConfig,UpdateManager,UpdateStatus};
@@ -19,18 +19,21 @@ use color_convert_rust::{optimizer::{self,Settings as RecipeSettings,Report as R
 const STUDIO_VERSION:&str=include_str!("../../STUDIO_VERSION");
 
 #[derive(Clone,Copy,PartialEq,Eq)]
-enum Page { Dashboard, Projects, Library, Inspector, Validator, Rebuilder, Comparison, Curves, Reorder, Metadata, Version, Gamut, Gradient, Correction, Smoothing, DeviceLink, Recipes, Black, Lab, Settings, About }
-const PAGES: [(Page,&str);21] = [
+enum Page { Dashboard, Projects, Library, Inspector, Validator, Rebuilder, Comparison, Curves, Reorder, Metadata, Tags, Version, Gamut, Gradient, Correction, Smoothing, DeviceLink, Recipes, Black, Lab, Settings, About }
+const PAGES: [(Page,&str);22] = [
  (Page::Dashboard,"Dashboard"),(Page::Projects,"Projects & Session"),(Page::Library,"Profile Library"),(Page::Inspector,"Profile Inspector"),(Page::Validator,"Profile Validator"),(Page::Rebuilder,"Profile Rebuilder"),
- (Page::Comparison,"Profile Comparison"),(Page::Curves,"Tone Curves"),(Page::Reorder,"Channel Reorder"),(Page::Metadata,"Profile Metadata"),(Page::Version,"ICC Version Conversion"),(Page::Gamut,"Gamut Viewer"),(Page::Gradient,"Gradient Analyzer"),(Page::Correction,"Color Correction"),(Page::Smoothing,"LUT Smoothing"),(Page::DeviceLink,"DeviceLink Generator"),(Page::Recipes,"Ink Optimizer"),(Page::Black,"Black Generation"),(Page::Lab,"Profiling Lab"),(Page::Settings,"Settings"),(Page::About,"About & Updates")
+ (Page::Comparison,"Profile Comparison"),(Page::Curves,"Tone Curves"),(Page::Reorder,"Channel Reorder"),(Page::Metadata,"Profile Metadata"),(Page::Tags,"ICC Tag Manager"),(Page::Version,"ICC Version Conversion"),(Page::Gamut,"Gamut Viewer"),(Page::Gradient,"Gradient Analyzer"),(Page::Correction,"Color Correction"),(Page::Smoothing,"LUT Smoothing"),(Page::DeviceLink,"DeviceLink Generator"),(Page::Recipes,"Ink Optimizer"),(Page::Black,"Black Generation"),(Page::Lab,"Profiling Lab"),(Page::Settings,"Settings"),(Page::About,"About & Updates")
 ];
+#[derive(Clone,Copy,PartialEq,Eq)]
+enum Picker{Reference,Comparison,Gamut}
 enum Event { Progress(String), Done(Result<String,String>) }
 struct Studio {
+ picker:Option<Picker>,system_catalog:Option<system_profiles::Catalog>,system_error:Option<String>,system_loading:bool,tag_rows:Vec<tags::Entry>,tag_selected:usize,
  reference_identity:Option<project::FileIdentity>,project_path:Option<PathBuf>,version_allow_omit:bool,version_relative_only:bool,version_de:f64,version_ink:f64,version_report:Option<versioning::Report>,page:Page, source:Option<PathBuf>, profile:Option<Profile>, report:Option<Inspection>, error:Option<String>,
  caps:[f64;4],tac:f64,grid:usize,mode:Mode,status:String,busy:bool, candidate:Option<PathBuf>,comparison:Option<Comparison>,compare_error:Option<String>,compare_grid:usize,compare_intent:lcms2::Intent,gamma:[f64;4],order:[usize;4], preview_open:bool, preview:Option<Overlay>, preview_revision:u64, preview_width:f32,preview_fullscreen:bool,resize_last:Option<Pixels>,gamut_advanced:bool,curve_drag:Option<(usize,usize,Pixels)>, preview_cache:std::cell::RefCell<gamut_view::PreviewCache>, preview_options:ViewOptions, gamut_grid:usize,gradient:Option<GradientReport>,gradient_error:Option<String>,coverage_threshold:f64, regions:[Selective;MAX_REGIONS],region_count:usize,region_selected:usize, correction_grid:usize, correction_tac:f64, smoothing:f64, smoothing_passes:usize,orbit_last:Option<Point<Pixels>>,chart_dpi:u32,recipe_target:[f64;3],recipe_settings:RecipeSettings,recipe_result:Option<RecipeReport>,lab_levels:usize,measured:[Option<PathBuf>;2],measurement_result:Option<MeasuredComparison>,black:BlackGeneration,curve_points:[[f64;5];4],library_root:Option<PathBuf>,library_entries:Vec<library::Entry>,logo:std::sync::Arc<gpui::Image>,#[cfg(windows)] updater:UpdateManager,
 }
 impl Default for Studio {
- fn default()->Self{Self{reference_identity:None,project_path:None,version_allow_omit:false,version_relative_only:false,version_de:0.5,version_ink:0.5,version_report:None,page:Page::Dashboard,source:None,profile:None,report:None,error:None,caps:[100.,100.,100.,0.],tac:240.,grid:33,mode:Mode::Custom,status:"Open an ICC or ICM profile to start.".into(),busy:false,candidate:None,comparison:None,compare_error:None,compare_grid:17,compare_intent:lcms2::Intent::RelativeColorimetric,gamma:[1.;4],order:[0,1,2,3],preview_open:true,preview:None,preview_revision:0,preview_width:360.,preview_fullscreen:false,resize_last:None,gamut_advanced:false,curve_drag:None,preview_cache:std::cell::RefCell::new(gamut_view::PreviewCache::default()),preview_options:ViewOptions::default(),gamut_grid:17,gradient:None,gradient_error:None,coverage_threshold:2.,regions:[Selective::default();MAX_REGIONS],region_count:1,region_selected:0,correction_grid:33,correction_tac:400.,smoothing:0.20,smoothing_passes:1,orbit_last:None,chart_dpi:300,recipe_target:[50.,0.,0.],recipe_settings:RecipeSettings::default(),recipe_result:None,lab_levels:5,measured:[None,None],measurement_result:None,black:BlackGeneration::default(),curve_points:IDENTITY_POINTS,library_root:None,library_entries:vec![],logo:std::sync::Arc::new(gpui::Image::from_bytes(gpui::ImageFormat::Png,include_bytes!("../../assets/icon.png").to_vec())),#[cfg(windows)] updater:UpdateManager::new(UpdateConfig::new("emadgh/color-convert-rust","ICC-Profile-Studio.exe",STUDIO_VERSION.trim()).with_app_name("ICC Profile Studio").with_checksum_asset("ICC-Profile-Studio.exe.sha256").with_required_checksum(true))}}
+ fn default()->Self{Self{picker:None,system_catalog:None,system_error:None,system_loading:false,tag_rows:vec![],tag_selected:0,reference_identity:None,project_path:None,version_allow_omit:false,version_relative_only:false,version_de:0.5,version_ink:0.5,version_report:None,page:Page::Dashboard,source:None,profile:None,report:None,error:None,caps:[100.,100.,100.,0.],tac:240.,grid:33,mode:Mode::Custom,status:"Open an ICC or ICM profile to start.".into(),busy:false,candidate:None,comparison:None,compare_error:None,compare_grid:17,compare_intent:lcms2::Intent::RelativeColorimetric,gamma:[1.;4],order:[0,1,2,3],preview_open:true,preview:None,preview_revision:0,preview_width:360.,preview_fullscreen:false,resize_last:None,gamut_advanced:false,curve_drag:None,preview_cache:std::cell::RefCell::new(gamut_view::PreviewCache::default()),preview_options:ViewOptions::default(),gamut_grid:17,gradient:None,gradient_error:None,coverage_threshold:2.,regions:[Selective::default();MAX_REGIONS],region_count:1,region_selected:0,correction_grid:33,correction_tac:400.,smoothing:0.20,smoothing_passes:1,orbit_last:None,chart_dpi:300,recipe_target:[50.,0.,0.],recipe_settings:RecipeSettings::default(),recipe_result:None,lab_levels:5,measured:[None,None],measurement_result:None,black:BlackGeneration::default(),curve_points:IDENTITY_POINTS,library_root:None,library_entries:vec![],logo:std::sync::Arc::new(gpui::Image::from_bytes(gpui::ImageFormat::Png,include_bytes!("../../assets/icon.png").to_vec())),#[cfg(windows)] updater:UpdateManager::new(UpdateConfig::new("emadgh/color-convert-rust","ICC-Profile-Studio.exe",STUDIO_VERSION.trim()).with_app_name("ICC Profile Studio").with_checksum_asset("ICC-Profile-Studio.exe.sha256").with_required_checksum(true))}}
 }
 fn button(id: impl Into<ElementId>,label:impl Into<SharedString>)->Stateful<Div>{
  div().id(id).px_3().py_2().rounded_md().bg(rgb(0x263449)).text_color(rgb(0xe6eefb)).cursor_pointer().hover(|s|s.bg(rgb(0x354963))).child(label.into())
@@ -64,6 +67,87 @@ fn neutral_plot(samples:&[comparison::NeutralSample],metric:usize)->impl IntoEle
 }
 
 impl Studio {
+ fn toggle_system_picker(&mut self,target:Picker,cx:&mut Context<Self>){
+  if self.busy{return}
+  if self.picker==Some(target){self.picker=None;cx.notify();return}
+  self.picker=Some(target);
+  if !self.system_loading{self.scan_system(cx);}cx.notify();
+ }
+ fn scan_system(&mut self,cx:&mut Context<Self>){
+  if self.system_loading{return}
+  self.system_loading=true;self.system_error=None;self.system_catalog=None;cx.notify();
+  cx.spawn(async move|this,cx|{
+   let result=cx.background_spawn(async move{system_profiles::directory().and_then(|p|system_profiles::scan(&p))}).await;
+   let _=this.update(cx,|v,cx|{v.system_loading=false;match result{Ok(c)=>v.system_catalog=Some(c),Err(e)=>v.system_error=Some(e)}cx.notify();});
+  }).detach();
+ }
+ fn system_picker(&self,target:Picker,cx:&mut Context<Self>)->Div{
+  let mut p=div().flex().flex_col().gap_1().p_2().rounded_md().bg(rgb(0x1b2637)).w_full().flex_shrink_0()
+   .child(div().flex().items_center().justify_between().child(div().text_xs().child("System profiles"))
+    .child(div().flex().gap_1().child(seg("sys-reload","↻",false).on_click(cx.listener(|v,_,_,cx|v.scan_system(cx))))
+     .child(seg("sys-close","×",false).on_click(cx.listener(|v,_,_,cx|{v.picker=None;cx.notify();})))));
+  if self.system_loading{return p.child(div().text_xs().child("Reading Windows color directory…"))}
+  if let Some(e)=&self.system_error{return p.child(div().text_xs().child(e.clone()))}
+  if let Some(c)=&self.system_catalog{
+   let count=c.entries.iter().filter(|e|target==Picker::Reference||!e.device_link).count();
+   p=p.child(div().text_xs().text_color(rgb(0x94a3b8)).child(format!("{count} profiles · {} excluded · {} invalid",c.excluded,c.invalid)));
+   if count==0{return p.child(div().text_xs().child("No matching installed profiles."))}
+   p=p.child(div().id("sys-profile-list").max_h(px(250.)).overflow_y_scroll().flex().flex_col().gap_1()
+    .children(c.entries.iter().enumerate().filter(|(_,e)|target==Picker::Reference||!e.device_link).map(|(i,e)|{
+     let path=e.path.clone();
+     div().id(("system-profile",i)).p_2().rounded_md().bg(rgb(0x263449)).hover(|s|s.bg(rgb(0x354963))).cursor_pointer()
+      .child(div().text_xs().child(e.name.clone())).child(div().text_xs().text_color(rgb(0x94a3b8)).child(e.format.clone()))
+      .child(div().text_xs().text_color(rgb(0x94a3b8)).child(e.description.clone()))
+      .on_click(cx.listener(move|v,_,_,cx|{
+       if v.busy{return}v.picker=None;
+       if target==Picker::Reference{v.load_reference(path.clone(),cx);}
+       else{v.candidate=Some(path.clone());v.preview_options.candidate=true;v.preview=None;v.comparison=None;v.compare_error=None;v.gradient=None;v.gradient_error=None;if v.preview_open||target==Picker::Gamut{v.refresh_gamut(cx);}}
+       cx.notify();
+      }))
+    })));
+  }
+  p
+ }
+ fn tags_page(&self,cx:&mut Context<Self>)->Div{
+  let mut p=div().flex().flex_col().gap_2().child(heading("ICC Tag Manager","Inspect standard and private tag payloads without guessing their meaning."));
+  if self.tag_rows.is_empty(){return p.child("Open an ICC containing a tag directory.")}
+  p=p.child(div().text_sm().child(format!("{} tags · raw size and type signature",self.tag_rows.len())))
+   .child(div().id("tag-list").max_h(px(240.)).overflow_y_scroll().flex().flex_col().gap_1()
+    .children(self.tag_rows.iter().enumerate().map(|(i,t)|{
+     seg(("tag-row",i),format!("{}   |   {}   |   {} bytes",String::from_utf8_lossy(&t.signature),t.kind,t.size),i==self.tag_selected)
+      .on_click(cx.listener(move|v,_,_,cx|{v.tag_selected=i;cx.notify();}))
+    })));
+  if let Some(t)=self.tag_rows.get(self.tag_selected){
+   let key=t.signature;let name=String::from_utf8_lossy(&key).into_owned();
+   p=p.child(div().flex().flex_col().gap_2().p_3().rounded_md().bg(rgb(0x1b2637))
+    .child(div().text_lg().child(format!("{name} · {}",t.kind)))
+    .child(t.summary.clone()).child(div().text_xs().child(format!("First 64 bytes: {}",t.hex)))
+    .child(button("export-raw-tag","Export raw tag (.bin)").on_click(cx.listener(move|v,_,_,cx|{
+     if v.busy{return}let Some(id)=&v.reference_identity else{return};
+     let name=format!("tag_{:02X}{:02X}{:02X}{:02X}.bin",key[0],key[1],key[2],key[3]);
+     let Some(path)=rfd::FileDialog::new().add_filter("Binary tag",&["bin"]).set_file_name(name).save_file()else{return};
+     v.status=id.verify().and_then(|_|Profile::read(&id.path)).and_then(|p|tags::export(&p,key,&path)).map(|_|format!("Exported {}",path.display())).unwrap_or_else(|e|format!("Export refused: {e}"));cx.notify();
+    }))));
+  }
+  p=p.child(div().text_lg().child("Standard text metadata"))
+   .child("Import a small UTF-8 text file to replace one standard text tag in a NEW ICC. Existing localized text in that tag is replaced by one en-US record (v4), or ASCII text (v2). All other tag payloads, including private tags, are retained. No raw transform editing.");
+  for (i,(key,label)) in tags::TEXT_TAGS.into_iter().zip(["Description (desc)","Copyright (cprt)","Manufacturer (dmnd)","Model (dmdd)"]).enumerate(){
+   p=p.child(button(("edit-standard-tag",i),format!("Replace {label} from text…")).on_click(cx.listener(move|v,_,_,cx|{
+    if v.busy{return}let Some(id)=v.reference_identity.clone()else{return};
+    let Some(input)=rfd::FileDialog::new().add_filter("UTF-8 text",&["txt"]).pick_file()else{return};
+    let name=format!("{}_metadata.icc",id.path.file_stem().unwrap_or_default().to_string_lossy());
+    let Some(mut dest)=rfd::FileDialog::new().add_filter("ICC",&["icc","icm"]).set_file_name(name).save_file()else{return};
+    if dest.extension().is_none(){dest.set_extension("icc");}
+    let result=(||->Result<(),String>{
+     id.verify()?;if std::fs::metadata(&input).map_err(|e|e.to_string())?.len()>4096{return Err("Text exceeds 4096 bytes".into())}
+     let text=std::fs::read_to_string(&input).map_err(|e|e.to_string())?;let p=Profile::read(&id.path)?;
+     let out=tags::edit_text(&p,key,text.trim_start_matches('\u{feff}').trim_end_matches(['\r','\n']))?;out.save_new(&dest)
+    })();
+    match result{Ok(())=>{v.status=format!("Saved metadata copy: {}",dest.display());v.candidate=Some(dest);v.preview=None;v.comparison=None;v.gradient=None;v.gradient_error=None;},Err(e)=>v.status=format!("Metadata edit refused: {e}")}cx.notify();
+   })));
+  }
+  p
+ }
  fn open(&mut self,cx:&mut Context<Self>) {
   if self.busy{return}
   let Some(path)=rfd::FileDialog::new().add_filter("ICC profile",&["icc","icm"]).pick_file() else{return};
@@ -71,10 +155,12 @@ impl Studio {
  }
  fn load_reference(&mut self,path:PathBuf,cx:&mut Context<Self>){
   if self.busy{return}
+  self.picker=None;self.tag_rows.clear();self.tag_selected=0;
   self.reference_identity=project::FileIdentity::capture(&path).ok();self.project_path=None;
   self.source=Some(path.clone());self.version_report=None;self.version_allow_omit=false;self.version_relative_only=false;self.black=BlackGeneration::default();self.curve_points=IDENTITY_POINTS;self.recipe_result=None;self.regions=[Selective::default();MAX_REGIONS];self.region_count=1;self.region_selected=0;self.correction_grid=33;self.correction_tac=400.;self.smoothing=0.20;self.smoothing_passes=1;self.preview=None;self.candidate=None;self.gradient=None;self.gradient_error=None;self.gamma=[1.;4];self.order=[0,1,2,3];self.comparison=None;self.compare_error=None;self.report=None;self.profile=None;self.error=None;
   match inspection::inspect(&path){Ok(r)=>self.report=Some(r),Err(e)=>self.error=Some(e)}
   if let Ok(p)=Profile::read(&path){
+   self.tag_rows=tags::list(&p);
    if p.check().is_ok(){
     self.caps=if p.cmyk(){[100.,100.,100.,0.]}else{[100.;4]};
     self.tac=p.estimated_tac_percent().unwrap_or(240.);
@@ -134,6 +220,8 @@ impl Studio {
    .child(button("pick-candidate","Select candidate ICC").on_click(cx.listener(|this,_,_,cx|{
     if !this.busy{if let Some(path)=rfd::FileDialog::new().add_filter("ICC profile",&["icc","icm"]).pick_file(){this.candidate=Some(path);this.preview=None;this.comparison=None;this.gradient=None;this.gradient_error=None;this.compare_error=None;if this.preview_open{this.refresh_gamut(cx);}cx.notify();}}
    })))
+   .child(seg("sys-compare-button","System profiles ▾",self.picker==Some(Picker::Comparison)).on_click(cx.listener(|v,_,_,cx|v.toggle_system_picker(Picker::Comparison,cx))))
+   .when(self.picker==Some(Picker::Comparison),|p|p.child(self.system_picker(Picker::Comparison,cx)))
    .child(format!("Candidate: {}",self.candidate.as_ref().map(|p|p.display().to_string()).unwrap_or("Not selected".into())))
    .child(div().flex().items_center().gap_2().child(format!("RGB sample grid: {}³",self.compare_grid)).children([9usize,17,33].into_iter().map(|v|button(("compare-grid",v),v.to_string()).on_click(cx.listener(move|this,_,_,cx|{if !this.busy{this.compare_grid=v;this.comparison=None;cx.notify();}})))))
    .child(div().flex().flex_wrap().gap_1().children([("Relative",lcms2::Intent::RelativeColorimetric),("Perceptual",lcms2::Intent::Perceptual),("Saturation",lcms2::Intent::Saturation),("Absolute",lcms2::Intent::AbsoluteColorimetric)].into_iter().enumerate().map(|(i,(n,intent))|button(("compare-intent",i),if self.compare_intent==intent{format!("{n} ✓")}else{n.to_owned()}).on_click(cx.listener(move|v,_,_,cx|{if !v.busy{v.compare_intent=intent;v.comparison=None;v.compare_error=None;cx.notify();}})))))
@@ -378,8 +466,10 @@ impl Studio {
    .child(div().text_xs().child(format!("Candidate: {}",filename(&self.candidate))))
    .child(div().flex().gap_1().flex_wrap()
     .child(seg("preview-pick","Compare ICC",false).on_click(cx.listener(|v,_,_,cx|{if !v.busy{if let Some(path)=rfd::FileDialog::new().add_filter("ICC profile",&["icc","icm"]).pick_file(){v.candidate=Some(path);v.preview_options.candidate=true;v.preview=None;v.comparison=None;v.gradient=None;v.gradient_error=None;v.refresh_gamut(cx);cx.notify();}}})))
+    .child(seg("sys-gamut-button","System ▾",self.picker==Some(Picker::Gamut)).on_click(cx.listener(|v,_,_,cx|v.toggle_system_picker(Picker::Gamut,cx))))
     .when(self.candidate.is_some(),|p|p.child(seg("clear-candidate","Clear",false).on_click(cx.listener(|v,_,_,cx|{if !v.busy{v.candidate=None;v.preview=None;v.comparison=None;v.gradient=None;v.gradient_error=None;v.refresh_gamut(cx);cx.notify();}}))))
     .child(seg("refresh-gamut",if self.busy{"Working…"}else{"Refresh"},false).on_click(cx.listener(|v,_,_,cx|v.refresh_gamut(cx)))))
+   .when(self.picker==Some(Picker::Gamut),|p|p.child(self.system_picker(Picker::Gamut,cx)))
    .child(div().flex().gap_1().items_center().child(div().text_xs().child("Quality")).children([9usize,17,33].map(|n|seg(("gamut-grid",n),match n{9=>"Draft",17=>"Normal",_=>"High"},self.gamut_grid==n).on_click(cx.listener(move|v,_,_,cx|{if !v.busy{v.gamut_grid=n;v.refresh_gamut(cx);cx.notify();}})))))
    .child(div().flex().gap_1().items_center().child(seg("zoom-out","−",false).on_click(cx.listener(|v,_,_,cx|{v.preview_options.zoom=(v.preview_options.zoom/1.2).max(0.5);cx.notify();}))).child(format!("{:.0}%",100.*o.zoom)).child(seg("zoom-in","+",false).on_click(cx.listener(|v,_,_,cx|{v.preview_options.zoom=(v.preview_options.zoom*1.2).min(3.);cx.notify();}))).child(seg("reset-view","Reset",false).on_click(cx.listener(|v,_,_,cx|{v.preview_options=ViewOptions::default();cx.notify();}))))
    .child(seg("advanced-gamut",if self.gamut_advanced{"Advanced ▴"}else{"Advanced ▾"},self.gamut_advanced).on_click(cx.listener(|v,_,_,cx|{v.gamut_advanced=!v.gamut_advanced;cx.notify();})));
@@ -870,12 +960,15 @@ impl Render for Studio {
   if self.preview_fullscreen{return div().flex().size_full().bg(rgb(0x101a2a)).text_color(rgb(0xe2e8f0)).child(self.preview_panel(vw,(vw-28.).min((vh-220.).max(180.)),true,cx));}
   let sidebar=div().id("sidebar").flex().flex_col().w(px(224.)).flex_shrink_0().h_full().overflow_y_scroll().p_3().gap_1().bg(rgb(0x101a2a))
    .child(div().text_lg().child("ICC Profile Studio")).child(div().text_xs().mb_3().child(format!("{} · Gamut R5",STUDIO_VERSION.trim())))
-   .child(button("open-profile","Open ICC / ICM").on_click(cx.listener(|this,_,_,cx|{this.open(cx);cx.notify();})))
+   .child(div().flex().items_center().gap_1()
+    .child(button("open-profile","Open ICC").on_click(cx.listener(|this,_,_,cx|{this.open(cx);cx.notify();})))
+    .child(seg("sys-ref-button","System ▾",self.picker==Some(Picker::Reference)).on_click(cx.listener(|v,_,_,cx|v.toggle_system_picker(Picker::Reference,cx)))))
+   .when(self.picker==Some(Picker::Reference),|p|p.child(self.system_picker(Picker::Reference,cx)))
    .children(PAGES.into_iter().enumerate().map(|(i,(page,label))|{
     let active=self.page==page;
     div().id(("page",i)).px_3().py_2().rounded_md().text_sm().cursor_pointer()
      .bg(rgb(if active{0x304867}else{0x101a2a})).hover(|s|s.bg(rgb(0x233751))).child(label)
-     .on_click(cx.listener(move|this,_,_,cx|{this.page=page;if page==Page::Gamut&&this.preview.is_none(){this.refresh_gamut(cx);}cx.notify();}))
+     .on_click(cx.listener(move|this,_,_,cx|{this.page=page;this.picker=None;if page==Page::Gamut&&this.preview.is_none(){this.refresh_gamut(cx);}cx.notify();}))
    }));
   let content=match self.page{
    Page::Dashboard=>div().flex().flex_col().gap_3().child(heading("Dashboard","ICC profile inspection, editing and characterization.")).child("Open an ICC/ICM profile to inspect, edit, validate, compare or rebuild it. Image conversion and editing are outside the current Studio scope."),
@@ -887,6 +980,7 @@ impl Render for Studio {
    Page::Curves=>self.curves_page(cx),
    Page::Reorder=>self.reorder_page(cx),
    Page::Metadata=>self.metadata_page(cx),
+   Page::Tags=>self.tags_page(cx),
    Page::Version=>self.version_page(cx),
    Page::Gamut=>self.gamut_analysis_page(cx),
    Page::Gradient=>self.gradient_page(cx),

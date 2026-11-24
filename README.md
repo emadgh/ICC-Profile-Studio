@@ -1,6 +1,6 @@
 # ICC Profile Studio
 
-Portable Windows x64 **GPUI-only** application for inspecting, editing, validating, comparing and building ICC/ICM color profiles, independent of printer vendor. Advanced editing currently primarily supports four-channel printer LUTs; broader ICC classes and color spaces are on the roadmap.
+Portable Windows x64 **GPUI-only** application for inspecting, editing, validating, comparing and building ICC/ICM color profiles, independent of printer vendor. Advanced editing currently primarily supports four-channel printer LUTs; target scope is CMYK, multichannel output profiles and print DeviceLinks. Dedicated RGB, Gray, display, input and abstract editors are out of scope.
 
 ## Current scope
 
@@ -43,8 +43,10 @@ R5 adds a resizable preview, expanded in-window view, compact controls, quad-sty
 
 Beta.7 adds up to six independent color regions, overlap-normalized original-Lab masks in a single edit, and a shared interactive black-preference graph. R5 plot return type compilation error is corrected; Windows CI and interactive checks remain pending.
 
-Beta.8: ICC Version Conversion builds actual v2.4 mft2 or v4.3 mAB/mBA LUTs for supported CMYK/Lab printers; compensates legacy Lab encoding, validates four intents via LCMS and preserves source channel/TAC bounds. Unsupported optional tags are listed and require explicit omission consent; unsupported transform structures fail closed. This is an independent compatibility copy, not a guarantee of Durst vendor/RIP compatibility.
+Beta.8: ICC Version Conversion builds actual v2.4 mft2 or v4.3 mAB/mBA LUTs for supported CMYK/Lab printers; compensates legacy Lab encoding, validates four intents via LCMS and preserves source channel/TAC bounds. Unsupported optional tags are listed and require explicit omission consent; unsupported transform structures fail closed. This is an independent compatibility copy, not a guarantee of vendor/RIP compatibility.
 
-Durst compatibility note: unequal curve lengths are harmonized on a common knot-preserving grid where representable. All-intent validation is default. Explicit Relative/Absolute-only compatibility mode allows output only when these two intents pass; Perceptual/Saturation are still checked and reported, and must not be used if outside tolerance. Version-dependent LCMS intent semantics can differ even with preserved CLUTs.
+Compatibility note: unequal curve lengths are harmonized on a common knot-preserving grid where representable. All-intent validation is default. Explicit Relative/Absolute-only compatibility mode allows output only when these two intents pass; Perceptual/Saturation are still checked and reported, and must not be used if outside tolerance. Version-dependent LCMS intent semantics can differ even with preserved CLUTs.
 
-Beta.9: Projects & Session saves explicit .iccproj JSON snapshots with SHA-256 identities for external reference/candidate ICC files, validates stored edit/view settings and refuses missing or modified files. Explicit local session checkpoints are never automatically restored. No vendor-specific development, no image workflows. Project relocation and broader color-space editing remain planned.
+Beta.9: Projects & Session saves explicit .iccproj JSON snapshots with SHA-256 identities for external reference/candidate ICC files, validates stored edit/view settings and refuses missing or modified files. Explicit local session checkpoints are never automatically restored. No vendor-specific development, no image workflows. Project relocation and multichannel editing remain planned.
+
+Beta.10: System profiles picker reads the Windows system color directory without modifying installed profiles. Eligible CMYK/multichannel output profiles and print DeviceLinks can be opened; candidates are output profiles. Tag Manager lists standard/private tag signatures and types, bounded decoded summaries and raw export; standard text metadata replacement creates a new ICC and preserves other payloads. No dedicated RGB, Gray, input, display or abstract workflows.

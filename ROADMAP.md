@@ -2,7 +2,7 @@
 
 ## Product scope (owner decision, beta.5)
 
-General-purpose, vendor-independent ICC/ICM profile inspection, validation, editing, comparison, construction and characterization only. Current advanced editing primarily supports four-channel printer LUTs; expand support by ICC class, color space and tag type, not by printer brand. GPUI is the sole application frontend and default executable.
+General-purpose, vendor-independent ICC/ICM profile inspection, validation, editing, comparison, construction and characterization only. Target scope: CMYK and multichannel output profiles plus print DeviceLinks. No RGB, Gray, display, input or abstract profile editing planned. Existing basic generic inspection remains read-only. Advanced editing currently primarily supports four-channel printer LUTs; expand by tag type and channel count. GPUI is the sole application frontend and default executable.
 
 - [x] Remove Image Converter, batch image conversion, image separation previews, image TAC heatmaps, image Soft Proof and related settings from the active application and build.
 - [x] Remove image conversion/streaming source modules; earlier implementations remain in Git history at 32e6b7899b42e8cbe3a0942795aa0cc02a3de19f. No active image-processing roadmap.
@@ -33,8 +33,9 @@ Checkbox indicates source implementation; runtime/print validation remains separ
 - [ ] Windows interaction and real-profile/interpolation validation of all curve editors.
 - [x] Source: restricted ICC v2.4/v4.3 structural conversion of simple CMYK/Lab mft2 and mAB/mBA, PCS encoding adaptation and four-intent native equivalence checks before saving.
 - [ ] Verify real-world profile conversion, unsupported-tag policy and broader LUT/text structures.
-- [ ] General ICC tag inspector, safe standard metadata editing and raw tag export; preserve unknown private tags where safe, no vendor-specific adapters.
-- [ ] Expand class and color-space support (RGB, Gray, CMYK and multichannel; input/display/output/DeviceLink), with capabilities explicitly gated by supported transform structures.
+- [x] Source: generic ICC Tag Manager (signature/type/size, bounded decoded previews, raw export, safe replacement of standard text tags via UTF-8 file; preserve other payloads).
+- [ ] Richer standard metadata inputs and deeper structured tag decoding.
+- [ ] Expand CMYK and 2–15 channel output/print DeviceLink support, with capability checks. No RGB, Gray, input/display/abstract editing or dedicated workflows. Internal RGB/XYZ reference transforms remain usable for analysis.
 - [ ] Improve constrained separation continuity, numerical comparison with LCMS, interpolation validation, full-profile optimization regression.
 - [ ] Black-preserving DeviceLink generation and strict bounds/accuracy validation.
 - [ ] Nonconvex gamut volume estimate, resolution convergence, performance and real Windows rendering checks.
@@ -42,6 +43,7 @@ Checkbox indicates source implementation; runtime/print validation remains separ
 ### Workspace and UX
 - [x] Source: explicit .iccproj save/load and session checkpoint; SHA-256 verification of external ICC files, validated settings, no job restart.
 - [ ] Windows project interaction, relocated-file recovery and project revision UX.
+- [x] Source: Windows system color directory picker beside Open ICC and candidate controls; list eligible CMYK/nCLR output and print DeviceLink files; candidate list output only. Read-only scan, explicit selection.
 - [ ] Drag/drop ICC/ICM, richer Profile Library search/filter/metadata editing, accessibility, remaining GPUI controls.
 - [ ] Refine update feed and ensure only compatible Studio EXE assets with verified checksum can install.
 
@@ -97,3 +99,10 @@ LittleCMS (static Rust binding) handles ICC parsing/transforms, color metrics an
 
 - Owner decision: general comprehensive ICC application, no Durst-specific development. Historical vendor test evidence retained as regression history only. No image workflows or egui.
 - Source: project schema 1, SHA-256 file identity, validation of all saved settings, explicit new-file save and opt-in session checkpoint, no automatic restoration/jobs. Projects store external absolute paths; relocation and embedded packages not implemented. Reports recalculated manually. Restore verifies source and candidate before replacing current workspace. CI pending.
+
+## beta.10 — system profile picker and generic tags
+
+- Owner scope: CMYK, multichannel and print DeviceLink only. No dedicated RGB, Gray, display, input or abstract editors. Retain generic inspector and analysis reference transforms.
+- System picker: native Windows GetColorDirectoryW (standard path fallback), asynchronous scan of installed-directory ICC/ICM files, sorted names/descriptions/type, refresh and close. Output profiles for comparison; reference also lists eligible print DeviceLinks for inspection. No OS association changes, no registry-wide or per-user store enumeration. Current computational tools remain limited by their existing capabilities.
+- Tag Manager: bounded text/XYZ/curve/LUT/MPET header previews, type/size, first 64 bytes, exact raw export with no overwrite; replace desc/cprt/dmnd/dmdd from UTF-8 text into a new ICC, v4 Unicode or v2 ASCII, explicit localization replacement. Other payloads retained, no arbitrary LUT edits. Tests cover folder filtering, metadata preservation and export. CI and interactive menu validation pending.
+- Next: Parametric curves for print LUTs, broader multichannel support, advanced DeviceLink, gamut volume and workspace/UX.
