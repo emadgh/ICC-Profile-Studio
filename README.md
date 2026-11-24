@@ -1,6 +1,6 @@
 # ICC Profile Studio
 
-Portable Windows x64 **GPUI-only** application for inspecting, editing, validating, comparing and building ICC/ICM color profiles, with a focus on four-channel ceramic printing.
+Portable Windows x64 **GPUI-only** application for inspecting, editing, validating, comparing and building ICC/ICM color profiles, independent of printer vendor. Advanced editing currently primarily supports four-channel printer LUTs; broader ICC classes and color spaces are on the roadmap.
 
 ## Current scope
 
@@ -8,7 +8,7 @@ No image import/conversion/editing, image soft proof, batch conversion or image 
 
 ## Run
 
-Download the Studio artifact from [GitHub Actions](https://github.com/emadgh/color-convert-rust/actions/workflows/studio.yml) or a compatible Studio prerelease from [Releases](https://github.com/emadgh/color-convert-rust/releases). Extract to a writable folder and launch ICC-Profile-Studio.exe. Verify the SHA256. Open an ICC/ICM and verify physical ink channel order; logical CMYK labels are not necessarily ceramic ink names. Choose limits and save a new profile. Compare gamut, gradients, separations and predicted Delta E before print testing. Source files are never overwritten.
+Download the Studio artifact from [GitHub Actions](https://github.com/emadgh/color-convert-rust/actions/workflows/studio.yml) or a compatible Studio prerelease from [Releases](https://github.com/emadgh/color-convert-rust/releases). Extract to a writable folder and launch ICC-Profile-Studio.exe. Verify the SHA256. Open an ICC/ICM and verify physical ink channel order; logical CMYK labels are not necessarily physical ink names. Choose limits and save a new profile. Compare gamut, gradients, separations and predicted Delta E before print testing. Source files are never overwritten.
 
 ## Tools
 
@@ -18,7 +18,7 @@ Download the Studio artifact from [GitHub Actions](https://github.com/emadgh/col
 - Tone curves, channel reorder, metadata, multi-region selective LCh correction, LUT smoothing, black generation and ink/cost optimization.
 - Collapsible 2D/3D Gamut R5: colorized solid reference, wireframe candidate, BGRA only, shared Lab grid, floor contours, optional convex hull, nonconvex sampled surface. Surface is a Delta E00 <= 2 round-trip estimate, not a measured physical boundary. Display colors are approximate sRGB.
 - ICC DeviceLink generator with sampled validation. No direct image application.
-- Profile Library and Ceramic Profiling Lab: generate direct-device characterization charts, import measured CSV/TI3, compare measured patches and build profiles with Argyll colprof. No instrument connection.
+- Profile Library and Profiling Lab: generate direct-device characterization charts, import measured CSV/TI3, compare measured patches and build profiles with Argyll colprof. No instrument connection.
 - Settings and About/Updates. Local preferences retain preview/grid/chart DPI and library directory, not device-specific limits or jobs. Older image settings are ignored.
 
 ## Engines and limitations
@@ -46,3 +46,5 @@ Beta.7 adds up to six independent color regions, overlap-normalized original-Lab
 Beta.8: ICC Version Conversion builds actual v2.4 mft2 or v4.3 mAB/mBA LUTs for supported CMYK/Lab printers; compensates legacy Lab encoding, validates four intents via LCMS and preserves source channel/TAC bounds. Unsupported optional tags are listed and require explicit omission consent; unsupported transform structures fail closed. This is an independent compatibility copy, not a guarantee of Durst vendor/RIP compatibility.
 
 Durst compatibility note: unequal curve lengths are harmonized on a common knot-preserving grid where representable. All-intent validation is default. Explicit Relative/Absolute-only compatibility mode allows output only when these two intents pass; Perceptual/Saturation are still checked and reported, and must not be used if outside tolerance. Version-dependent LCMS intent semantics can differ even with preserved CLUTs.
+
+Beta.9: Projects & Session saves explicit .iccproj JSON snapshots with SHA-256 identities for external reference/candidate ICC files, validates stored edit/view settings and refuses missing or modified files. Explicit local session checkpoints are never automatically restored. No vendor-specific development, no image workflows. Project relocation and broader color-space editing remain planned.

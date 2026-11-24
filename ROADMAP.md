@@ -2,7 +2,7 @@
 
 ## Product scope (owner decision, beta.5)
 
-ICC/ICM profile inspection, validation, editing, comparison, construction and characterization only. GPUI is the sole application frontend and default executable.
+General-purpose, vendor-independent ICC/ICM profile inspection, validation, editing, comparison, construction and characterization only. Current advanced editing primarily supports four-channel printer LUTs; expand support by ICC class, color space and tag type, not by printer brand. GPUI is the sole application frontend and default executable.
 
 - [x] Remove Image Converter, batch image conversion, image separation previews, image TAC heatmaps, image Soft Proof and related settings from the active application and build.
 - [x] Remove image conversion/streaming source modules; earlier implementations remain in Git history at 32e6b7899b42e8cbe3a0942795aa0cc02a3de19f. No active image-processing roadmap.
@@ -32,20 +32,22 @@ Checkbox indicates source implementation; runtime/print validation remains separ
 - [x] Source: editable gamma, bounded multipoint and requested black-generation curves; numeric controls and bounds retained.
 - [ ] Windows interaction and real-profile/interpolation validation of all curve editors.
 - [x] Source: restricted ICC v2.4/v4.3 structural conversion of simple CMYK/Lab mft2 and mAB/mBA, PCS encoding adaptation and four-intent native equivalence checks before saving.
-- [ ] Verify real Durst conversion, unsupported-tag policy and broader LUT/text structures.
-- [ ] Support more LUT/tag structures and explicit Durst vendor tag adapters only with verified specifications; preserve unknown tags safely.
+- [ ] Verify real-world profile conversion, unsupported-tag policy and broader LUT/text structures.
+- [ ] General ICC tag inspector, safe standard metadata editing and raw tag export; preserve unknown private tags where safe, no vendor-specific adapters.
+- [ ] Expand class and color-space support (RGB, Gray, CMYK and multichannel; input/display/output/DeviceLink), with capabilities explicitly gated by supported transform structures.
 - [ ] Improve constrained separation continuity, numerical comparison with LCMS, interpolation validation, full-profile optimization regression.
 - [ ] Black-preserving DeviceLink generation and strict bounds/accuracy validation.
 - [ ] Nonconvex gamut volume estimate, resolution convergence, performance and real Windows rendering checks.
 
 ### Workspace and UX
-- [ ] Save/load projects and explicit session recovery; bind device settings to profile identity, avoid silent restoration.
+- [x] Source: explicit .iccproj save/load and session checkpoint; SHA-256 verification of external ICC files, validated settings, no job restart.
+- [ ] Windows project interaction, relocated-file recovery and project revision UX.
 - [ ] Drag/drop ICC/ICM, richer Profile Library search/filter/metadata editing, accessibility, remaining GPUI controls.
 - [ ] Refine update feed and ensure only compatible Studio EXE assets with verified checksum can install.
 
-### Ceramic profile work
+### General printer characterization
 - [ ] Measured profile correction, machine matching, glaze/firing/ink batch/shade compensation with real matched datasets and validation.
-- [ ] Actual Durst profile and printed characterization chart regression. Keep proprietary production data outside GitHub.
+- [ ] Real-world profiles from multiple vendors and printed characterization chart regression. Keep proprietary production data outside GitHub.
 
 ### Release gates
 - [ ] Verify beta.5 sole GPUI CI and artifact, Windows interactive smoke tests, printer regression, dependency/license review and release candidate before stable 1.0.
@@ -77,7 +79,7 @@ LittleCMS (static Rust binding) handles ICC parsing/transforms, color metrics an
 - [x] Source: 1–6 region editor with add/remove/select/reset and hue swatches; combine active regions using original Lab weights, normalize overlap and preserve near-neutrals/extremes; independent B2A resampling, original A2B and source caps preserved. Tests for overlap/order, disjoint masks, invalid settings and native ICC K0 regression.
 - [x] Source: reuse curve graph for black preference, draggable midpoint gamma and maximum K; existing start, tolerance, strength, UCR/GCR controls retained. Graph is requested preference before constraints, not measured separation.
 - [x] beta.7 GPUI CI passed 65 tests (45464642389).
-- [ ] Windows rendering/input; actual Durst profile and print regression. Next: structural ICC version conversion, project/session and vendor-tag support.
+- [ ] Windows rendering/input; real-world profile and print regression. Next: structural ICC version conversion, project/session and vendor-tag support.
 
 ## beta.8 — structural ICC version conversion
 
@@ -90,3 +92,8 @@ LittleCMS (static Rust binding) handles ICC parsing/transforms, color metrics an
 - Legacy identity PCS output curves can contain unused values above 0xFF00. v2→v4 composes the clipped scaling as a sampled curve when needed (not just endpoint scaling); verification still rejects actual transform drift. Added regression for legacy identity curves.
 
 - Initial beta.8 run 45467850591: 68 tests passed, one all-intent equivalence assertion failed (synthetic Perceptual ΔE00 19.0045). This confirmed the strict gate; regression now explicitly expects rejection and separately tests the opt-in Relative/Absolute mode, retaining all four measured intent rows. Compatibility filename defaults to _REL_ABS_ONLY. Latest Windows CI pending.
+
+## beta.9 — projects and general-purpose scope
+
+- Owner decision: general comprehensive ICC application, no Durst-specific development. Historical vendor test evidence retained as regression history only. No image workflows or egui.
+- Source: project schema 1, SHA-256 file identity, validation of all saved settings, explicit new-file save and opt-in session checkpoint, no automatic restoration/jobs. Projects store external absolute paths; relocation and embedded packages not implemented. Reports recalculated manually. Restore verifies source and candidate before replacing current workspace. CI pending.

@@ -5,7 +5,7 @@ use crate::gamut::{Overlay,Cloud,project};
 use image::{Rgb,RgbImage,ImageEncoder};
 #[derive(Clone,Copy,Debug,PartialEq,Eq,serde::Serialize,serde::Deserialize,Default)]
 pub enum CompareLayout{#[default] ReferenceSolidCandidateWire,ReferenceWireCandidateSolid,Shared}
-#[derive(Clone,Copy,Debug,PartialEq)]
+#[derive(Clone,Copy,Debug,PartialEq,serde::Serialize,serde::Deserialize)]
 pub struct ViewOptions{pub three_d:bool,pub reference:bool,pub candidate:bool,pub slice:bool,pub light:f32,pub yaw:f32,pub pitch:f32,pub zoom:f32,pub wireframe:bool,pub solid:bool,pub profile_colors:bool,pub convex:bool,pub layout:CompareLayout,pub floor_contour:bool,pub opacity_2d:u8}
 impl Default for ViewOptions{fn default()->Self{Self{three_d:true,reference:true,candidate:true,slice:false,light:50.,yaw:0.65,pitch:0.45,zoom:1.,wireframe:false,solid:true,profile_colors:true,convex:false,layout:CompareLayout::default(),floor_contour:true,opacity_2d:100}}}
 impl ViewOptions{

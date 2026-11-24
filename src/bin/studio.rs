@@ -10,7 +10,7 @@ use color_convert_rust::gamut::{self,Overlay};
 use gamut_view::ViewOptions;
 #[path = "../curve_view.rs"] mod curve_view;
 use color_convert_rust::gamut_raster::CompareLayout;
-use color_convert_rust::{device_link,versioning};
+use color_convert_rust::{device_link,versioning,project};
 use color_convert_rust::gradient::{self,GradientReport};
 use color_convert_rust::{library,reports,preferences::{self,Preferences}};
 #[cfg(windows)] use update_via_github::{UpdateConfig,UpdateManager,UpdateStatus};
@@ -19,18 +19,18 @@ use color_convert_rust::{optimizer::{self,Settings as RecipeSettings,Report as R
 const STUDIO_VERSION:&str=include_str!("../../STUDIO_VERSION");
 
 #[derive(Clone,Copy,PartialEq,Eq)]
-enum Page { Dashboard, Library, Inspector, Validator, Rebuilder, Comparison, Curves, Reorder, Metadata, Version, Gamut, Gradient, Correction, Smoothing, DeviceLink, Recipes, Black, Lab, Settings, About }
-const PAGES: [(Page,&str);20] = [
- (Page::Dashboard,"Dashboard"),(Page::Library,"Profile Library"),(Page::Inspector,"Profile Inspector"),(Page::Validator,"Profile Validator"),(Page::Rebuilder,"Profile Rebuilder"),
+enum Page { Dashboard, Projects, Library, Inspector, Validator, Rebuilder, Comparison, Curves, Reorder, Metadata, Version, Gamut, Gradient, Correction, Smoothing, DeviceLink, Recipes, Black, Lab, Settings, About }
+const PAGES: [(Page,&str);21] = [
+ (Page::Dashboard,"Dashboard"),(Page::Projects,"Projects & Session"),(Page::Library,"Profile Library"),(Page::Inspector,"Profile Inspector"),(Page::Validator,"Profile Validator"),(Page::Rebuilder,"Profile Rebuilder"),
  (Page::Comparison,"Profile Comparison"),(Page::Curves,"Tone Curves"),(Page::Reorder,"Channel Reorder"),(Page::Metadata,"Profile Metadata"),(Page::Version,"ICC Version Conversion"),(Page::Gamut,"Gamut Viewer"),(Page::Gradient,"Gradient Analyzer"),(Page::Correction,"Color Correction"),(Page::Smoothing,"LUT Smoothing"),(Page::DeviceLink,"DeviceLink Generator"),(Page::Recipes,"Ink Optimizer"),(Page::Black,"Black Generation"),(Page::Lab,"Profiling Lab"),(Page::Settings,"Settings"),(Page::About,"About & Updates")
 ];
 enum Event { Progress(String), Done(Result<String,String>) }
 struct Studio {
- version_allow_omit:bool,version_relative_only:bool,version_de:f64,version_ink:f64,version_report:Option<versioning::Report>,page:Page, source:Option<PathBuf>, profile:Option<Profile>, report:Option<Inspection>, error:Option<String>,
+ reference_identity:Option<project::FileIdentity>,project_path:Option<PathBuf>,version_allow_omit:bool,version_relative_only:bool,version_de:f64,version_ink:f64,version_report:Option<versioning::Report>,page:Page, source:Option<PathBuf>, profile:Option<Profile>, report:Option<Inspection>, error:Option<String>,
  caps:[f64;4],tac:f64,grid:usize,mode:Mode,status:String,busy:bool, candidate:Option<PathBuf>,comparison:Option<Comparison>,compare_error:Option<String>,compare_grid:usize,compare_intent:lcms2::Intent,gamma:[f64;4],order:[usize;4], preview_open:bool, preview:Option<Overlay>, preview_revision:u64, preview_width:f32,preview_fullscreen:bool,resize_last:Option<Pixels>,gamut_advanced:bool,curve_drag:Option<(usize,usize,Pixels)>, preview_cache:std::cell::RefCell<gamut_view::PreviewCache>, preview_options:ViewOptions, gamut_grid:usize,gradient:Option<GradientReport>,gradient_error:Option<String>,coverage_threshold:f64, regions:[Selective;MAX_REGIONS],region_count:usize,region_selected:usize, correction_grid:usize, correction_tac:f64, smoothing:f64, smoothing_passes:usize,orbit_last:Option<Point<Pixels>>,chart_dpi:u32,recipe_target:[f64;3],recipe_settings:RecipeSettings,recipe_result:Option<RecipeReport>,lab_levels:usize,measured:[Option<PathBuf>;2],measurement_result:Option<MeasuredComparison>,black:BlackGeneration,curve_points:[[f64;5];4],library_root:Option<PathBuf>,library_entries:Vec<library::Entry>,logo:std::sync::Arc<gpui::Image>,#[cfg(windows)] updater:UpdateManager,
 }
 impl Default for Studio {
- fn default()->Self{Self{version_allow_omit:false,version_relative_only:false,version_de:0.5,version_ink:0.5,version_report:None,page:Page::Dashboard,source:None,profile:None,report:None,error:None,caps:[100.,100.,100.,0.],tac:240.,grid:33,mode:Mode::Custom,status:"Open an ICC or ICM profile to start.".into(),busy:false,candidate:None,comparison:None,compare_error:None,compare_grid:17,compare_intent:lcms2::Intent::RelativeColorimetric,gamma:[1.;4],order:[0,1,2,3],preview_open:true,preview:None,preview_revision:0,preview_width:360.,preview_fullscreen:false,resize_last:None,gamut_advanced:false,curve_drag:None,preview_cache:std::cell::RefCell::new(gamut_view::PreviewCache::default()),preview_options:ViewOptions::default(),gamut_grid:17,gradient:None,gradient_error:None,coverage_threshold:2.,regions:[Selective::default();MAX_REGIONS],region_count:1,region_selected:0,correction_grid:33,correction_tac:400.,smoothing:0.20,smoothing_passes:1,orbit_last:None,chart_dpi:300,recipe_target:[50.,0.,0.],recipe_settings:RecipeSettings::default(),recipe_result:None,lab_levels:5,measured:[None,None],measurement_result:None,black:BlackGeneration::default(),curve_points:IDENTITY_POINTS,library_root:None,library_entries:vec![],logo:std::sync::Arc::new(gpui::Image::from_bytes(gpui::ImageFormat::Png,include_bytes!("../../assets/icon.png").to_vec())),#[cfg(windows)] updater:UpdateManager::new(UpdateConfig::new("emadgh/color-convert-rust","ICC-Profile-Studio.exe",STUDIO_VERSION.trim()).with_app_name("ICC Profile Studio").with_checksum_asset("ICC-Profile-Studio.exe.sha256").with_required_checksum(true))}}
+ fn default()->Self{Self{reference_identity:None,project_path:None,version_allow_omit:false,version_relative_only:false,version_de:0.5,version_ink:0.5,version_report:None,page:Page::Dashboard,source:None,profile:None,report:None,error:None,caps:[100.,100.,100.,0.],tac:240.,grid:33,mode:Mode::Custom,status:"Open an ICC or ICM profile to start.".into(),busy:false,candidate:None,comparison:None,compare_error:None,compare_grid:17,compare_intent:lcms2::Intent::RelativeColorimetric,gamma:[1.;4],order:[0,1,2,3],preview_open:true,preview:None,preview_revision:0,preview_width:360.,preview_fullscreen:false,resize_last:None,gamut_advanced:false,curve_drag:None,preview_cache:std::cell::RefCell::new(gamut_view::PreviewCache::default()),preview_options:ViewOptions::default(),gamut_grid:17,gradient:None,gradient_error:None,coverage_threshold:2.,regions:[Selective::default();MAX_REGIONS],region_count:1,region_selected:0,correction_grid:33,correction_tac:400.,smoothing:0.20,smoothing_passes:1,orbit_last:None,chart_dpi:300,recipe_target:[50.,0.,0.],recipe_settings:RecipeSettings::default(),recipe_result:None,lab_levels:5,measured:[None,None],measurement_result:None,black:BlackGeneration::default(),curve_points:IDENTITY_POINTS,library_root:None,library_entries:vec![],logo:std::sync::Arc::new(gpui::Image::from_bytes(gpui::ImageFormat::Png,include_bytes!("../../assets/icon.png").to_vec())),#[cfg(windows)] updater:UpdateManager::new(UpdateConfig::new("emadgh/color-convert-rust","ICC-Profile-Studio.exe",STUDIO_VERSION.trim()).with_app_name("ICC Profile Studio").with_checksum_asset("ICC-Profile-Studio.exe.sha256").with_required_checksum(true))}}
 }
 fn button(id: impl Into<ElementId>,label:impl Into<SharedString>)->Stateful<Div>{
  div().id(id).px_3().py_2().rounded_md().bg(rgb(0x263449)).text_color(rgb(0xe6eefb)).cursor_pointer().hover(|s|s.bg(rgb(0x354963))).child(label.into())
@@ -71,6 +71,7 @@ impl Studio {
  }
  fn load_reference(&mut self,path:PathBuf,cx:&mut Context<Self>){
   if self.busy{return}
+  self.reference_identity=project::FileIdentity::capture(&path).ok();self.project_path=None;
   self.source=Some(path.clone());self.version_report=None;self.version_allow_omit=false;self.version_relative_only=false;self.black=BlackGeneration::default();self.curve_points=IDENTITY_POINTS;self.recipe_result=None;self.regions=[Selective::default();MAX_REGIONS];self.region_count=1;self.region_selected=0;self.correction_grid=33;self.correction_tac=400.;self.smoothing=0.20;self.smoothing_passes=1;self.preview=None;self.candidate=None;self.gradient=None;self.gradient_error=None;self.gamma=[1.;4];self.order=[0,1,2,3];self.comparison=None;self.compare_error=None;self.report=None;self.profile=None;self.error=None;
   match inspection::inspect(&path){Ok(r)=>self.report=Some(r),Err(e)=>self.error=Some(e)}
   if let Ok(p)=Profile::read(&path){
@@ -553,7 +554,7 @@ impl Studio {
    .child(button("optimize-profile","Generate ink-optimized ICC").on_click(cx.listener(|v,_,_,cx|v.save_edit(5,cx))))
  }
  fn lab_page(&self,cx:&mut Context<Self>)->Div{
-  let mut p=div().flex().flex_col().gap_3().child(heading("Ceramic Profiling Lab","Direct-ink test charts, measured patch comparison and ArgyllCMS profiling."))
+  let mut p=div().flex().flex_col().gap_3().child(heading("Profiling Lab","Direct-ink test charts, measured patch comparison and ArgyllCMS profiling."))
    .child("Record printer, glaze, ink batch, firing schedule and measurement conditions externally. Use identical measurement geometry and D50 Lab for both charts.")
    .child(div().text_lg().child("Generate device test chart"))
    .child(div().flex().gap_1().items_center().child("Levels per ink").children([3usize,5,7].map(|n|button(("chart-level",n),if self.lab_levels==n{format!("{n} ✓")}else{n.to_string()}).on_click(cx.listener(move|v,_,_,cx|{if !v.busy{v.lab_levels=n;cx.notify();}})))))
@@ -656,7 +657,7 @@ impl Studio {
     p=p.child(button("check-studio","Check for updates").on_click(cx.listener(|v,_,_,cx|{if !v.busy{v.updater.start_check(false);v.update_poll(cx);cx.notify();}})));
    }
   }
-  p.child("Private repository: unauthenticated shared updater cannot access private releases. No tokens are embedded. Download Studio previews through signed-in GitHub Releases. Studio beta tags use a separate namespace and are not supported by the existing latest-release updater; no automatic beta installation. Studio requires its own EXE and SHA256 asset, never the legacy executable.")
+  p.child("The shared updater cannot access private releases without authentication. No tokens are embedded. Download Studio previews through signed-in GitHub Releases. Studio beta tags use a separate namespace and are not supported by the existing latest-release updater; no automatic beta installation. Studio requires its own EXE and SHA256 asset, never the legacy executable.")
  }
  fn point_curves_page(&self,cx:&mut Context<Self>)->Div{
   div().flex().flex_col().gap_2().child(heading("Bounded multipoint curves","Drag three control points per ink. Endpoints locked; monotonic output enforced."))
@@ -704,6 +705,57 @@ impl Studio {
   p.child(self.correction_options(cx))
    .child("Initial implementation: ICC v4 mBA, 17/33 grid. Per-node predicted appearance constraint, not a measured GCR/UCR calibration or a guarantee between nodes. Compare color, gradients and K distribution before production.")
    .child(button("save-black","Generate black preference ICC").on_click(cx.listener(|v,_,_,cx|v.save_edit(6,cx))))
+ }
+ fn project_snapshot(&self)->Result<project::Project,String>{
+  let reference=self.reference_identity.clone().ok_or("Open a valid reference ICC first.")?;
+  if self.report.is_none(){return Err("Reference ICC did not pass inspection".into())}
+  reference.verify()?;
+  let candidate=self.candidate.as_ref().map(|p|project::FileIdentity::capture(p)).transpose()?;
+  let compare_intent=match self.compare_intent{lcms2::Intent::Perceptual=>0,lcms2::Intent::RelativeColorimetric=>1,lcms2::Intent::Saturation=>2,lcms2::Intent::AbsoluteColorimetric=>3,_=>1};
+  Ok(project::Project{schema:1,reference,candidate,settings:project::Settings{
+   caps:self.caps,tac:self.tac,grid:self.grid,argyll:self.mode==Mode::Argyll,gamma:self.gamma,order:self.order,curve_points:self.curve_points,
+   regions:self.regions,region_count:self.region_count,region_selected:self.region_selected,correction_grid:self.correction_grid,correction_tac:self.correction_tac,smoothing:self.smoothing,smoothing_passes:self.smoothing_passes,
+   black:self.black,recipe_target:self.recipe_target,recipe_weights:self.recipe_settings.weights,recipe_tolerance:self.recipe_settings.tolerance,
+   gamut:self.preview_options,gamut_grid:self.gamut_grid,compare_grid:self.compare_grid,compare_intent,coverage_threshold:self.coverage_threshold,preview_open:self.preview_open,preview_width:self.preview_width,chart_dpi:self.chart_dpi,lab_levels:self.lab_levels}})
+ }
+ fn restore_project(&mut self,path:PathBuf,cx:&mut Context<Self>)->Result<(),String>{
+  let p=project::load(&path)?;
+  // Validate all references and native ICC parsing before changing the current workspace.
+  inspection::inspect(&p.reference.path)?;
+  if let Some(c)=&p.candidate{inspection::inspect(&c.path)?;}
+  p.validate()?;
+  self.preview_open=false;self.load_reference(p.reference.path.clone(),cx);
+  self.reference_identity=Some(p.reference);self.candidate=p.candidate.map(|c|c.path);
+  let x=p.settings;
+  self.caps=x.caps;self.tac=x.tac;self.grid=x.grid;self.mode=if x.argyll{Mode::Argyll}else{Mode::Custom};
+  self.gamma=x.gamma;self.order=x.order;self.curve_points=x.curve_points;self.regions=x.regions;self.region_count=x.region_count;self.region_selected=x.region_selected;
+  self.correction_grid=x.correction_grid;self.correction_tac=x.correction_tac;self.smoothing=x.smoothing;self.smoothing_passes=x.smoothing_passes;self.black=x.black;
+  self.recipe_target=x.recipe_target;self.recipe_settings.weights=x.recipe_weights;self.recipe_settings.tolerance=x.recipe_tolerance;
+  self.preview_options=x.gamut;self.gamut_grid=x.gamut_grid;self.compare_grid=x.compare_grid;self.compare_intent=[lcms2::Intent::Perceptual,lcms2::Intent::RelativeColorimetric,lcms2::Intent::Saturation,lcms2::Intent::AbsoluteColorimetric][x.compare_intent as usize];self.coverage_threshold=x.coverage_threshold;
+  self.preview_open=x.preview_open;self.preview_width=x.preview_width;self.chart_dpi=x.chart_dpi;self.lab_levels=x.lab_levels;self.preview_fullscreen=false;self.measured=[None,None];self.measurement_result=None;
+  self.project_path=Some(path);self.page=Page::Projects;self.status="Project restored. Verify physical channel mapping and limits before generating a new ICC.".into();
+  // Leave computation explicitly opt-in; never restart saved jobs.
+  cx.notify();Ok(())
+ }
+ fn projects_page(&self,cx:&mut Context<Self>)->Div{
+  div().flex().flex_col().gap_3().child(heading("Projects & Session","Explicit ICC workspace snapshots with SHA-256 profile identity."))
+   .child(format!("Project: {}",self.project_path.as_ref().map(|p|p.display().to_string()).unwrap_or("Unsaved".into())))
+   .child("Stores reference/candidate file paths, ink limits, curves, color correction regions, black settings, optimization and gamut settings. Does not embed ICCs, measurement files or computed reports. Keep external ICC files unchanged at their original paths.")
+   .child(div().flex().gap_2().flex_wrap()
+    .child(button("project-save","Save project as…").on_click(cx.listener(|v,_,_,cx|{
+     if v.busy{return}let Some(mut path)=rfd::FileDialog::new().add_filter("ICC Project",&["iccproj"]).set_file_name("workspace.iccproj").save_file()else{return};if path.extension().is_none(){path.set_extension("iccproj");}
+     match v.project_snapshot().and_then(|p|project::save(&path,&p,false)){Ok(())=>{v.project_path=Some(path);v.status="Project saved.".into();},Err(e)=>v.status=format!("Project save refused: {e}")}cx.notify();
+    })))
+    .child(button("project-open","Open project…").on_click(cx.listener(|v,_,_,cx|{
+     if v.busy{return}let Some(path)=rfd::FileDialog::new().add_filter("ICC Project",&["iccproj"]).pick_file()else{return};
+     if let Err(e)=v.restore_project(path,cx){v.status=format!("Project open refused: {e}");}cx.notify();
+    }))))
+   .child(div().text_lg().child("Session checkpoint"))
+   .child("Optional explicit recovery snapshot. Nothing is automatically restored on startup. A checkpoint replaces only the previous app-owned session checkpoint.")
+   .child(div().flex().gap_2().flex_wrap()
+    .child(button("checkpoint-save","Save checkpoint").on_click(cx.listener(|v,_,_,cx|{if !v.busy{v.status=project::checkpoint().and_then(|path|v.project_snapshot().and_then(|p|project::save(&path,&p,true))).map(|_|"Session checkpoint saved.".into()).unwrap_or_else(|e|format!("Checkpoint refused: {e}"));cx.notify();}})))
+    .child(button("checkpoint-open","Restore checkpoint").on_click(cx.listener(|v,_,_,cx|{if !v.busy{if let Err(e)=project::checkpoint().and_then(|path|v.restore_project(path,cx)){v.status=format!("Recovery refused: {e}");}cx.notify();}}))))
+   .child("Save as a new project file to keep revisions. Missing or modified profiles cause restoration to be refused. Recompute gamut and comparisons manually after opening.")
  }
  fn preference_snapshot(&self)->Preferences{
   Preferences{schema:1,preview_open:self.preview_open,three_d:self.preview_options.three_d,wireframe:self.preview_options.wireframe,solid:self.preview_options.solid,profile_colors:self.preview_options.profile_colors,convex:self.preview_options.convex,layout:self.preview_options.layout,floor_contour:self.preview_options.floor_contour,preview_width:self.preview_width,opacity_2d:self.preview_options.opacity_2d,gamut_grid:self.gamut_grid,compare_grid:self.compare_grid,chart_dpi:self.chart_dpi,library:self.library_root.clone()}
@@ -827,6 +879,7 @@ impl Render for Studio {
    }));
   let content=match self.page{
    Page::Dashboard=>div().flex().flex_col().gap_3().child(heading("Dashboard","ICC profile inspection, editing and characterization.")).child("Open an ICC/ICM profile to inspect, edit, validate, compare or rebuild it. Image conversion and editing are outside the current Studio scope."),
+   Page::Projects=>self.projects_page(cx),
    Page::Inspector=>self.inspector(),
    Page::Validator=>self.validator(),
    Page::Rebuilder=>self.rebuilder(cx),

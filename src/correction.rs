@@ -4,13 +4,13 @@
 //! cannot exceed the verified device limits. A2B remains the printer model.
 use super::{Profile,R,Lut,make_mba,put16};
 use lcms2::{Tag,TagSignature,CIELab,CIELabExt};
-#[derive(Debug,Clone,Copy)]
+#[derive(Debug,Clone,Copy,serde::Serialize,serde::Deserialize)]
 pub struct Selective{
  pub center:f64,pub width:f64,pub light:f64,pub chroma_percent:f64,pub hue_shift:f64,
 }
 impl Default for Selective{fn default()->Self{Self{center:135.,width:45.,light:0.,chroma_percent:0.,hue_shift:0.}}}
 impl Selective{
- fn check(self)->R<()>{
+ pub(crate) fn check(self)->R<()>{
   if ![self.center,self.width,self.light,self.chroma_percent,self.hue_shift].iter().all(|v|v.is_finite())
    || !(0.0..=360.).contains(&self.center)||!(10.0..=180.).contains(&self.width)
    || !(-30.0..=30.).contains(&self.light)||!(-80.0..=80.).contains(&self.chroma_percent)||!(-60.0..=60.).contains(&self.hue_shift){return Err("Invalid selective color parameters".into())}
@@ -99,13 +99,13 @@ fn optimize_node(base:[f64;4],caps:[f64;4],tac:f64,weights:[f64;4],tol:f64,mut p
 }
 /// A predictive black-generation preference, not a measured separation
 /// characterization. GCR uses broad chroma support; UCR is near-neutral/dark.
-#[derive(Clone,Copy,Debug)]
+#[derive(Clone,Copy,Debug,serde::Serialize,serde::Deserialize)]
 pub struct BlackGeneration{
  pub start:f64,pub maximum:f64,pub gamma:f64,pub strength:f64,pub tolerance:f64,pub ucr:bool,
 }
 impl Default for BlackGeneration{fn default()->Self{Self{start:0.20,maximum:1.,gamma:1.,strength:0.75,tolerance:2.,ucr:false}}}
 impl BlackGeneration{
- fn check(self)->R<()>{
+ pub(crate) fn check(self)->R<()>{
   if ![self.start,self.maximum,self.gamma,self.strength,self.tolerance].iter().all(|v|v.is_finite())||
    !(0.0..=0.95).contains(&self.start)||!(0.0..=1.).contains(&self.maximum)||!(0.25..=4.).contains(&self.gamma)||
    !(0.0..=1.).contains(&self.strength)||!(0.1..=5.).contains(&self.tolerance){return Err("Invalid black generation settings".into())}Ok(())
@@ -155,7 +155,7 @@ fn black_node(base:[f64;4],caps:[f64;4],tac:f64,s:BlackGeneration,mut predict:im
  Ok(best)
 }
 pub const IDENTITY_POINTS:[[f64;5];4]=[[0.,0.25,0.5,0.75,1.];4];
-fn validate_points(points:[[f64;5];4])->R<()>{
+pub(crate) fn validate_points(points:[[f64;5];4])->R<()>{
  for p in points{
   if p[0]!=0.||p[4]!=1.||p.iter().any(|v|!v.is_finite()||!(0.0..=1.).contains(v))||p.windows(2).any(|v|v[0]>v[1]){return Err("Curves must be monotone, with fixed 0% and 100% endpoints".into())}
  }
