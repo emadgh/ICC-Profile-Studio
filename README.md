@@ -60,3 +60,7 @@ GPUI Studio now includes per-ink gamma curves, physical channel reordering and m
 ### Persistent Gamut Preview
 
 The GPUI right pane is collapsible, available on every page and accepts a separate candidate ICC. Newly saved edits/rebuilds become the candidate. Use Before/After independently, 2D a*/b* projection or L* ±5 slice, or a rotatable 3D orthographic Lab point cloud with zoom. LittleCMS samples both effective separation transforms on the same grid of D50 Lab targets represented through XYZ, then plots round-trip Lab. The result is not an exact physical gamut boundary, a volume estimate, or a measured print test. Controls and build remain experimental pending Windows CI.
+
+### Gradient and gamut analysis
+
+Gradient Analyzer runs 13 sRGB ramps with 256 samples per ramp, using LCMS predicted Lab and CIEDE2000. Gamut Viewer compares shared valid D50 target errors at ΔE00 thresholds 1/2/3/5. Parry3D computes a convex hull of the sampled points for an optional wireframe and convex-envelope volume. The envelope may include unattainable colors; it is not the exact gamut or a measured result. New analytics are pending Windows CI.

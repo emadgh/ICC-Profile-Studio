@@ -7,20 +7,21 @@ use color_convert_rust::editing::{self,Edit};
 #[path = "../gamut_view.rs"] mod gamut_view;
 use color_convert_rust::gamut::{self,Overlay};
 use gamut_view::ViewOptions;
+use color_convert_rust::gradient::{self,GradientReport};
 
 #[derive(Clone,Copy,PartialEq,Eq)]
-enum Page { Dashboard, Inspector, Validator, Rebuilder, Comparison, Curves, Reorder, Metadata, Gamut, Correction, Converter, Lab, Settings, About }
-const PAGES: [(Page,&str);14] = [
+enum Page { Dashboard, Inspector, Validator, Rebuilder, Comparison, Curves, Reorder, Metadata, Gamut, Gradient, Correction, Converter, Lab, Settings, About }
+const PAGES: [(Page,&str);15] = [
  (Page::Dashboard,"Dashboard"),(Page::Inspector,"Profile Inspector"),(Page::Validator,"Profile Validator"),(Page::Rebuilder,"Profile Rebuilder"),
- (Page::Comparison,"Profile Comparison"),(Page::Curves,"Tone Curves"),(Page::Reorder,"Channel Reorder"),(Page::Metadata,"Profile Metadata"),(Page::Gamut,"Gamut Viewer"),(Page::Correction,"Color Correction"),(Page::Converter,"Image Converter"),(Page::Lab,"Profiling Lab"),(Page::Settings,"Settings"),(Page::About,"About & Updates")
+ (Page::Comparison,"Profile Comparison"),(Page::Curves,"Tone Curves"),(Page::Reorder,"Channel Reorder"),(Page::Metadata,"Profile Metadata"),(Page::Gamut,"Gamut Viewer"),(Page::Gradient,"Gradient Analyzer"),(Page::Correction,"Color Correction"),(Page::Converter,"Image Converter"),(Page::Lab,"Profiling Lab"),(Page::Settings,"Settings"),(Page::About,"About & Updates")
 ];
 enum Event { Progress(String), Done(Result<String,String>) }
 struct Studio {
  page:Page, source:Option<PathBuf>, profile:Option<Profile>, report:Option<Inspection>, error:Option<String>,
- caps:[f64;4],tac:f64,grid:usize,mode:Mode,status:String,busy:bool, candidate:Option<PathBuf>,comparison:Option<Comparison>,compare_error:Option<String>,compare_grid:usize,gamma:[f64;4],order:[usize;4], preview_open:bool, preview:Option<Overlay>, preview_options:ViewOptions, gamut_grid:usize,
+ caps:[f64;4],tac:f64,grid:usize,mode:Mode,status:String,busy:bool, candidate:Option<PathBuf>,comparison:Option<Comparison>,compare_error:Option<String>,compare_grid:usize,gamma:[f64;4],order:[usize;4], preview_open:bool, preview:Option<Overlay>, preview_options:ViewOptions, gamut_grid:usize,gradient:Option<GradientReport>,gradient_error:Option<String>,coverage_threshold:f64,
 }
 impl Default for Studio {
- fn default()->Self{Self{page:Page::Dashboard,source:None,profile:None,report:None,error:None,caps:[100.,100.,100.,0.],tac:240.,grid:33,mode:Mode::Custom,status:"Open an ICC or ICM profile to start.".into(),busy:false,candidate:None,comparison:None,compare_error:None,compare_grid:17,gamma:[1.;4],order:[0,1,2,3],preview_open:true,preview:None,preview_options:ViewOptions::default(),gamut_grid:17}}
+ fn default()->Self{Self{page:Page::Dashboard,source:None,profile:None,report:None,error:None,caps:[100.,100.,100.,0.],tac:240.,grid:33,mode:Mode::Custom,status:"Open an ICC or ICM profile to start.".into(),busy:false,candidate:None,comparison:None,compare_error:None,compare_grid:17,gamma:[1.;4],order:[0,1,2,3],preview_open:true,preview:None,preview_options:ViewOptions::default(),gamut_grid:17,gradient:None,gradient_error:None,coverage_threshold:2.}}
 }
 fn button(id: impl Into<ElementId>,label:impl Into<SharedString>)->Stateful<Div>{
  div().id(id).px_3().py_2().rounded_md().bg(rgb(0x263449)).text_color(rgb(0xe6eefb)).cursor_pointer().hover(|s|s.bg(rgb(0x354963))).child(label.into())
@@ -30,7 +31,7 @@ impl Studio {
  fn open(&mut self,cx:&mut Context<Self>) {
   if self.busy{return}
   let Some(path)=rfd::FileDialog::new().add_filter("ICC profile",&["icc","icm"]).pick_file() else{return};
-  self.source=Some(path.clone());self.preview=None;self.candidate=None;self.gamma=[1.;4];self.order=[0,1,2,3];self.comparison=None;self.compare_error=None;self.report=None;self.profile=None;self.error=None;
+  self.source=Some(path.clone());self.preview=None;self.candidate=None;self.gradient=None;self.gradient_error=None;self.gamma=[1.;4];self.order=[0,1,2,3];self.comparison=None;self.compare_error=None;self.report=None;self.profile=None;self.error=None;
   match inspection::inspect(&path){Ok(r)=>self.report=Some(r),Err(e)=>self.error=Some(e)}
   if let Ok(p)=Profile::read(&path){
    if p.check().is_ok(){
@@ -64,7 +65,7 @@ impl Studio {
     let mut finished=false;
     match rx.try_recv(){
      Ok(Event::Progress(s))=>{if this.update(cx,|view,cx|{view.status=s;cx.notify();}).is_err(){break}}
-     Ok(Event::Done(result))=>{let _=this.update(cx,|view,cx|{view.busy=false;match result{Ok(s)=>{view.status=s;view.candidate=Some(output_path.clone());view.preview=None;view.comparison=None;if view.preview_open{view.refresh_gamut(cx);}},Err(e)=>view.status=format!("Error: {e}")}cx.notify();});finished=true;}
+     Ok(Event::Done(result))=>{let _=this.update(cx,|view,cx|{view.busy=false;match result{Ok(s)=>{view.status=s;view.candidate=Some(output_path.clone());view.preview=None;view.comparison=None;view.gradient=None;view.gradient_error=None;if view.preview_open{view.refresh_gamut(cx);}},Err(e)=>view.status=format!("Error: {e}")}cx.notify();});finished=true;}
      Err(mpsc::TryRecvError::Disconnected)=>{let _=this.update(cx,|view,cx|{view.status="Worker disconnected".into();view.busy=false;cx.notify();});finished=true;}
      Err(mpsc::TryRecvError::Empty)=>{}
     }
@@ -90,7 +91,7 @@ impl Studio {
   let mut p=div().flex().flex_col().gap_3().child(heading("Profile Comparison","Predicted D50 media-relative Lab appearance and CMYK separation."));
   p=p.child(format!("Reference: {}",self.source.as_ref().map(|p|p.display().to_string()).unwrap_or("Not selected".into())))
    .child(button("pick-candidate","Select candidate ICC").on_click(cx.listener(|this,_,_,cx|{
-    if !this.busy{if let Some(path)=rfd::FileDialog::new().add_filter("ICC profile",&["icc","icm"]).pick_file(){this.candidate=Some(path);this.preview=None;this.comparison=None;this.compare_error=None;if this.preview_open{this.refresh_gamut(cx);}cx.notify();}}
+    if !this.busy{if let Some(path)=rfd::FileDialog::new().add_filter("ICC profile",&["icc","icm"]).pick_file(){this.candidate=Some(path);this.preview=None;this.comparison=None;this.gradient=None;this.gradient_error=None;this.compare_error=None;if this.preview_open{this.refresh_gamut(cx);}cx.notify();}}
    })))
    .child(format!("Candidate: {}",self.candidate.as_ref().map(|p|p.display().to_string()).unwrap_or("Not selected".into())))
    .child(div().flex().items_center().gap_2().child(format!("RGB sample grid: {}³",self.compare_grid)).children([9usize,17,33].into_iter().map(|v|button(("compare-grid",v),v.to_string()).on_click(cx.listener(move|this,_,_,cx|{if !this.busy{this.compare_grid=v;this.comparison=None;cx.notify();}})))))
@@ -124,7 +125,7 @@ impl Studio {
   self.busy=true;self.status="Editing ICC and validating with LittleCMS…".into();cx.notify();
   cx.spawn(async move |this,cx|{
    let result=cx.background_spawn(async move{editing::edit_file(&source,&destination,edit)}).await;
-   let _=this.update(cx,|view,cx|{view.busy=false;match result{Ok(s)=>{view.status=s;view.candidate=Some(output_path);view.preview=None;view.comparison=None;if view.preview_open{view.refresh_gamut(cx);}},Err(e)=>view.status=format!("Error: {e}")}cx.notify();});
+   let _=this.update(cx,|view,cx|{view.busy=false;match result{Ok(s)=>{view.status=s;view.candidate=Some(output_path);view.preview=None;view.comparison=None;view.gradient=None;view.gradient_error=None;if view.preview_open{view.refresh_gamut(cx);}},Err(e)=>view.status=format!("Error: {e}")}cx.notify();});
   }).detach();
  }
  fn curves_page(&self,cx:&mut Context<Self>)->Div{
@@ -187,7 +188,7 @@ impl Studio {
    .child(div().flex().gap_2().items_center().child(div().size(px(9.)).bg(rgb(0x60a5fa))).child("Reference").child(div().size(px(9.)).bg(rgb(0xfbbf24))).child("Candidate"))
    .child(div().text_xs().child(format!("Before: {}",self.source.as_ref().and_then(|p|p.file_name()).map(|n|n.to_string_lossy().into_owned()).unwrap_or("Not selected".into()))))
    .child(div().text_xs().child(format!("After: {}",self.candidate.as_ref().and_then(|p|p.file_name()).map(|n|n.to_string_lossy().into_owned()).unwrap_or("Not selected".into()))))
-   .child(button("preview-pick","Select comparison ICC").on_click(cx.listener(|this,_,_,cx|{if !this.busy{if let Some(path)=rfd::FileDialog::new().add_filter("ICC profile",&["icc","icm"]).pick_file(){this.candidate=Some(path);this.preview=None;this.comparison=None;this.refresh_gamut(cx);cx.notify();}}})))
+   .child(button("preview-pick","Select comparison ICC").on_click(cx.listener(|this,_,_,cx|{if !this.busy{if let Some(path)=rfd::FileDialog::new().add_filter("ICC profile",&["icc","icm"]).pick_file(){this.candidate=Some(path);this.preview=None;this.comparison=None;this.gradient=None;this.gradient_error=None;this.refresh_gamut(cx);cx.notify();}}})))
    .child(div().flex().items_center().gap_1().child("Grid").children([9usize,17,33].map(|v|button(("gamut-grid",v),if self.gamut_grid==v{format!("{v} ✓")}else{v.to_string()}).on_click(cx.listener(move|this,_,_,cx|{if !this.busy{this.gamut_grid=v;this.refresh_gamut(cx);cx.notify();}})))))
    .child(button("refresh-gamut",if self.busy{"Working…"}else{"Refresh gamut"}).on_click(cx.listener(|this,_,_,cx|this.refresh_gamut(cx))));
   if o.three_d{
@@ -207,10 +208,60 @@ impl Studio {
   if let Some(data)=&self.preview{
    match &data.reference{Ok(c)=>p=p.child(format!("Before: {} distinct / {} targets",c.points.len(),c.sampled)),Err(e)=>p=p.child(format!("Before failed: {e}"))}
    if let Some(c)=&data.candidate{match c{Ok(c)=>p=p.child(format!("After: {} distinct / {} targets",c.points.len(),c.sampled)),Err(e)=>p=p.child(format!("After failed: {e}"))}}
+   p=p.child(button("mesh-toggle",if o.wireframe{"Wireframe ✓"}else{"Point cloud"}).on_click(cx.listener(|this,_,_,cx|{this.preview_options.wireframe=!this.preview_options.wireframe;cx.notify();})));
    p=p.child(gamut_view::plot(data,o));
+   if o.wireframe{p=p.child("Convex hull wireframe (slice uses points).");}
    if o.three_d{p=p.child("Axes: red +a*, green +b*, white +L*");}else{p=p.child(if o.slice{format!("a* / b* | L* {:.0} ± 5",o.light)}else{"a* / b* | all lightness values".into()});}
   }else{p=p.child("Open an ICC or refresh to calculate the preview.");}
   p.child(div().text_xs().text_color(rgb(0x94a3b8)).child("Sampled effective separation gamut (Lab → B2A → device → A2B → Lab). Relative colorimetric, D50. Point cloud, not a measured or exact surface/volume."))
+ }
+ fn analyze_gradient(&mut self,cx:&mut Context<Self>){
+  if self.busy{return}let Some(reference)=self.source.clone()else{return};
+  let candidate=self.candidate.clone();self.gradient=None;self.gradient_error=None;self.busy=true;self.status="Analyzing 13 gradients with LittleCMS…".into();cx.notify();
+  cx.spawn(async move |this,cx|{
+   let result=cx.background_spawn(async move{gradient::compare(&reference,candidate.as_deref())}).await;
+   let _=this.update(cx,|view,cx|{view.busy=false;match result{Ok(r)=>{view.gradient=Some(r);view.status="Gradient analysis complete.".into();},Err(e)=>{view.gradient_error=Some(e);view.status="Gradient analysis failed.".into();}}cx.notify();});
+  }).detach();
+ }
+ fn gradient_page(&self,cx:&mut Context<Self>)->Div{
+  let mut p=div().flex().flex_col().gap_3().child(heading("Gradient Analyzer","13 sRGB ramps × 256 samples, relative colorimetric."))
+   .child(button("run-gradient","Analyze gradients").on_click(cx.listener(|this,_,_,cx|this.analyze_gradient(cx))))
+   .child("Reference and optional candidate use the same input ramps. Plateau: ΔE00 < 0.05; spike: > 3× neighboring median + 0.5. Heuristics, not measured banding.");
+  if let Some(e)=&self.gradient_error{p=p.child(div().text_color(rgb(0xfca5a5)).child(e.clone()));}
+  if let Some(r)=&self.gradient{
+   for (i,a) in r.reference.iter().enumerate(){
+    let b=r.candidate.as_ref().and_then(|v|v.get(i));
+    let scale=a.steps.iter().chain(b.into_iter().flat_map(|v|v.steps.iter())).copied().fold(0.1_f64,f64::max);
+    let mut row=div().flex().flex_col().gap_1().p_3().rounded_md().bg(rgb(0x1b2637)).child(div().text_lg().child(a.name.clone()))
+     .child(format!("Before: max ΔE {:.3} · P95 {:.3} · worst step {}→{} · plateaus {} · spikes {} · max ink step {:.2} pp",a.max_step,a.p95,a.worst_index,a.worst_index+1,a.plateaus,a.spikes,a.max_ink_step));
+    if let Some(b)=b{row=row.child(format!("After: max ΔE {:.3} · P95 {:.3} · worst step {}→{} · plateaus {} · spikes {} · max ink step {:.2} pp",b.max_step,b.p95,b.worst_index,b.worst_index+1,b.plateaus,b.spikes,b.max_ink_step));}
+    row=row.child(div().flex().items_end().h(px(52.)).children(a.steps.chunks(8).map(|v|div().flex_1().h(px((50.*v.iter().copied().fold(0.,f64::max)/scale) as f32+1.)).bg(rgb(0x60a5fa)))));
+    if let Some(b)=b{row=row.child(div().flex().items_end().h(px(52.)).children(b.steps.chunks(8).map(|v|div().flex_1().h(px((50.*v.iter().copied().fold(0.,f64::max)/scale) as f32+1.)).bg(rgb(0xfbbf24)))));}
+    p=p.child(row);
+   }
+  }
+  p
+ }
+ fn gamut_analysis_page(&self,cx:&mut Context<Self>)->Div{
+  let mut p=div().flex().flex_col().gap_3().child(heading("Gamut Viewer","Effective separation coverage and convex envelope."))
+   .child(button("open-gamut-page-preview","Show preview pane").on_click(cx.listener(|this,_,_,cx|{this.preview_open=true;if this.preview.is_none(){this.refresh_gamut(cx);}cx.notify();})))
+   .child(div().flex().gap_2().items_center().child("Target tolerance ΔE00").children([1usize,2,3,5].map(|v|button(("threshold",v),if self.coverage_threshold==v as f64{format!("{v} ✓")}else{v.to_string()}).on_click(cx.listener(move|this,_,_,cx|{this.coverage_threshold=v as f64;cx.notify();})))));
+  if let Some(data)=&self.preview{
+   if let (Ok(a),Some(Ok(b)))=(&data.reference,&data.candidate){
+    if let Some(c)=gamut::coverage(a,b,self.coverage_threshold){
+     p=p.child(format!("Matched target grid: {} valid D50 Lab targets",c.total));
+     for (label,n,color) in [("Within tolerance in both",c.both,0x60a5fa),("Lost (before only)",c.lost,0xf87171),("Gained (after only)",c.gained,0x34d399),("Outside tolerance in both",c.neither,0x94a3b8)]{
+      let f=n as f32/c.total as f32;p=p.child(div().flex().flex_col().gap_1().child(format!("{label}: {n} ({:.1}%)",100.*f)).child(div().h(px(9.)).bg(rgb(0x283a51)).child(div().w(relative(f)).h_full().bg(rgb(color)))));
+     }
+     let base=c.both+c.lost;
+     if base>0{p=p.child(format!("Lost share of reference-reproduced targets: {:.2}%",100.*c.lost as f64/base as f64));}
+    }
+    if let (Some(a),Some(b))=(&a.hull,&b.hull){
+     p=p.child(format!("Convex envelope volume (Lab³): {:.0} → {:.0} ({:+.2}%)",a.volume,b.volume,100.*(b.volume/a.volume-1.)));
+    }
+   }else{p=p.child("Select two valid CMYK printer profiles to calculate target coverage differences.");}
+  }
+  p.child("Coverage is a sampled round-trip reproduction test, not proof of physical achievability. Convex envelopes can include unattainable concave regions; volume is an approximation only.")
  }
  fn inspector(&self)->Div{
   let mut panel=div().flex().flex_col().gap_3().child(heading("Profile Inspector","ICC metadata decoded by LittleCMS 2."));
@@ -283,7 +334,8 @@ impl Render for Studio {
    Page::Curves=>self.curves_page(cx),
    Page::Reorder=>self.reorder_page(cx),
    Page::Metadata=>self.metadata_page(cx),
-   Page::Gamut=>div().flex().flex_col().gap_3().child(heading("Gamut Viewer","Compare the effective separation gamut before and after editing.")).child("The persistent preview is on the right. Use the 2D/3D, Before/After, grid, rotation and slice controls there.").child(button("open-gamut-page-preview","Show preview pane").on_click(cx.listener(|this,_,_,cx|{this.preview_open=true;if this.preview.is_none(){this.refresh_gamut(cx);}cx.notify();}))),
+   Page::Gamut=>self.gamut_analysis_page(cx),
+   Page::Gradient=>self.gradient_page(cx),
    Page::Settings=>div().flex().flex_col().gap_3().child(heading("Settings","Engine configuration")).child("LittleCMS is linked statically. ArgyllCMS is installed by the existing portable backend when required."),
    Page::About=>div().flex().flex_col().gap_3().child(heading("ICC Profile Studio","Experimental GPUI frontend")).child(format!("Core version {}",env!("CARGO_PKG_VERSION"))).child("Developed by emadgh. LittleCMS 2 · ArgyllCMS · Rust.").child("Updater integration is pending in this frontend. Use the stable executable for updates."),
    other=>div().flex().flex_col().gap_3().child(heading(PAGES.iter().find(|(p,_)|*p==other).map(|(_,n)|*n).unwrap_or("Tool"),"Planned module")).child("Not implemented yet. See ROADMAP.md."),

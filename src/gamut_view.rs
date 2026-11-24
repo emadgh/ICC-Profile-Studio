@@ -2,11 +2,16 @@
 use gpui::{prelude::*,*};
 use color_convert_rust::gamut::{Overlay,project};
 #[derive(Clone,Copy)]
-pub struct ViewOptions{pub three_d:bool,pub reference:bool,pub candidate:bool,pub slice:bool,pub light:f32,pub yaw:f32,pub pitch:f32,pub zoom:f32}
-impl Default for ViewOptions{fn default()->Self{Self{three_d:true,reference:true,candidate:true,slice:false,light:50.,yaw:0.65,pitch:0.45,zoom:1.}}}
+pub struct ViewOptions{pub three_d:bool,pub reference:bool,pub candidate:bool,pub slice:bool,pub light:f32,pub yaw:f32,pub pitch:f32,pub zoom:f32,pub wireframe:bool}
+impl Default for ViewOptions{fn default()->Self{Self{three_d:true,reference:true,candidate:true,slice:false,light:50.,yaw:0.65,pitch:0.45,zoom:1.,wireframe:false}}}
 pub fn plot(data:&Overlay,o:ViewOptions)->impl IntoElement{
  let mut dots:Vec<([f32;3],u32)>=Vec::new();
+ let mut lines:Vec<([f32;3],[f32;3],u32)>=Vec::new();
  let mut add=|cloud:&color_convert_rust::gamut::Cloud,color:u32|{
+  if o.wireframe&&(o.three_d||!o.slice){if let Some(h)=&cloud.hull{
+   let convert=|v:[f32;3]|if o.three_d{project(v,o.yaw,o.pitch)}else{[v[1],v[2],0.]};
+   for &[a,b] in &h.edges{lines.push((convert(h.vertices[a]),convert(h.vertices[b]),color));}return;
+  }}
   for &v in &cloud.points{
    if !o.three_d&&o.slice&&(v[0]-o.light).abs()>5.{continue}
    let coord=if o.three_d{project(v,o.yaw,o.pitch)}else{[v[1],v[2],0.]};
@@ -30,6 +35,15 @@ pub fn plot(data:&Overlay,o:ViewOptions)->impl IntoElement{
    for i in 0..=220{let t=i as f32/220.;let v=[a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t,0.];let p=at(v);
     if p.x>=bounds.origin.x&&p.x+px(1.)<=bounds.origin.x+bounds.size.width&&p.y>=bounds.origin.y&&p.y+px(1.)<=bounds.origin.y+bounds.size.height{
      window.paint_quad(fill(Bounds{origin:p,size:size(px(1.2),px(1.2))},rgb(color)));
+    }
+   }
+  }
+  for (a,b,c) in lines{
+   let length=((a[0]-b[0]).powi(2)+(a[1]-b[1]).powi(2)).sqrt();
+   let n=(length.ceil() as usize).clamp(1,180);
+   for i in 0..=n{let t=i as f32/n as f32;let p=at([a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t,0.]);
+    if p.x>=bounds.origin.x&&p.x+px(1.3)<=bounds.origin.x+bounds.size.width&&p.y>=bounds.origin.y&&p.y+px(1.3)<=bounds.origin.y+bounds.size.height{
+     window.paint_quad(fill(Bounds{origin:p,size:size(px(1.3),px(1.3))},rgba((c<<8)|0xb0)));
     }
    }
   }

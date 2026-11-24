@@ -3,7 +3,9 @@
 use lcms2::{Profile,PixelFormat,Transform,Intent,CIELab,CIELabExt,CIEXYZ,CIEXYZExt,ColorSpaceSignature,ProfileClassSignature};
 use std::path::Path;
 #[derive(Clone,Debug)]
-pub struct Cloud {pub points:Vec<[f32;3]>,pub sampled:usize}
+pub struct Cloud {pub points:Vec<[f32;3]>,pub sampled:usize,pub errors:Vec<f64>,pub hull:Option<Hull>}
+#[derive(Clone,Debug)]
+pub struct Hull{pub vertices:Vec<[f32;3]>,pub edges:Vec<[usize;2]>,pub volume:f64}
 #[derive(Clone,Debug)]
 pub struct Overlay {pub reference:Result<Cloud,String>,pub candidate:Option<Result<Cloud,String>>}
 fn targets(grid:usize)->Vec<[f64;3]>{
@@ -29,17 +31,47 @@ pub fn sample(path:&Path,grid:usize)->Result<Cloud,String>{
  let appearance:Transform<[u16;4],[f64;3]>=Transform::new(&p,PixelFormat::CMYK_16,&xyz,PixelFormat::XYZ_DBL,Intent::RelativeColorimetric).map_err(|e|e.to_string())?;
  let mut device=vec![[0u16;4];values.len()];let mut result=vec![[0f64;3];values.len()];
  separation.transform_pixels(&values,&mut device);appearance.transform_pixels(&device,&mut result);
- let mut points=Vec::with_capacity(result.len());
- for v in result{
+ let mut points=Vec::with_capacity(result.len());let mut errors=Vec::with_capacity(result.len());
+ for (v,target) in result.into_iter().zip(&values){
   let l=CIEXYZ{X:v[0],Y:v[1],Z:v[2]}.to_lab(&white);
   if ![l.L,l.a,l.b].iter().all(|v|v.is_finite()){return Err("Non-finite Lab result".into())}
+  let target=CIEXYZ{X:target[0],Y:target[1],Z:target[2]}.to_lab(&white);
+  let error=l.cie2000_delta_e(&target,1.,1.,1.);if !error.is_finite()||error<0.{return Err("Invalid Lab target error".into())}errors.push(error);
   points.push([l.L as f32,l.a as f32,l.b as f32]);
  }
  // Duplicate projected colors are common when targets lie outside the gamut.
  // Quantize only the display point keys, retain the original Lab coordinates.
  let mut seen=std::collections::HashSet::new();
  points.retain(|p|seen.insert(p.map(|v|(v*4.).round() as i32)));
- Ok(Cloud{points,sampled:values.len()})
+ let hull=convex_mesh(&points);Ok(Cloud{points,sampled:values.len(),errors,hull})
+}
+/// Convex envelope of sampled points. It may enclose unattainable colors;
+/// never interpret this volume as exact physical gamut volume.
+fn convex_mesh(points:&[[f32;3]])->Option<Hull>{
+ if points.len()<4{return None}
+ let points:Vec<_>=points.iter().map(|v|parry3d::math::Vector::new(v[0],v[1],v[2])).collect();
+ let (vertices,faces)=parry3d::transformation::try_convex_hull(&points).ok()?;
+ if vertices.len()<4||faces.len()<4{return None}
+ let vertices:Vec<[f32;3]>=vertices.into_iter().map(|v|[v.x,v.y,v.z]).collect();
+ let mut edges=std::collections::BTreeSet::new();
+ let mut center=[0f64;3];for v in &vertices{for j in 0..3{center[j]+=v[j] as f64/vertices.len() as f64;}}
+ let mut volume=0.;
+ for face in faces{
+  let [a,b,c]=face.map(|v|v as usize);
+  for (x,y) in [(a,b),(b,c),(c,a)]{edges.insert([x.min(y),x.max(y)]);}
+  let [u,v,w]=[a,b,c].map(|i|{let p=vertices[i];[p[0] as f64-center[0],p[1] as f64-center[1],p[2] as f64-center[2]]});
+  volume+=(u[0]*(v[1]*w[2]-v[2]*w[1])+u[1]*(v[2]*w[0]-v[0]*w[2])+u[2]*(v[0]*w[1]-v[1]*w[0])).abs()/6.;
+ }
+ if !volume.is_finite()||volume<=0.{return None}
+ Some(Hull{vertices,edges:edges.into_iter().collect(),volume})
+}
+#[derive(Debug,Clone,Copy,PartialEq,Eq)]
+pub struct Coverage{pub total:usize,pub both:usize,pub lost:usize,pub gained:usize,pub neither:usize}
+pub fn coverage(a:&Cloud,b:&Cloud,threshold:f64)->Option<Coverage>{
+ if a.errors.len()!=b.errors.len()||a.errors.is_empty()||!threshold.is_finite()||threshold<0.{return None}
+ let mut r=Coverage{total:a.errors.len(),both:0,lost:0,gained:0,neither:0};
+ for (&x,&y) in a.errors.iter().zip(&b.errors){match (x<=threshold,y<=threshold){(true,true)=>r.both+=1,(true,false)=>r.lost+=1,(false,true)=>r.gained+=1,(false,false)=>r.neither+=1}}
+ Some(r)
 }
 pub fn overlay(reference:&Path,candidate:Option<&Path>,grid:usize)->Overlay{
  Overlay{reference:sample(reference,grid),candidate:candidate.map(|p|sample(p,grid))}
@@ -52,6 +84,8 @@ pub fn project(lab:[f32;3],yaw:f32,pitch:f32)->[f32;3]{
 }
 #[cfg(test)]mod tests{
  use super::*;
+ #[test]fn tetrahedron_volume(){let h=convex_mesh(&[[0.,0.,0.],[1.,0.,0.],[0.,1.,0.],[0.,0.,1.]]).unwrap();assert!((h.volume-1./6.).abs()<1e-6);assert_eq!(h.edges.len(),6);}
+ #[test]fn coverage_partitions(){let a=Cloud{points:vec![],sampled:4,errors:vec![1.,1.,3.,3.],hull:None};let b=Cloud{errors:vec![1.,3.,1.,3.],..a.clone()};assert_eq!(coverage(&a,&b,2.).unwrap(),Coverage{total:4,both:1,lost:1,gained:1,neither:1});}
  #[test]fn grid_endpoints(){let t=targets(9);assert_eq!(t.len(),729);assert_eq!(t[0],[0.,-128.,-128.]);assert_eq!(t[728],[100.,127.,127.]);}
  #[test]fn projection_origin(){assert_eq!(project([50.,0.,0.],0.7,0.5),[0.,0.,0.]);}
  #[test]fn rotation_preserves_length(){let q=project([80.,30.,-20.],1.2,0.8);assert!((q.iter().map(|v|v*v).sum::<f32>()-2200.).abs()<0.01);}

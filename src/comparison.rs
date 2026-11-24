@@ -12,7 +12,7 @@ pub struct Comparison {
 }
 #[derive(Debug, Clone)]
 pub struct NeutralSample {pub rgb:u8,pub reference_lab:[f64;3],pub candidate_lab:[f64;3],pub delta_e:f64,pub reference_ink:[f64;4],pub candidate_ink:[f64;4]}
-fn open_printer(p:&Path)->Result<Profile,String>{
+pub(crate) fn open_printer(p:&Path)->Result<Profile,String>{
  let meta=std::fs::metadata(p).map_err(|e|e.to_string())?;
  if meta.len()>128*1024*1024{return Err("ICC exceeds 128 MiB".into())}
  let profile=Profile::new_icc(&std::fs::read(p).map_err(|e|e.to_string())?).map_err(|e|e.to_string())?;
@@ -30,7 +30,7 @@ fn ink_stats(pixels:&[[u16;4]])->InkStats{
  for x in &mut out.mean{*x/=pixels.len() as f64;}
  out.mean_tac/=pixels.len() as f64;out
 }
-fn simulate(profile:&Profile,samples:&[[u8;3]],intent:Intent)->Result<(Vec<[u16;4]>,Vec<CIELab>),String>{
+pub(crate) fn simulate(profile:&Profile,samples:&[[u8;3]],intent:Intent)->Result<(Vec<[u16;4]>,Vec<CIELab>),String>{
  let srgb=Profile::new_srgb();let xyz=Profile::new_xyz();
  let to_device:Transform<[u8;3],[u16;4]>=Transform::new(&srgb,PixelFormat::RGB_8,profile,PixelFormat::CMYK_16,intent).map_err(|e|e.to_string())?;
  // Both output appearances are evaluated in media-relative D50 PCS.
