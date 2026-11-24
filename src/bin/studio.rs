@@ -302,7 +302,7 @@ impl Studio {
    .child(div().text_xs().text_color(rgb(0x94a3b8)).child(name))
    .when(!o.three_d,|p|p.child(div().flex().gap_1().items_center().flex_wrap()
     .child(seg("slice-toggle",if o.slice{"Slice"}else{"All L*"},o.slice).on_click(cx.listener(|v,_,_,cx|{v.preview_options.slice=!v.preview_options.slice;cx.notify();})))
-    .when(o.slice,|p|p.child(seg("slice-down","−",false).on_click(cx.listener(|v,_,_,cx|{v.preview_options.light=(v.preview_options.light-5.).max(0.);cx.notify();}))).child(format!("L* {:.0}",o.light)).child(seg("slice-up","+",false).on_click(cx.listener(|v,_,_,cx|{v.preview_options.light=(v.preview_options.light+5.).min(100.);cx.notify();})))))
+    .when(o.slice,|p|p.child(seg("slice-down","−",false).on_click(cx.listener(|v,_,_,cx|{v.preview_options.light=(v.preview_options.light-5.).max(0.);cx.notify();}))).child(format!("L* {:.0}",o.light)).child(seg("slice-up","+",false).on_click(cx.listener(|v,_,_,cx|{v.preview_options.light=(v.preview_options.light+5.).min(100.);cx.notify();}))))
     .child(div().text_xs().child(format!("Fill {}%",o.opacity_2d)))
     .child(seg("opacity-down","−",false).on_click(cx.listener(|v,_,_,cx|{v.preview_options.opacity_2d=v.preview_options.opacity_2d.saturating_sub(10);cx.notify();})))
     .child(seg("opacity-up","+",false).on_click(cx.listener(|v,_,_,cx|{v.preview_options.opacity_2d=(v.preview_options.opacity_2d+10).min(100);cx.notify();})))))
