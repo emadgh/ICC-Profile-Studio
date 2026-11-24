@@ -52,3 +52,7 @@ See [ROADMAP.md](ROADMAP.md) for completed work, remaining milestones and the de
 ### Comparison preview
 
 Select a reference and candidate CMYK printer ICC in GPUI Studio. LittleCMS predicts both separations and their D50 media-relative Lab round trips for a uniform sRGB grid. The report uses native CIEDE2000 with unit weights, sampled ink means/maxima and 33 neutral samples. This is not a measured print result or a gamut-volume metric.
+
+### Editing preview
+
+GPUI Studio now includes per-ink gamma curves, physical channel reordering and metadata renaming. The gamma editor modifies output separations rather than recalibrating the printer; previous TAC/caps must be revalidated. Channel reorder permutes both transform directions and rejects unknown vendor/calibration tags rather than risking corruption. Metadata rename uses the new file's stem as its internal description. All edits write a new file after LittleCMS opening and CMYK transform creation. These features are experimental pending CI and printer validation.

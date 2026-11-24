@@ -15,7 +15,7 @@ required-features = ["studio"]
 
 [dependencies]
 gpui = { version = "=0.2.2", optional = true }
-lcms2 = { version = "=6.1.1", features = ["static"] }
+lcms2 = { version = "6", features = ["static"] }
 eframe = "0.31.1"
 rfd = "0.15.3"
 tempfile = "3.15"

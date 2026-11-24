@@ -3,20 +3,21 @@ use gpui::{prelude::*, *};
 use color_convert_rust::{Profile, backend::{self,Job,Mode}, inspection::{self,Inspection}};
 use std::{path::PathBuf,sync::mpsc,time::Duration};
 use color_convert_rust::comparison::{self,Comparison};
+use color_convert_rust::editing::{self,Edit};
 
 #[derive(Clone,Copy,PartialEq,Eq)]
-enum Page { Dashboard, Inspector, Validator, Rebuilder, Comparison, Curves, Gamut, Correction, Converter, Lab, Settings, About }
-const PAGES: [(Page,&str);12] = [
+enum Page { Dashboard, Inspector, Validator, Rebuilder, Comparison, Curves, Reorder, Metadata, Gamut, Correction, Converter, Lab, Settings, About }
+const PAGES: [(Page,&str);14] = [
  (Page::Dashboard,"Dashboard"),(Page::Inspector,"Profile Inspector"),(Page::Validator,"Profile Validator"),(Page::Rebuilder,"Profile Rebuilder"),
- (Page::Comparison,"Profile Comparison"),(Page::Curves,"Tone Curves"),(Page::Gamut,"Gamut Viewer"),(Page::Correction,"Color Correction"),(Page::Converter,"Image Converter"),(Page::Lab,"Profiling Lab"),(Page::Settings,"Settings"),(Page::About,"About & Updates")
+ (Page::Comparison,"Profile Comparison"),(Page::Curves,"Tone Curves"),(Page::Reorder,"Channel Reorder"),(Page::Metadata,"Profile Metadata"),(Page::Gamut,"Gamut Viewer"),(Page::Correction,"Color Correction"),(Page::Converter,"Image Converter"),(Page::Lab,"Profiling Lab"),(Page::Settings,"Settings"),(Page::About,"About & Updates")
 ];
 enum Event { Progress(String), Done(Result<String,String>) }
 struct Studio {
  page:Page, source:Option<PathBuf>, profile:Option<Profile>, report:Option<Inspection>, error:Option<String>,
- caps:[f64;4],tac:f64,grid:usize,mode:Mode,status:String,busy:bool, candidate:Option<PathBuf>,comparison:Option<Comparison>,compare_error:Option<String>,compare_grid:usize,
+ caps:[f64;4],tac:f64,grid:usize,mode:Mode,status:String,busy:bool, candidate:Option<PathBuf>,comparison:Option<Comparison>,compare_error:Option<String>,compare_grid:usize,gamma:[f64;4],order:[usize;4],
 }
 impl Default for Studio {
- fn default()->Self{Self{page:Page::Dashboard,source:None,profile:None,report:None,error:None,caps:[100.,100.,100.,0.],tac:240.,grid:33,mode:Mode::Custom,status:"Open an ICC or ICM profile to start.".into(),busy:false,candidate:None,comparison:None,compare_error:None,compare_grid:17}}
+ fn default()->Self{Self{page:Page::Dashboard,source:None,profile:None,report:None,error:None,caps:[100.,100.,100.,0.],tac:240.,grid:33,mode:Mode::Custom,status:"Open an ICC or ICM profile to start.".into(),busy:false,candidate:None,comparison:None,compare_error:None,compare_grid:17,gamma:[1.;4],order:[0,1,2,3]}}
 }
 fn button(id: impl Into<ElementId>,label:impl Into<SharedString>)->Stateful<Div>{
  div().id(id).px_3().py_2().rounded_md().bg(rgb(0x263449)).text_color(rgb(0xe6eefb)).cursor_pointer().hover(|s|s.bg(rgb(0x354963))).child(label.into())
@@ -26,7 +27,7 @@ impl Studio {
  fn open(&mut self) {
   if self.busy{return}
   let Some(path)=rfd::FileDialog::new().add_filter("ICC profile",&["icc","icm"]).pick_file() else{return};
-  self.source=Some(path.clone());self.comparison=None;self.compare_error=None;self.report=None;self.profile=None;self.error=None;
+  self.source=Some(path.clone());self.gamma=[1.;4];self.order=[0,1,2,3];self.comparison=None;self.compare_error=None;self.report=None;self.profile=None;self.error=None;
   match inspection::inspect(&path){Ok(r)=>self.report=Some(r),Err(e)=>self.error=Some(e)}
   if let Ok(p)=Profile::read(&path){
    if p.check().is_ok(){
@@ -107,6 +108,51 @@ impl Studio {
   }
   p
  }
+ fn save_edit(&mut self,kind:u8,cx:&mut Context<Self>){
+  if self.busy{return}let Some(source)=self.source.clone()else{return};
+  let suffix=match kind{0=>"curves",1=>"reordered",_=>"renamed"};
+  let default_name=format!("{}_{}.icc",source.file_stem().unwrap_or_default().to_string_lossy(),suffix);
+  let Some(mut destination)=rfd::FileDialog::new().add_filter("ICC profile",&["icc","icm"]).set_file_name(default_name).save_file()else{return};
+  if destination.extension().is_none(){destination.set_extension("icc");}
+  let edit=match kind{0=>Edit::Tone(self.gamma),1=>Edit::Reorder(self.order),_=>Edit::Rename(destination.file_stem().unwrap_or_default().to_string_lossy().into_owned())};
+  self.busy=true;self.status="Editing ICC and validating with LittleCMS…".into();cx.notify();
+  cx.spawn(async move |this,cx|{
+   let result=cx.background_spawn(async move{editing::edit_file(&source,&destination,edit)}).await;
+   let _=this.update(cx,|view,cx|{view.busy=false;view.status=result.unwrap_or_else(|e|format!("Error: {e}"));cx.notify();});
+  }).detach();
+ }
+ fn curves_page(&self,cx:&mut Context<Self>)->Div{
+  let mut p=div().flex().flex_col().gap_3().child(heading("Tone Curves","Compose gamma corrections on output ink curves."));
+  let Some(profile)=&self.profile else{return p.child("Open a supported printer profile first.")};
+  for (i,name) in profile.channels().into_iter().enumerate(){
+   let gamma=self.gamma[i];let color=[0x00b7e5,0xe33b91,0xe8c44d,0x9ca3af][i];
+   p=p.child(div().p_3().rounded_md().bg(rgb(0x1b2637)).flex().flex_col().gap_2()
+    .child(div().flex().items_center().gap_2().child(div().w(px(110.)).child(name))
+    .child(button(("gamma-minus",i),"−").on_click(cx.listener(move|this,_,_,cx|{if !this.busy{this.gamma[i]=(this.gamma[i]-0.1).max(0.25);cx.notify();}})))
+    .child(format!("γ {gamma:.2}")).child(button(("gamma-plus",i),"+").on_click(cx.listener(move|this,_,_,cx|{if !this.busy{this.gamma[i]=(this.gamma[i]+0.1).min(4.);cx.notify();}})))
+    .child(button(("gamma-reset",i),"Reset").on_click(cx.listener(move|this,_,_,cx|{if !this.busy{this.gamma[i]=1.;cx.notify();}}))))
+    .child(div().flex().gap_1().items_end().h(px(52.)).children((0..=20).map(|j|div().w(px(12.)).h(px(1.+50.*(j as f32/20.).powf(gamma as f32))).bg(rgb(color)))))
+    .child(format!("25% → {:.1}%  |  50% → {:.1}%  |  75% → {:.1}%",25_f64.powf(gamma)/100_f64.powf(gamma-1.),100.*0.5_f64.powf(gamma),100.*0.75_f64.powf(gamma))));
+  }
+  p.child("Output curves change separations; A2B remains the original printer model. TAC and prior channel caps must be rechecked. This is not measured recalibration.")
+   .child(button("save-curves","Save new ICC").on_click(cx.listener(|this,_,_,cx|this.save_edit(0,cx))))
+ }
+ fn reorder_page(&self,cx:&mut Context<Self>)->Div{
+  let mut p=div().flex().flex_col().gap_3().child(heading("Channel Reorder","New channel index → original physical ink."));
+  let Some(profile)=&self.profile else{return p.child("Open a supported four-channel profile first.")};
+  let names=profile.channels();
+  for i in 0..4{p=p.child(div().flex().items_center().gap_2().child(div().w(px(200.)).child(format!("{} → {}",i+1,names[self.order[i]])))
+   .child(button(("order-up",i),"↑").on_click(cx.listener(move|this,_,_,cx|{if !this.busy&&i>0{this.order.swap(i,i-1);cx.notify();}})))
+   .child(button(("order-down",i),"↓").on_click(cx.listener(move|this,_,_,cx|{if !this.busy&&i<3{this.order.swap(i,i+1);cx.notify();}}))));}
+  p.child(button("reset-order","Reset mapping").on_click(cx.listener(|this,_,_,cx|{if !this.busy{this.order=[0,1,2,3];cx.notify();}})))
+   .child("Changes both A2B input axes and B2A output channels. Unknown vendor tags or calibration data cause rejection. RIP channel order must match the new physical order.")
+   .child(button("save-order","Save reordered ICC").on_click(cx.listener(|this,_,_,cx|this.save_edit(1,cx))))
+ }
+ fn metadata_page(&self,cx:&mut Context<Self>)->Div{
+  div().flex().flex_col().gap_3().child(heading("Profile Metadata","Create a copy with a new internal description."))
+   .child("The selected output filename (without extension) becomes the ICC description. All transform tags are retained. The original file is never overwritten.")
+   .child(button("save-rename","Save renamed ICC").on_click(cx.listener(|this,_,_,cx|this.save_edit(2,cx))))
+ }
  fn inspector(&self)->Div{
   let mut panel=div().flex().flex_col().gap_3().child(heading("Profile Inspector","ICC metadata decoded by LittleCMS 2."));
   if let Some(e)=&self.error{panel=panel.child(div().text_color(rgb(0xfca5a5)).child(e.clone()));}
@@ -175,6 +221,9 @@ impl Render for Studio {
    Page::Validator=>self.validator(),
    Page::Rebuilder=>self.rebuilder(cx),
    Page::Comparison=>self.comparison_page(cx),
+   Page::Curves=>self.curves_page(cx),
+   Page::Reorder=>self.reorder_page(cx),
+   Page::Metadata=>self.metadata_page(cx),
    Page::Settings=>div().flex().flex_col().gap_3().child(heading("Settings","Engine configuration")).child("LittleCMS is linked statically. ArgyllCMS is installed by the existing portable backend when required."),
    Page::About=>div().flex().flex_col().gap_3().child(heading("ICC Profile Studio","Experimental GPUI frontend")).child(format!("Core version {}",env!("CARGO_PKG_VERSION"))).child("Developed by emadgh. LittleCMS 2 · ArgyllCMS · Rust.").child("Updater integration is pending in this frontend. Use the stable executable for updates."),
    other=>div().flex().flex_col().gap_3().child(heading(PAGES.iter().find(|(p,_)|*p==other).map(|(_,n)|*n).unwrap_or("Tool"),"Planned module")).child("Not implemented yet. See ROADMAP.md."),

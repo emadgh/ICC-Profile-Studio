@@ -6,7 +6,7 @@
 - [x] Shared rebuild service extracted from legacy egui frontend.
 - [x] LittleCMS 2 (static Rust binding) added for profile opening, metadata, TAC estimate and CMYK transform smoke checks.
 - [x] GPUI sidebar shell and first Inspector/Validator/Rebuilder screens implemented in source.
-- [ ] Verify new code in Windows CI, run application and check layout. Initial CI failed because lcms2 6.2.0 was yanked; pinned 6.1.1 and rerun required.
+- [ ] Verify new code in Windows CI, run application and check layout. Initial CI failed because lcms2 6.2.0 and 6.1.1 were yanked; allow Cargo to select a non-yanked compatible 6.x release. CI still unverified.
 - [ ] Port all legacy controls, updater, progress, drag-and-drop, accessibility and About icon to GPUI before promoting it to the default release.
 - [ ] Run real Durst ICC v2/v4 regression tests and print/firing checks. Proprietary customer ICCs must stay out of the repository.
 - [ ] Add independent LCMS transform checks for generated profiles; enforce numerical bounds through the strict LUT validator as well as sampled transforms.
@@ -19,10 +19,20 @@
 - [x] Reference CIEDE2000 test pair and ink-statistics tests added.
 - [ ] Verify CI and compare real printer profiles; add export, intent selector, complete neutral curves, measured validation and gamut visualization.
 
+## v0.5 — profile editing (source implementation started)
+
+- [x] Tone gamma editor: compose 4096-point output curves on B2A, retain the physical A2B model, support simple mft2/mBA.
+- [x] Channel permutation: re-index A2B CLUT axes, input curves, B2A outputs and colorant table. Reject unknown or channel-sensitive tags; no silent metadata loss.
+- [x] Metadata renamer: copy with new ICC description from filename, preserve transform tags.
+- [x] GPUI screens and new-file-only save, LCMS opening and CMYK transform creation before writing.
+- [x] Unit tests for forward/reverse permutation and v4 LUT encoding.
+- [ ] Windows CI, real profile regression, full transform-equivalence testing, custom editable multi-point curves, strict TAC and prior cap revalidation after tone changes.
+- [ ] Add explicit adapters for Durst/vendor tags only after their structure is verified; current reorder can refuse proprietary profiles.
+
 ## Next milestones
 
 - v0.4: Complete validation/export of Profile Comparison, Delta E2000, neutral axis and ink distribution.
-- v0.5: Tone Curves, channel mapping/reordering, profile metadata editing.
+- v0.5: Complete runtime validation of Tone Curves, channel mapping/reordering, profile metadata editing.
 - v0.6: Gamut analysis and 3D visualization, gradient continuity.
 - v0.7: Selective Lab/LCh color correction, controlled LUT smoothing.
 - v0.8: ICC image conversion, batch conversion, separations, soft proof, ink coverage.

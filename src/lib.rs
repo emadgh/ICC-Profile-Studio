@@ -1,3 +1,4 @@
+pub mod editing;
 pub mod comparison;
 pub mod backend;
 pub mod inspection;
