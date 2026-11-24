@@ -4,7 +4,7 @@ use std::{fs,path::{Path,PathBuf},process::Command};
 #[cfg(windows)] use std::os::windows::process::CommandExt;
 type R<T>=Result<T,String>;
 const URL:&str="https://www.argyllcms.com/Argyll_V3.5.0_win64_exe.zip";
-fn hidden(c:&mut Command)->&mut Command{
+pub(crate) fn hidden(c:&mut Command)->&mut Command{
  #[cfg(windows)]{c.creation_flags(0x08000000);}
  c
 }
@@ -12,7 +12,7 @@ fn find_exe(p:&Path,depth:u8)->Option<PathBuf>{
  if depth==0{return None}
  for e in fs::read_dir(p).ok()?.flatten(){let path=e.path();let ty=e.file_type().ok()?;if ty.is_file()&&e.file_name().to_string_lossy().eq_ignore_ascii_case("revfix.exe"){return Some(path)}if ty.is_dir(){if let Some(x)=find_exe(&path,depth-1){return Some(x)}}}None
 }
-fn engine(progress:&impl Fn(String))->R<PathBuf>{
+pub(crate) fn engine(progress:&impl Fn(String))->R<PathBuf>{
  if !cfg!(all(windows,target_arch="x86_64")){return Err("Automatic Argyll installation requires Windows x64".into())}
  let exe=std::env::current_exe().map_err(|e|e.to_string())?;let parent=exe.parent().ok_or("Executable directory unavailable")?;
  let dest=parent.join("argyll-3.5.0");

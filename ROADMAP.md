@@ -66,6 +66,15 @@
 - [ ] CI and real ICC/image regression; 24 MP preview limit, larger streaming/BigTIFF support, DPI metadata preservation, exact calibrated monitor proof, full-size separations, cancellation, alpha and multipage workflows.
 - [ ] DeviceLink numeric equivalence, strict caps/TAC, black-preserving link modes and direct DeviceLink image application.
 
+## v0.9 / v1.0 — ink recipes and ceramic lab (source implementation)
+
+- [x] Color Recipe Finder: LCMS forward predictions, D50 Lab target, channel/TAC constraints, relative ink cost weights, ΔE00 tolerance, coarse search and local refinement; reports original, closest and lowest-cost feasible recipe found.
+- [x] Ceramic direct-ink TIFF chart with selected caps/TAC, 3/5/7 levels, patch layout CSV and blank measured Lab template; no simulated measurement data.
+- [x] Actual measured machine/glaze/firing/ink-batch comparison using matched patch IDs and recipes, ΔE00 mean/P95/max and signed mean Lab bias.
+- [x] Argyll colprof integration for an actual supplied CMYK TI3; independent new printer ICC output and LCMS class check.
+- [ ] CI and real print trials, validate measuring instrument workflow, output profile quality, black generation control and full-volume ink-cost optimization. Measured compensation/machine matching requires real datasets and validation; comparison alone is not compensation.
+- [ ] Profile library metadata, workflow persistence, direct instrument acquisition, certified device limits and UI migration completion.
+
 ## Next milestones
 
 - v0.4: Complete validation/export of Profile Comparison, Delta E2000, neutral axis and ink distribution.

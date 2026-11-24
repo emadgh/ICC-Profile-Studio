@@ -72,3 +72,7 @@ Initial support is deliberately restricted to ICC v4 CMYK / Lab printer profiles
 ### Image Processing Studio / DeviceLink preview
 
 Image conversion uses LittleCMS with image and tiff crates. Output is real 16-bit interleaved CMYK TIFF with embedded destination ICC and chosen DPI, plus reduced-size proof/separation/coverage PNGs and a text report. Reference ICC is the before simulation; selected candidate is destination (reference if none). Input is limited to 24 MP; untagged images rejected unless an explicit assumption is enabled. TIFF metadata other than the output ICC and DPI is not preserved. DeviceLink is generated using LCMS, with no guarantee of black preservation or strict device bounds. New functionality is pending CI.
+
+### Ceramic Lab and recipe search
+
+The Ink Optimizer searches for an individual device recipe using the existing ICC model and user-defined relative weights, caps, TAC and ΔE00 tolerance; it is not a guaranteed global optimum or whole-profile ink saving. Ceramic Lab exports direct-device TIFF charts and blank measurement templates, compares actual D50 Lab measurements on identical patches, and invokes official Argyll colprof on supplied CMYK TI3 data. Print with device values preserved, measure after firing and validate profiles. No physical compensation is inferred without data.

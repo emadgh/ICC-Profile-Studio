@@ -10,20 +10,21 @@ use color_convert_rust::gamut::{self,Overlay};
 use gamut_view::ViewOptions;
 use color_convert_rust::images::{self,Options as ImageOptions,Output as ImageOutput};
 use color_convert_rust::gradient::{self,GradientReport};
+use color_convert_rust::{optimizer::{self,Settings as RecipeSettings,Report as RecipeReport},lab::{self,MeasuredComparison}};
 
 #[derive(Clone,Copy,PartialEq,Eq)]
-enum Page { Dashboard, Inspector, Validator, Rebuilder, Comparison, Curves, Reorder, Metadata, Gamut, Gradient, Correction, Smoothing, Converter, DeviceLink, Lab, Settings, About }
-const PAGES: [(Page,&str);17] = [
+enum Page { Dashboard, Inspector, Validator, Rebuilder, Comparison, Curves, Reorder, Metadata, Gamut, Gradient, Correction, Smoothing, Converter, DeviceLink, Recipes, Lab, Settings, About }
+const PAGES: [(Page,&str);18] = [
  (Page::Dashboard,"Dashboard"),(Page::Inspector,"Profile Inspector"),(Page::Validator,"Profile Validator"),(Page::Rebuilder,"Profile Rebuilder"),
- (Page::Comparison,"Profile Comparison"),(Page::Curves,"Tone Curves"),(Page::Reorder,"Channel Reorder"),(Page::Metadata,"Profile Metadata"),(Page::Gamut,"Gamut Viewer"),(Page::Gradient,"Gradient Analyzer"),(Page::Correction,"Color Correction"),(Page::Smoothing,"LUT Smoothing"),(Page::Converter,"Image Converter"),(Page::DeviceLink,"DeviceLink"),(Page::Lab,"Profiling Lab"),(Page::Settings,"Settings"),(Page::About,"About & Updates")
+ (Page::Comparison,"Profile Comparison"),(Page::Curves,"Tone Curves"),(Page::Reorder,"Channel Reorder"),(Page::Metadata,"Profile Metadata"),(Page::Gamut,"Gamut Viewer"),(Page::Gradient,"Gradient Analyzer"),(Page::Correction,"Color Correction"),(Page::Smoothing,"LUT Smoothing"),(Page::Converter,"Image Converter"),(Page::DeviceLink,"DeviceLink"),(Page::Recipes,"Ink Optimizer"),(Page::Lab,"Profiling Lab"),(Page::Settings,"Settings"),(Page::About,"About & Updates")
 ];
 enum Event { Progress(String), Done(Result<String,String>) }
 struct Studio {
  page:Page, source:Option<PathBuf>, profile:Option<Profile>, report:Option<Inspection>, error:Option<String>,
- caps:[f64;4],tac:f64,grid:usize,mode:Mode,status:String,busy:bool, candidate:Option<PathBuf>,comparison:Option<Comparison>,compare_error:Option<String>,compare_grid:usize,gamma:[f64;4],order:[usize;4], preview_open:bool, preview:Option<Overlay>, preview_options:ViewOptions, gamut_grid:usize,gradient:Option<GradientReport>,gradient_error:Option<String>,coverage_threshold:f64, selective:[f64;5], correction_grid:usize, correction_tac:f64, smoothing:f64, smoothing_passes:usize,orbit_last:Option<Point<Pixels>>,image_files:Vec<PathBuf>,image_root:Option<PathBuf>,image_options:ImageOptions,image_results:Vec<ImageOutput>,image_errors:Vec<String>,image_preview:usize,
+ caps:[f64;4],tac:f64,grid:usize,mode:Mode,status:String,busy:bool, candidate:Option<PathBuf>,comparison:Option<Comparison>,compare_error:Option<String>,compare_grid:usize,gamma:[f64;4],order:[usize;4], preview_open:bool, preview:Option<Overlay>, preview_options:ViewOptions, gamut_grid:usize,gradient:Option<GradientReport>,gradient_error:Option<String>,coverage_threshold:f64, selective:[f64;5], correction_grid:usize, correction_tac:f64, smoothing:f64, smoothing_passes:usize,orbit_last:Option<Point<Pixels>>,image_files:Vec<PathBuf>,image_root:Option<PathBuf>,image_options:ImageOptions,image_results:Vec<ImageOutput>,image_errors:Vec<String>,image_preview:usize,recipe_target:[f64;3],recipe_settings:RecipeSettings,recipe_result:Option<RecipeReport>,lab_levels:usize,measured:[Option<PathBuf>;2],measurement_result:Option<MeasuredComparison>,
 }
 impl Default for Studio {
- fn default()->Self{Self{page:Page::Dashboard,source:None,profile:None,report:None,error:None,caps:[100.,100.,100.,0.],tac:240.,grid:33,mode:Mode::Custom,status:"Open an ICC or ICM profile to start.".into(),busy:false,candidate:None,comparison:None,compare_error:None,compare_grid:17,gamma:[1.;4],order:[0,1,2,3],preview_open:true,preview:None,preview_options:ViewOptions::default(),gamut_grid:17,gradient:None,gradient_error:None,coverage_threshold:2.,selective:[135.,45.,0.,0.,0.],correction_grid:33,correction_tac:400.,smoothing:0.20,smoothing_passes:1,orbit_last:None,image_files:vec![],image_root:None,image_options:ImageOptions::default(),image_results:vec![],image_errors:vec![],image_preview:0}}
+ fn default()->Self{Self{page:Page::Dashboard,source:None,profile:None,report:None,error:None,caps:[100.,100.,100.,0.],tac:240.,grid:33,mode:Mode::Custom,status:"Open an ICC or ICM profile to start.".into(),busy:false,candidate:None,comparison:None,compare_error:None,compare_grid:17,gamma:[1.;4],order:[0,1,2,3],preview_open:true,preview:None,preview_options:ViewOptions::default(),gamut_grid:17,gradient:None,gradient_error:None,coverage_threshold:2.,selective:[135.,45.,0.,0.,0.],correction_grid:33,correction_tac:400.,smoothing:0.20,smoothing_passes:1,orbit_last:None,image_files:vec![],image_root:None,image_options:ImageOptions::default(),image_results:vec![],image_errors:vec![],image_preview:0,recipe_target:[50.,0.,0.],recipe_settings:RecipeSettings::default(),recipe_result:None,lab_levels:5,measured:[None,None],measurement_result:None}}
 }
 fn button(id: impl Into<ElementId>,label:impl Into<SharedString>)->Stateful<Div>{
  div().id(id).px_3().py_2().rounded_md().bg(rgb(0x263449)).text_color(rgb(0xe6eefb)).cursor_pointer().hover(|s|s.bg(rgb(0x354963))).child(label.into())
@@ -33,7 +34,7 @@ impl Studio {
  fn open(&mut self,cx:&mut Context<Self>) {
   if self.busy{return}
   let Some(path)=rfd::FileDialog::new().add_filter("ICC profile",&["icc","icm"]).pick_file() else{return};
-  self.source=Some(path.clone());self.selective=[135.,45.,0.,0.,0.];self.correction_grid=33;self.correction_tac=400.;self.smoothing=0.20;self.smoothing_passes=1;self.preview=None;self.candidate=None;self.gradient=None;self.gradient_error=None;self.gamma=[1.;4];self.order=[0,1,2,3];self.comparison=None;self.compare_error=None;self.report=None;self.profile=None;self.error=None;
+  self.source=Some(path.clone());self.recipe_result=None;self.selective=[135.,45.,0.,0.,0.];self.correction_grid=33;self.correction_tac=400.;self.smoothing=0.20;self.smoothing_passes=1;self.preview=None;self.candidate=None;self.gradient=None;self.gradient_error=None;self.gamma=[1.;4];self.order=[0,1,2,3];self.comparison=None;self.compare_error=None;self.report=None;self.profile=None;self.error=None;
   match inspection::inspect(&path){Ok(r)=>self.report=Some(r),Err(e)=>self.error=Some(e)}
   if let Ok(p)=Profile::read(&path){
    if p.check().is_ok(){
@@ -388,6 +389,74 @@ impl Studio {
     }).detach();
    })))
  }
+ fn recipe_page(&self,cx:&mut Context<Self>)->Div{
+  let mut p=div().flex().flex_col().gap_3().child(heading("Ink / Cost Optimizer","Find a bounded device recipe for a D50 Lab target."))
+   .child("Uses the reference A2B prediction. Relative ink weights are cost proxies, not actual mass or currency. Search is approximate and can fail to find a feasible recipe.");
+  for (i,(name,lo,hi)) in [("L*",0.,100.),("a*",-128.,127.),("b*",-128.,127.)].into_iter().enumerate(){
+   p=p.child(div().flex().items_center().gap_2().child(format!("{name}: {:.1}",self.recipe_target[i]))
+    .child(button(("recipe-target-minus",i),"−1").on_click(cx.listener(move|v,_,_,cx|{if !v.busy{v.recipe_target[i]=(v.recipe_target[i]-1.).max(lo);v.recipe_result=None;cx.notify();}})))
+    .child(button(("recipe-target-plus",i),"+1").on_click(cx.listener(move|v,_,_,cx|{if !v.busy{v.recipe_target[i]=(v.recipe_target[i]+1.).min(hi);v.recipe_result=None;cx.notify();}}))));
+  }
+  for j in 0..4{
+   p=p.child(div().flex().items_center().gap_2().child(format!("Ink {} weight {:.2}",j+1,self.recipe_settings.weights[j]))
+    .child(button(("weight-minus",j),"−0.25").on_click(cx.listener(move|v,_,_,cx|{if !v.busy{v.recipe_settings.weights[j]=(v.recipe_settings.weights[j]-0.25).max(0.01);v.recipe_result=None;cx.notify();}})))
+    .child(button(("weight-plus",j),"+0.25").on_click(cx.listener(move|v,_,_,cx|{if !v.busy{v.recipe_settings.weights[j]=(v.recipe_settings.weights[j]+0.25).min(100.);v.recipe_result=None;cx.notify();}}))));
+  }
+  p=p.child(format!("Caps and TAC from Rebuilder settings: {:?} / {:.0}%",self.caps,self.tac))
+   .child(div().flex().gap_1().items_center().child("ΔE00 tolerance").children([1usize,2,3,5].map(|n|button(("recipe-tolerance",n),if self.recipe_settings.tolerance==n as f64{format!("{n} ✓")}else{n.to_string()}).on_click(cx.listener(move|v,_,_,cx|{if !v.busy{v.recipe_settings.tolerance=n as f64;v.recipe_result=None;cx.notify();}})))))
+   .child(button("solve-recipe","Find ink recipes").on_click(cx.listener(|v,_,_,cx|{
+    if v.busy{return}let Some(p)=v.source.clone()else{return};let target=v.recipe_target;let mut s=v.recipe_settings;s.caps=v.caps;s.tac=v.tac;
+    v.busy=true;v.recipe_result=None;v.status="Searching feasible ink recipes…".into();cx.notify();
+    cx.spawn(async move|this,cx|{
+     let result=cx.background_spawn(async move{optimizer::find(&p,target,s)}).await;
+     let _=this.update(cx,|v,cx|{v.busy=false;match result{Ok(r)=>{v.status=format!("{} candidate recipes evaluated",r.evaluated);v.recipe_result=Some(r)},Err(e)=>v.status=format!("Error: {e}")}cx.notify();});
+    }).detach();
+   })));
+  if let Some(r)=&self.recipe_result{
+   for (label,recipe) in [("Original separation",Some(&r.baseline)),("Closest feasible",Some(&r.closest)),("Lowest cost found within tolerance",r.cheapest.as_ref())]{
+    p=p.child(div().p_3().rounded_md().bg(rgb(0x1b2637)).flex().flex_col().gap_1().child(label).child(match recipe{Some(v)=>format!("Ink {:.2?}% · Lab {:.2?} · ΔE00 {:.3} · cost index {:.2}",v.ink,v.lab,v.delta_e,v.cost),None=>"No solution found within tolerance".into()}));
+   }
+  }
+  p
+ }
+ fn lab_page(&self,cx:&mut Context<Self>)->Div{
+  let mut p=div().flex().flex_col().gap_3().child(heading("Ceramic Profiling Lab","Direct-ink test charts, measured patch comparison and ArgyllCMS profiling."))
+   .child("Record printer, glaze, ink batch, firing schedule and measurement conditions externally. Use identical measurement geometry and D50 Lab for both charts.")
+   .child(div().text_lg().child("Generate device test chart"))
+   .child(div().flex().gap_1().items_center().child("Levels per ink").children([3usize,5,7].map(|n|button(("chart-level",n),if self.lab_levels==n{format!("{n} ✓")}else{n.to_string()}).on_click(cx.listener(move|v,_,_,cx|{if !v.busy{v.lab_levels=n;cx.notify();}})))))
+   .child(format!("Rebuilder caps {:?}, TAC {:.0}%; DPI {} (Image Converter setting). 8 mm patches, 2 mm gaps.",self.caps,self.tac,self.image_options.dpi))
+   .child(button("generate-chart","Export TIFF chart and measurement CSV").on_click(cx.listener(|v,_,_,cx|{
+    if v.busy{return}let Some(p)=v.source.clone()else{return};let Some(root)=rfd::FileDialog::new().pick_folder()else{return};
+    let (levels,caps,tac,dpi)=(v.lab_levels,v.caps,v.tac,v.image_options.dpi);
+    v.busy=true;v.status="Generating device chart…".into();cx.notify();
+    cx.spawn(async move|this,cx|{
+     let result=cx.background_spawn(async move{lab::generate_chart(&p,&root,levels,caps,tac,dpi).map(|p|format!("Chart: {}",p.display()))}).await;
+     let _=this.update(cx,|v,cx|{v.busy=false;v.status=result.unwrap_or_else(|e|format!("Error: {e}"));cx.notify();});
+    }).detach();
+   })))
+   .child("Print the chart with no RIP color conversion; verify safe ink limits first. Fill blank measured L,a,b after firing; blank values are rejected.")
+   .child(div().text_lg().child("Measured machine / glaze / firing / ink batch comparison"));
+  for i in 0..2{p=p.child(button(("measured-file",i),if i==0{"Select measured baseline CSV"}else{"Select measured changed-condition CSV"}).on_click(cx.listener(move|v,_,_,cx|{if !v.busy{if let Some(p)=rfd::FileDialog::new().add_filter("CSV",&["csv"]).pick_file(){v.measured[i]=Some(p);v.measurement_result=None;cx.notify();}}}))).child(self.measured[i].as_ref().map(|p|p.display().to_string()).unwrap_or("Not selected".into()));}
+  p=p.child(button("compare-measured","Compare measurements").on_click(cx.listener(|v,_,_,cx|{
+   if v.busy{return}let [Some(a),Some(b)]=v.measured.clone()else{return};v.busy=true;v.measurement_result=None;v.status="Comparing actual measurements…".into();cx.notify();
+   cx.spawn(async move|this,cx|{
+    let result=cx.background_spawn(async move{lab::compare(&a,&b)}).await;
+    let _=this.update(cx,|v,cx|{v.busy=false;match result{Ok(r)=>{v.measurement_result=Some(r);v.status="Measured comparison finished".into()},Err(e)=>v.status=format!("Error: {e}")}cx.notify();});
+   }).detach();
+  })));
+  if let Some(r)=&self.measurement_result{p=p.child(format!("{} patches | Mean ΔE {:.3} | P95 {:.3} | Max {:.3} ({}) | Mean ΔLab (after−before) {:.3?}",r.count,r.mean,r.p95,r.max,r.worst,r.bias));}
+  p.child(div().text_lg().child("Profile measured printing condition (Argyll colprof)"))
+   .child("Supply an actual CMYK .ti3 file from a measurement workflow. Builds a new ICC with explicit TAC and Argyll default black generation. Validate it before production. No automatic compensation or matching is assumed.")
+   .child(button("colprof","Build ICC from measured TI3").on_click(cx.listener(|v,_,_,cx|{
+    if v.busy{return}let Some(source)=rfd::FileDialog::new().add_filter("Measured Argyll TI3",&["ti3"]).pick_file()else{return};
+    let Some(mut dest)=rfd::FileDialog::new().add_filter("ICC",&["icc"]).set_file_name("measured_profile.icc").save_file()else{return};if dest.extension().is_none(){dest.set_extension("icc");}
+    let tac=v.tac;v.busy=true;v.status="Argyll colprof is building measured profile…".into();cx.notify();
+    cx.spawn(async move|this,cx|{
+     let result=cx.background_spawn(async move{lab::profile_from_ti3(&source,&dest,tac).map(|_|dest)}).await;
+     let _=this.update(cx,|v,cx|{v.busy=false;match result{Ok(p)=>{v.status=format!("Saved {}",p.display());v.candidate=Some(p);v.preview=None;v.comparison=None;v.gradient=None;if v.preview_open{v.refresh_gamut(cx);}},Err(e)=>v.status=format!("Error: {e}")}cx.notify();});
+    }).detach();
+   })))
+ }
  fn inspector(&self)->Div{
   let mut panel=div().flex().flex_col().gap_3().child(heading("Profile Inspector","ICC metadata decoded by LittleCMS 2."));
   if let Some(e)=&self.error{panel=panel.child(div().text_color(rgb(0xfca5a5)).child(e.clone()));}
@@ -465,6 +534,8 @@ impl Render for Studio {
    Page::Smoothing=>self.smoothing_page(cx),
    Page::Converter=>self.image_page(cx),
    Page::DeviceLink=>self.link_page(cx),
+   Page::Recipes=>self.recipe_page(cx),
+   Page::Lab=>self.lab_page(cx),
    Page::Settings=>div().flex().flex_col().gap_3().child(heading("Settings","Engine configuration")).child("LittleCMS is linked statically. ArgyllCMS is installed by the existing portable backend when required."),
    Page::About=>div().flex().flex_col().gap_3().child(heading("ICC Profile Studio","Experimental GPUI frontend")).child(format!("Core version {}",env!("CARGO_PKG_VERSION"))).child("Developed by emadgh. LittleCMS 2 · ArgyllCMS · Rust.").child("Updater integration is pending in this frontend. Use the stable executable for updates."),
    other=>div().flex().flex_col().gap_3().child(heading(PAGES.iter().find(|(p,_)|*p==other).map(|(_,n)|*n).unwrap_or("Tool"),"Planned module")).child("Not implemented yet. See ROADMAP.md."),

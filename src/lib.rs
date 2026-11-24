@@ -1,3 +1,5 @@
+pub mod optimizer;
+pub mod lab;
 pub mod images;
 pub mod correction;
 pub mod gradient;

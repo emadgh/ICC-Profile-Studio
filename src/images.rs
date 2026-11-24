@@ -29,7 +29,7 @@ fn load(path:&Path,reference:&Profile,assume:bool)->R<Input>{
   if !cmyk&&!matches!(color,ColorType::RGB(8)|ColorType::RGB(16)){return Err("TIFF must be RGB or CMYK, 8/16 bit, without alpha".into())}
   let bytes=d.get_tag_u8_vec(Tag::IccProfile).ok();
   let profile=match bytes{Some(b)=>Profile::new_icc(&b).map_err(err)?,None if assume&&cmyk=>Profile::new_icc(&reference.icc().map_err(err)?).map_err(err)?,None if assume=>Profile::new_srgb(),None=>return Err("Untagged image: explicitly enable sRGB / reference CMYK assumption".into())};
-  let raw=match d.read_image().map_err(err)?{DecodingResult::U8(v)=>v.into_iter().map(|v|v as u16*257).collect(),DecodingResult::U16(v)=>v,_=>return Err("Unsupported TIFF sample depth".into())};
+  let raw:Vec<u16>=match d.read_image().map_err(err)?{DecodingResult::U8(v)=>v.into_iter().map(|v|v as u16*257).collect(),DecodingResult::U16(v)=>v,_=>return Err("Unsupported TIFF sample depth".into())};
   let pixels=if cmyk{if raw.len()!=count*4||profile.color_space()!=ColorSpaceSignature::CmykData{return Err("CMYK pixels/profile mismatch".into())}Pixels::Cmyk(raw.chunks_exact(4).map(|v|[v[0],v[1],v[2],v[3]]).collect())}
    else{if raw.len()!=count*3||profile.color_space()!=ColorSpaceSignature::RgbData{return Err("RGB pixels/profile mismatch".into())}Pixels::Rgb(raw.chunks_exact(3).map(|v|[v[0],v[1],v[2]]).collect())};
   return Ok(Input{width,height,pixels,profile})
