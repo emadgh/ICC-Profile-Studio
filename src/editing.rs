@@ -38,7 +38,7 @@ fn checked_lut(t:&[u8],forward:bool,n:usize)->R<(Lut,[u8;4])>{
  Ok((l,if &kind==b"mft1"{*b"mft2"}else{kind}))
 }
 fn valid_order(order:&[usize],n:usize)->bool{if order.len()!=n{return false}let mut seen=vec![false;n];for &i in order{if i>=n||seen[i]{return false}seen[i]=true;}true}
-fn editable_channels(p:&Profile)->R<usize>{
+pub fn editable_channel_count(p:&Profile)->R<usize>{
  if &p.header[12..16]!=b"prtr"||!matches!(p.version_major(),2|4)||p.tags.keys().any(|k|k.starts_with(b"B2D")||k.starts_with(b"D2B")){return Err("Requires v2/v4 printer ICC without alternate D2B/B2D transforms".into())}
  Ok(crate::print_space::format(&p.header[16..20])?.channels)
 }
@@ -70,7 +70,7 @@ impl Profile{
  /// separation edit, not a new measurement-based colorimetric profile.
  pub fn tone_gamma(&self,gamma:[f64;4])->R<Self>{self.tone_gamma_multi(&gamma)}
  pub fn tone_gamma_multi(&self,gamma:&[f64])->R<Self>{
-  let n=editable_channels(self)?;
+  let n=editable_channel_count(self)?;
   if gamma.len()!=n{return Err("Gamma count must match device channels".into())}
   if gamma.iter().any(|v|!v.is_finite()||!(0.25..=4.).contains(v)){return Err("Gamma must be 0.25–4.0".into())}
   let mut out=self.clone();let mut count=0;
@@ -89,7 +89,7 @@ impl Profile{
  /// are accepted; arbitrary vendor tags require an explicit adapter.
  pub fn reorder_channels(&self,order:[usize;4])->R<Self>{self.reorder_channels_multi(&order)}
  pub fn reorder_channels_multi(&self,order:&[usize])->R<Self>{
-  let n=editable_channels(self)?;if !valid_order(order,n){return Err("Mapping must be a permutation of all device channels".into())}
+  let n=editable_channel_count(self)?;if !valid_order(order,n){return Err("Mapping must be a permutation of all device channels".into())}
   supported_tags(self)?;
   let mut out=self.clone();let mut forward=0;let mut reverse=0;
   for key in [b"A2B0",b"A2B1",b"A2B2",b"B2A0",b"B2A1",b"B2A2"]{
