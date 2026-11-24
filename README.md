@@ -76,3 +76,5 @@ Image conversion uses LittleCMS with image and tiff crates. Output is real 16-bi
 ### Ceramic Lab and recipe search
 
 The Ink Optimizer searches for an individual device recipe using the existing ICC model and user-defined relative weights, caps, TAC and ΔE00 tolerance; it is not a guaranteed global optimum or whole-profile ink saving. Ceramic Lab exports direct-device TIFF charts and blank measurement templates, compares actual D50 Lab measurements on identical patches, and invokes official Argyll colprof on supplied CMYK TI3 data. Print with device values preserved, measure after firing and validate profiles. No physical compensation is inferred without data.
+
+Whole-profile ink optimization (v4 CMYK/Lab simple mBA): the original predicted appearance at each lattice node is the comparison target. Local decreases/transfers reduce relative weighted cost subject to ΔE00 tolerance, strict source channel bounds and explicit TAC. It is not a global optimizer, not a guarantee between nodes and not measured mass/cost saving. Refuses existing separations above TAC rather than silently clipping.

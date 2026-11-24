@@ -119,12 +119,12 @@ impl Studio {
  }
  fn save_edit(&mut self,kind:u8,cx:&mut Context<Self>){
   if self.busy{return}let Some(source)=self.source.clone()else{return};
-  let suffix=match kind{0=>"curves",1=>"reordered",3=>"selective",4=>"smoothed",_=>"renamed"};
+  let suffix=match kind{0=>"curves",1=>"reordered",3=>"selective",4=>"smoothed",5=>"ink_optimized",_=>"renamed"};
   let default_name=format!("{}_{}.icc",source.file_stem().unwrap_or_default().to_string_lossy(),suffix);
   let Some(mut destination)=rfd::FileDialog::new().add_filter("ICC profile",&["icc","icm"]).set_file_name(default_name).save_file()else{return};
   if destination.extension().is_none(){destination.set_extension("icc");}
   let output_path=destination.clone();
-  let edit=match kind{0=>Edit::Tone(self.gamma),1=>Edit::Reorder(self.order),3=>Edit::Correction(Operation::Selective(Selective{center:self.selective[0],width:self.selective[1],light:self.selective[2],chroma_percent:self.selective[3],hue_shift:self.selective[4]}),self.correction_grid,self.correction_tac),4=>Edit::Correction(Operation::Smooth{strength:self.smoothing,passes:self.smoothing_passes},self.correction_grid,self.correction_tac),_=>Edit::Rename(destination.file_stem().unwrap_or_default().to_string_lossy().into_owned())};
+  let edit=match kind{0=>Edit::Tone(self.gamma),1=>Edit::Reorder(self.order),3=>Edit::Correction(Operation::Selective(Selective{center:self.selective[0],width:self.selective[1],light:self.selective[2],chroma_percent:self.selective[3],hue_shift:self.selective[4]}),self.correction_grid,self.correction_tac),4=>Edit::Correction(Operation::Smooth{strength:self.smoothing,passes:self.smoothing_passes},self.correction_grid,self.correction_tac),5=>Edit::Correction(Operation::Optimize{weights:self.recipe_settings.weights,tolerance:self.recipe_settings.tolerance},self.correction_grid.min(33),self.correction_tac),_=>Edit::Rename(destination.file_stem().unwrap_or_default().to_string_lossy().into_owned())};
   self.busy=true;self.status="Editing ICC and validating with LittleCMS…".into();cx.notify();
   cx.spawn(async move |this,cx|{
    let result=cx.background_spawn(async move{editing::edit_file(&source,&destination,edit)}).await;
@@ -417,7 +417,10 @@ impl Studio {
     p=p.child(div().p_3().rounded_md().bg(rgb(0x1b2637)).flex().flex_col().gap_1().child(label).child(match recipe{Some(v)=>format!("Ink {:.2?}% · Lab {:.2?} · ΔE00 {:.3} · cost index {:.2}",v.ink,v.lab,v.delta_e,v.cost),None=>"No solution found within tolerance".into()}));
    }
   }
-  p
+  p.child(div().text_lg().child("Whole-profile ink optimization (ICC v4 / mBA)"))
+   .child(self.correction_options(cx))
+   .child("Searches for lower weighted ink cost within the chosen ΔE00 of the original predicted appearance at each sampled LUT node, using A2B1. Uses grid 17 or 33; it does not certify interpolation, global color accuracy, real ink mass or savings. Source channel bounds preserved; refuses baseline exceeding selected TAC. Run Profile Comparison and Gradient Analyzer afterwards.")
+   .child(button("optimize-profile","Generate ink-optimized ICC").on_click(cx.listener(|v,_,_,cx|v.save_edit(5,cx))))
  }
  fn lab_page(&self,cx:&mut Context<Self>)->Div{
   let mut p=div().flex().flex_col().gap_3().child(heading("Ceramic Profiling Lab","Direct-ink test charts, measured patch comparison and ArgyllCMS profiling."))
