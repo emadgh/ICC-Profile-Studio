@@ -12,7 +12,7 @@ use color_convert_rust::images::{self,Options as ImageOptions,Output as ImageOut
 use color_convert_rust::streaming::{self,StreamOptions};
 use std::sync::{Arc,atomic::{AtomicBool,Ordering}};
 use color_convert_rust::gradient::{self,GradientReport};
-use color_convert_rust::{library,reports};
+use color_convert_rust::{library,reports,preferences::{self,Preferences}};
 #[cfg(windows)] use update_via_github::{UpdateConfig,UpdateManager,UpdateStatus};
 use color_convert_rust::{optimizer::{self,Settings as RecipeSettings,Report as RecipeReport},lab::{self,MeasuredComparison}};
 
@@ -613,6 +613,38 @@ impl Studio {
   if let Some(path)=&self.proof_output{p=p.child(format!("Saved: {}",path.display())).child("before_monitor.png / after_monitor.png / proof_settings.txt");}
   p
  }
+ fn preference_snapshot(&self)->Preferences{
+  Preferences{schema:1,preview_open:self.preview_open,three_d:self.preview_options.three_d,wireframe:self.preview_options.wireframe,gamut_grid:self.gamut_grid,compare_grid:self.compare_grid,dpi:self.image_options.dpi,stream_enabled:self.stream_enabled,bigtiff:self.stream_options.bigtiff,separations:self.stream_options.separations,proof_media:self.proof_media,proof_bpc:self.proof_bpc,monitor:self.monitor_profile.clone(),library:self.library_root.clone(),output:self.image_root.clone()}
+ }
+ fn apply_preferences(&mut self,p:Preferences){
+  self.preview_open=p.preview_open;self.preview_options.three_d=p.three_d;self.preview_options.wireframe=p.wireframe;
+  self.gamut_grid=p.gamut_grid;self.compare_grid=p.compare_grid;self.image_options.dpi=p.dpi;
+  self.stream_enabled=p.stream_enabled;self.stream_options.bigtiff=p.bigtiff;self.stream_options.separations=p.separations;
+  self.proof_media=p.proof_media;self.proof_bpc=p.proof_bpc;self.monitor_profile=p.monitor.filter(|p|p.is_file());self.library_root=p.library.filter(|p|p.is_dir());self.image_root=p.output.filter(|p|p.is_dir());
+  self.preview=None;self.comparison=None;self.compare_error=None;self.library_entries.clear();self.proof_output=None;
+ }
+ fn startup()->Self{
+  let mut s=Self::default();
+  match preferences::location().and_then(|p|preferences::load(&p)){
+   Ok(p)=>s.apply_preferences(p),Err(e)=>s.status=format!("Preferences not loaded: {e}. Safe defaults are active.")
+  }
+  s
+ }
+ fn settings_page(&self,cx:&mut Context<Self>)->Div{
+  div().flex().flex_col().gap_3().child(heading("Settings","Local preferences and color engine configuration."))
+   .child("LittleCMS is linked statically. Official ArgyllCMS tools are installed by the portable backend when required.")
+   .child(preferences::location().map(|p|p.display().to_string()).unwrap_or_else(|e|e))
+   .child("Save preferences explicitly to restore preview mode, analysis grids, DPI, TIFF options, proof options, and last monitor/library/output paths next launch. No profile paths, TAC, ink caps, source assumptions or running jobs are restored automatically.")
+   .child(button("prefs-save","Save current preferences as defaults").on_click(cx.listener(|v,_,_,cx|{
+    if !v.busy{v.status=preferences::location().and_then(|p|preferences::save(&p,&v.preference_snapshot()).map(|_|format!("Preferences saved: {}",p.display()))).unwrap_or_else(|e|format!("Error: {e}"));cx.notify();}
+   })))
+   .child(button("prefs-reload","Reload saved preferences").on_click(cx.listener(|v,_,_,cx|{
+    if !v.busy{match preferences::location().and_then(|p|preferences::load(&p)){Ok(p)=>{v.apply_preferences(p);v.status="Preferences loaded.".into();if v.preview_open{v.refresh_gamut(cx);}},Err(e)=>v.status=format!("Error: {e}")}cx.notify();}
+   })))
+   .child(button("prefs-reset","Reset preferences in memory (save to keep)").on_click(cx.listener(|v,_,_,cx|{
+    if !v.busy{v.apply_preferences(Preferences::default());v.status="Default preferences restored in memory.".into();if v.preview_open{v.refresh_gamut(cx);}cx.notify();}
+   })))
+ }
  fn inspector(&self)->Div{
   let mut panel=div().flex().flex_col().gap_3().child(heading("Profile Inspector","ICC metadata decoded by LittleCMS 2."));
   if let Some(e)=&self.error{panel=panel.child(div().text_color(rgb(0xfca5a5)).child(e.clone()));}
@@ -710,7 +742,7 @@ impl Render for Studio {
    Page::Recipes=>self.recipe_page(cx),
    Page::Black=>self.black_page(cx),
    Page::Lab=>self.lab_page(cx),
-   Page::Settings=>div().flex().flex_col().gap_3().child(heading("Settings","Engine configuration")).child("LittleCMS is linked statically. ArgyllCMS is installed by the existing portable backend when required."),
+   Page::Settings=>self.settings_page(cx),
    Page::About=>self.about_page(cx),
    Page::Library=>self.library_page(cx),
    other=>div().flex().flex_col().gap_3().child(heading(PAGES.iter().find(|(p,_)|*p==other).map(|(_,n)|*n).unwrap_or("Tool"),"Planned module")).child("Not implemented yet. See ROADMAP.md."),
@@ -726,7 +758,7 @@ impl Render for Studio {
 fn main(){
  Application::new().run(|cx:&mut App|{
   let bounds=Bounds::centered(None,size(px(1440.),px(880.)),cx);
-  cx.open_window(WindowOptions{window_bounds:Some(WindowBounds::Windowed(bounds)),..Default::default()},|_,cx|cx.new(|_|Studio::default())).expect("Open Studio window");
+  cx.open_window(WindowOptions{window_bounds:Some(WindowBounds::Windowed(bounds)),..Default::default()},|_,cx|cx.new(|_|Studio::startup())).expect("Open Studio window");
   cx.activate(true);
  });
 }

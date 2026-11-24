@@ -98,3 +98,7 @@ Profile Inspector reads the stored ICC mediaWhitePointTag (`wtpt`) with LittleCM
 ### Monitor Soft Proof
 
 Select a source image, printer reference/candidate and actual RGB monitor ICC. LittleCMS native proofing exports before/after monitor-encoded previews with the display ICC embedded, plus settings. Absolute mode simulates media white; optional BPC applies only to relative mode. Use an external color-managed viewer on the calibrated display. GPUI itself is not asserted to be color-managed. Preview generation retains the 24 MP input limit and 640 px longest-side output. CI pending.
+
+### Local preferences
+
+Settings saves validated preferences atomically under `%APPDATA%/ICC Profile Studio/preferences.json`. Startup restores non-device-specific UI, preview, grid, DPI, TIFF and proof settings plus existing monitor/library/output paths. No ink limits, TAC, untagged-source assumptions, printer profiles or running jobs are restored automatically. Reset in memory and save explicitly to persist defaults.

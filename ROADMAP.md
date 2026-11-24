@@ -78,7 +78,8 @@
 - [ ] CI and real print trials, validate imported measurement-file workflow, output profile quality, black generation validation, numerical drift between optimized nodes and real ink cost. Measured compensation/machine matching requires real datasets and validation; comparison alone is not compensation.
 - [x] Local profile library with CSV line/printer/glaze/ink batch/firing/notes metadata; browse reference/candidate without modifying ICCs; template export and rescan.
 - [x] CSV export of profile comparison and gradient analysis.
-- [ ] Full workflow persistence, certified device limits and UI migration completion.
+- [x] Local settings persistence (preview, grids, DPI, streaming, proof options, monitor/library/output paths); explicit save, startup restore, validation and atomic replacement. Device-specific caps/TAC, assumptions and jobs are not restored.
+- [ ] Full project/session persistence, certified device limits and UI migration completion.
 
 ## v1.0 — advanced separation (source implementation)
 
