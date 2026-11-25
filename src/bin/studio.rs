@@ -449,7 +449,7 @@ impl Studio {
   grid
  }
  fn curves_page(&self,cx:&mut Context<Self>)->Div{
-  let mut p=div().flex().flex_col().gap_3().child(heading("Tone Curves","Drag curve handles or use numeric steps. Curves represent corrections, not measured ink response.")).child(div().text_xs().child(tr("ICC v4 gamma edits preserve PCS stages and CLUT data; modified curves are sampled with a 0.5 percentage point error ceiling. Invalid or too-steep curves are refused.")));
+  let mut p=div().flex().flex_col().gap_3().child(heading("Tone Curves","Drag curve handles or use numeric steps. Curves represent corrections, not measured ink response.")).child(div().text_xs().child(tr("ICC v4 mBA gamma edits preserve PCS stages and CLUT data; modified curves are sampled with a 0.5 percentage point error ceiling. Invalid or too-steep curves are refused.")));
   if self.gamma.is_empty(){return p.child(tr("Open a supported printer profile first."))}
   p=p.child(self.curve_cards(false,cx))
    .child(tr("Gamma modifies output separations; A2B stays unchanged. Recheck TAC and channel limits."))
