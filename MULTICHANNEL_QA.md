@@ -19,3 +19,16 @@ Argyll colprof creates RGB/CMY/CMYK profiles, not arbitrary nCLR (https://www.ar
 3. Invert to bounded B2A tables using explicit ink priorities, gamut mapping and black selection; validate all intents independently.
 4. Serialize supported v4 ICC structures, check with LittleCMS and independent ICC validator, and test actual RIP/prints.
 Do not use synthetic targets as measurements, fabricate ink identity, or claim that an edited separation is a new characterization. N-color fitting remains a future research milestone.
+
+## beta.32 — regression coverage
+The synthetic 3/5/6/7/8/15-channel matrix performs a bounded rebuild, serializes and reopens the ICC, checks preserved forward transforms, exact zero inks, a 10% channel cap, TAC, four native rendering intents and no-clobber saving. A native complex mBA matrix/M-curve regression exercises bounded smoothing. These are synthetic, not proof of physical color accuracy.
+
+Run a single available real/reference count without requiring the complete corpus:
+```powershell
+$env:ICC_REAL_PROFILE_DIR = 'C:\private\icc-corpus'
+$env:ICC_REQUIRED_COUNTS = '7'
+cargo test --lib --no-default-features --release real_profile_corpus -- --ignored --nocapture
+```
+The harness reports Mean/P95/Max predicted DE00 for four intents, sampled TAC, exact bounds, preserved A2B and unchanged source bytes. Unsupported profiles are explicitly logged as skipped; inventory coverage is not edit success.
+
+FOGRA55 is a seven-channel exchange space, not a measured profile for the user's particular printer. Official download: https://fogra.org/fileadmin/files/1_forschen/vorstufe/13.003_multicolor/Daten/Ref_FOGRA55.zip . Download was not successful in the development environment, so no result is claimed. Acquire manually, inspect license and checksum, extract ICC only into private corpus. Do not commit third-party profiles without permission.
