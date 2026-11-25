@@ -61,3 +61,7 @@ update is implied by CI success.
 ### beta.34 legacy correction acceptance (pending)
 - Verify v2 mft2 profiles enable bounded points, selective regions and smoothing only when all reverse intents are supported. Confirm v2 black generation/whole-profile optimization disabled with reason. Compare all four intents; test extended PCS endpoints, source caps, zero inks, explicit TAC, A2B bytes and no-clobber saves.
 - Run opt-in FOGRA55 Rust regression with operator-supplied ICC; compare against independent native diagnostic and print/RIP validation. No physical color approval from structural checks alone.
+
+### beta.35 N-color model acceptance (pending)
+- Open FOGRA55 ICC and use Patch explorer / Import CGATS to load the matching external data, then Evaluate N-color baseline. Verify grouped counts, comparison bars, ΔE00, TAC and nearest-recipe distances. Replacing source/chart clears previous results; virtual/missing/mixed measurements must fail explicitly. Test other channel counts and five UI languages.
+- Run optional `fogra55_ncolor_baseline` with local data. Independent Python reference values in NCOLOR_MODEL_QA.md are a comparison baseline, not compiled Rust results. Do not treat holdout results as independent physical print validation or export any ICC from this experiment.
