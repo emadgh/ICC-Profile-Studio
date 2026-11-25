@@ -30,10 +30,10 @@ struct Studio {
  link_grid:usize,link_tolerance:f64,link_intent:lcms2::Intent,link_report:Option<(PathBuf,PathBuf,PathBuf,device_link::MultiLinkReport)>,
  slider_drag:Option<(&'static str,usize)>,embedded_names:bool,display_profile:Option<Profile>,language:Language,nav_collapsed:[bool;5],picker:Option<Picker>,system_catalog:Option<system_profiles::Catalog>,system_error:Option<String>,system_loading:bool,
  version_allow_omit:bool,version_relative_only:bool,version_de:f64,version_ink:f64,version_report:Option<versioning::Report>,page:Page, source:Option<PathBuf>, capability:Option<Capabilities>, predicted_inks:Vec<u32>, report:Option<Inspection>, error:Option<String>,
- caps:Vec<f64>,tac:f64,grid:usize,mode:Mode,status:String,busy:bool,rebuild_control:Option<color_convert_rust::multichannel::RebuildControl>, candidate:Option<PathBuf>,comparison:Option<Comparison>,compare_error:Option<String>,compare_grid:usize,compare_intent:lcms2::Intent,gamma:Vec<f64>,order:Vec<usize>, preview_open:bool, preview:Option<Overlay>, preview_revision:u64, preview_width:f32,preview_fullscreen:bool,resize_last:Option<Pixels>,gamut_advanced:bool,curve_drag:Option<(usize,usize,Pixels)>,curve_mode:usize,curve_channel:usize, preview_cache:std::cell::RefCell<gamut_view::PreviewCache>, preview_options:ViewOptions, gamut_grid:usize,gamut_reference_intent:lcms2::Intent,gamut_candidate_intent:lcms2::Intent,gamut_separate_intents:bool,gradient:Option<GradientReport>,gradient_detail:Option<usize>,gradient_selected:usize,gradient_shared_scale:bool,gradient_error:Option<String>,coverage_threshold:f64, regions:[Selective;MAX_REGIONS],region_count:usize,region_selected:usize, correction_grid:usize, correction_tac:f64, smoothing:f64, smoothing_passes:usize,orbit_last:Option<Point<Pixels>>,chart_dpi:u32,recipe_target:[f64;3],recipe_settings:RecipeSettings,recipe_result:Option<RecipeReport>,lab_levels:usize,lab_tab:usize,lab_advanced:bool,lab_loading:bool,lab_attempted:bool,lab_epoch:u64,lab_error:Option<String>,compare_overlay:bool,compare_details:bool,recipe_tab:usize,recipe_weights_open:bool,characterization:Option<color_convert_rust::characterization::Chart>,characterization_page:usize,characterization_patch:Option<usize>,characterization_fit:Option<color_convert_rust::characterization::Fit>,ncolor_report:Option<color_convert_rust::ncolor_model::CrossValidation>,ncolor_inverse:Option<color_convert_rust::ncolor_model::InverseReport>,ncolor_audit:Option<color_convert_rust::ncolor_model::ContinuityAudit>,ncolor_ramp:Option<color_convert_rust::ncolor_model::InverseRampAudit>,ncolor_regularized:Option<color_convert_rust::ncolor_model::RegularizedRamp>,ncolor_lattice:Option<color_convert_rust::ncolor_model::LatticeAudit>,ncolor_forward:Option<color_convert_rust::ncolor_model::ForwardGridAudit>,ncolor_forward_grid:Vec<usize>,ncolor_span:[f64;3],ncolor_slice:usize,ncolor_lambda:f64,ncolor_target:[f64;3],ncolor_tolerance:f64,ncolor_distance:f64,characterization_measured:bool,characterization_heat:bool,spectral_illuminant:Illuminant,spectral_observer:Observer,characterization_filter:target_tools::Filter,characterization_cloud:bool,characterization_view:ViewOptions,characterization_cache:std::cell::RefCell<gamut_view::PreviewCache>,characterization_revision:u64,measured:[Option<PathBuf>;2],measurement_result:Option<MeasuredComparison>,black:BlackGeneration,black_channel:Option<usize>,curve_points:Vec<[f64;5]>,logo:std::sync::Arc<gpui::Image>,#[cfg(windows)] updater:StudioUpdater,#[cfg(windows)] update_started:bool,#[cfg(windows)] update_notice:Option<String>,#[cfg(windows)] notified_version:Option<String>,
+ caps:Vec<f64>,tac:f64,grid:usize,mode:Mode,status:String,busy:bool,analysis_job:Option<color_convert_rust::analysis_job::Job>,rebuild_control:Option<color_convert_rust::multichannel::RebuildControl>, candidate:Option<PathBuf>,comparison:Option<Comparison>,compare_error:Option<String>,compare_grid:usize,compare_intent:lcms2::Intent,gamma:Vec<f64>,order:Vec<usize>, preview_open:bool, preview:Option<Overlay>, preview_revision:u64, preview_width:f32,preview_fullscreen:bool,resize_last:Option<Pixels>,gamut_advanced:bool,curve_drag:Option<(usize,usize,Pixels)>,curve_mode:usize,curve_channel:usize, preview_cache:std::cell::RefCell<gamut_view::PreviewCache>, preview_options:ViewOptions, gamut_grid:usize,gamut_reference_intent:lcms2::Intent,gamut_candidate_intent:lcms2::Intent,gamut_separate_intents:bool,gradient:Option<GradientReport>,gradient_detail:Option<usize>,gradient_selected:usize,gradient_shared_scale:bool,gradient_error:Option<String>,coverage_threshold:f64, regions:[Selective;MAX_REGIONS],region_count:usize,region_selected:usize, correction_grid:usize, correction_tac:f64, smoothing:f64, smoothing_passes:usize,orbit_last:Option<Point<Pixels>>,chart_dpi:u32,recipe_target:[f64;3],recipe_settings:RecipeSettings,recipe_result:Option<RecipeReport>,lab_levels:usize,lab_tab:usize,lab_advanced:bool,lab_loading:bool,lab_attempted:bool,lab_epoch:u64,lab_error:Option<String>,compare_overlay:bool,compare_details:bool,recipe_tab:usize,recipe_weights_open:bool,characterization:Option<color_convert_rust::characterization::Chart>,characterization_page:usize,characterization_patch:Option<usize>,characterization_fit:Option<color_convert_rust::characterization::Fit>,ncolor_report:Option<color_convert_rust::ncolor_model::CrossValidation>,ncolor_inverse:Option<color_convert_rust::ncolor_model::InverseReport>,ncolor_audit:Option<color_convert_rust::ncolor_model::ContinuityAudit>,ncolor_ramp:Option<color_convert_rust::ncolor_model::InverseRampAudit>,ncolor_regularized:Option<color_convert_rust::ncolor_model::RegularizedRamp>,ncolor_lattice:Option<color_convert_rust::ncolor_model::LatticeAudit>,ncolor_forward:Option<color_convert_rust::ncolor_model::ForwardGridAudit>,ncolor_forward_grid:Vec<usize>,ncolor_span:[f64;3],ncolor_slice:usize,ncolor_lambda:f64,ncolor_target:[f64;3],ncolor_tolerance:f64,ncolor_distance:f64,characterization_measured:bool,characterization_heat:bool,spectral_illuminant:Illuminant,spectral_observer:Observer,characterization_filter:target_tools::Filter,characterization_cloud:bool,characterization_view:ViewOptions,characterization_cache:std::cell::RefCell<gamut_view::PreviewCache>,characterization_revision:u64,measured:[Option<PathBuf>;2],measurement_result:Option<MeasuredComparison>,black:BlackGeneration,black_channel:Option<usize>,curve_points:Vec<[f64;5]>,logo:std::sync::Arc<gpui::Image>,#[cfg(windows)] updater:StudioUpdater,#[cfg(windows)] update_started:bool,#[cfg(windows)] update_notice:Option<String>,#[cfg(windows)] notified_version:Option<String>,
 }
 impl Default for Studio {
- fn default()->Self{Self{link_grid:0,link_tolerance:2.,link_intent:lcms2::Intent::RelativeColorimetric,link_report:None,slider_drag:None,embedded_names:true,display_profile:None,language:Language::En,nav_collapsed:[false;5],picker:None,system_catalog:None,system_error:None,system_loading:false,version_allow_omit:false,version_relative_only:false,version_de:0.5,version_ink:0.5,version_report:None,page:Page::Inspector,source:None,capability:None,predicted_inks:vec![],report:None,error:None,caps:vec![],tac:240.,grid:33,mode:Mode::Custom,status:"Open an ICC or ICM profile to start.".into(),busy:false,rebuild_control:None,candidate:None,comparison:None,compare_error:None,compare_grid:17,compare_intent:lcms2::Intent::RelativeColorimetric,gamma:vec![],order:vec![],preview_open:true,preview:None,preview_revision:0,preview_width:360.,preview_fullscreen:false,resize_last:None,gamut_advanced:false,curve_drag:None,curve_mode:0,curve_channel:0,preview_cache:std::cell::RefCell::new(gamut_view::PreviewCache::default()),preview_options:ViewOptions::default(),gamut_grid:33,gamut_reference_intent:lcms2::Intent::RelativeColorimetric,gamut_candidate_intent:lcms2::Intent::RelativeColorimetric,gamut_separate_intents:false,gradient:None,gradient_detail:None,gradient_selected:0,gradient_shared_scale:true,gradient_error:None,coverage_threshold:2.,regions:[Selective::default();MAX_REGIONS],region_count:1,region_selected:0,correction_grid:33,correction_tac:400.,smoothing:0.20,smoothing_passes:1,orbit_last:None,chart_dpi:300,recipe_target:[50.,0.,0.],recipe_settings:RecipeSettings{caps:vec![100.;4],tac:240.,weights:vec![1.;4],tolerance:2.},recipe_result:None,lab_levels:5,lab_tab:0,lab_advanced:false,lab_loading:false,lab_attempted:false,lab_epoch:0,lab_error:None,compare_overlay:true,compare_details:false,recipe_tab:0,recipe_weights_open:false,characterization:None,characterization_page:1,characterization_patch:None,characterization_fit:None,ncolor_report:None,ncolor_inverse:None,ncolor_audit:None,ncolor_ramp:None,ncolor_regularized:None,ncolor_lattice:None,ncolor_forward:None,ncolor_forward_grid:vec![],ncolor_span:[1.;3],ncolor_slice:1,ncolor_lambda:0.02,ncolor_target:[50.,0.,0.],ncolor_tolerance:2.,ncolor_distance:0.4,characterization_measured:false,characterization_heat:false,spectral_illuminant:Illuminant::D50,spectral_observer:Observer::Two,characterization_filter:target_tools::Filter::default(),characterization_cloud:false,characterization_view:ViewOptions{profile_colors:false,layout:CompareLayout::Shared,solid:false,wireframe:false,floor_contour:false,..ViewOptions::default()},characterization_cache:std::cell::RefCell::new(gamut_view::PreviewCache::default()),characterization_revision:0,measured:[None,None],measurement_result:None,black:BlackGeneration::default(),black_channel:None,curve_points:IDENTITY_POINTS.to_vec(),logo:std::sync::Arc::new(gpui::Image::from_bytes(gpui::ImageFormat::Png,include_bytes!("../../assets/icon.png").to_vec())),#[cfg(windows)] update_started:false,#[cfg(windows)] update_notice:None,#[cfg(windows)] notified_version:None,#[cfg(windows)] updater:StudioUpdater::new(UpdateConfig::new("emadgh/color-convert-rust","ICC-Profile-Studio.exe",STUDIO_VERSION.trim()).with_app_name("ICC Profile Studio").with_checksum_asset("ICC-Profile-Studio.exe.sha256").with_required_checksum(true))}}
+ fn default()->Self{Self{link_grid:0,link_tolerance:2.,link_intent:lcms2::Intent::RelativeColorimetric,link_report:None,slider_drag:None,embedded_names:true,display_profile:None,language:Language::En,nav_collapsed:[false;5],picker:None,system_catalog:None,system_error:None,system_loading:false,version_allow_omit:false,version_relative_only:false,version_de:0.5,version_ink:0.5,version_report:None,page:Page::Inspector,source:None,capability:None,predicted_inks:vec![],report:None,error:None,caps:vec![],tac:240.,grid:33,mode:Mode::Custom,status:"Open an ICC or ICM profile to start.".into(),busy:false,analysis_job:None,rebuild_control:None,candidate:None,comparison:None,compare_error:None,compare_grid:17,compare_intent:lcms2::Intent::RelativeColorimetric,gamma:vec![],order:vec![],preview_open:true,preview:None,preview_revision:0,preview_width:360.,preview_fullscreen:false,resize_last:None,gamut_advanced:false,curve_drag:None,curve_mode:0,curve_channel:0,preview_cache:std::cell::RefCell::new(gamut_view::PreviewCache::default()),preview_options:ViewOptions::default(),gamut_grid:33,gamut_reference_intent:lcms2::Intent::RelativeColorimetric,gamut_candidate_intent:lcms2::Intent::RelativeColorimetric,gamut_separate_intents:false,gradient:None,gradient_detail:None,gradient_selected:0,gradient_shared_scale:true,gradient_error:None,coverage_threshold:2.,regions:[Selective::default();MAX_REGIONS],region_count:1,region_selected:0,correction_grid:33,correction_tac:400.,smoothing:0.20,smoothing_passes:1,orbit_last:None,chart_dpi:300,recipe_target:[50.,0.,0.],recipe_settings:RecipeSettings{caps:vec![100.;4],tac:240.,weights:vec![1.;4],tolerance:2.},recipe_result:None,lab_levels:5,lab_tab:0,lab_advanced:false,lab_loading:false,lab_attempted:false,lab_epoch:0,lab_error:None,compare_overlay:true,compare_details:false,recipe_tab:0,recipe_weights_open:false,characterization:None,characterization_page:1,characterization_patch:None,characterization_fit:None,ncolor_report:None,ncolor_inverse:None,ncolor_audit:None,ncolor_ramp:None,ncolor_regularized:None,ncolor_lattice:None,ncolor_forward:None,ncolor_forward_grid:vec![],ncolor_span:[1.;3],ncolor_slice:1,ncolor_lambda:0.02,ncolor_target:[50.,0.,0.],ncolor_tolerance:2.,ncolor_distance:0.4,characterization_measured:false,characterization_heat:false,spectral_illuminant:Illuminant::D50,spectral_observer:Observer::Two,characterization_filter:target_tools::Filter::default(),characterization_cloud:false,characterization_view:ViewOptions{profile_colors:false,layout:CompareLayout::Shared,solid:false,wireframe:false,floor_contour:false,..ViewOptions::default()},characterization_cache:std::cell::RefCell::new(gamut_view::PreviewCache::default()),characterization_revision:0,measured:[None,None],measurement_result:None,black:BlackGeneration::default(),black_channel:None,curve_points:IDENTITY_POINTS.to_vec(),logo:std::sync::Arc::new(gpui::Image::from_bytes(gpui::ImageFormat::Png,include_bytes!("../../assets/icon.png").to_vec())),#[cfg(windows)] update_started:false,#[cfg(windows)] update_notice:None,#[cfg(windows)] notified_version:None,#[cfg(windows)] updater:StudioUpdater::new(UpdateConfig::new("emadgh/color-convert-rust","ICC-Profile-Studio.exe",STUDIO_VERSION.trim()).with_app_name("ICC Profile Studio").with_checksum_asset("ICC-Profile-Studio.exe.sha256").with_required_checksum(true))}}
 }
 fn button(id: impl Into<ElementId>,label:impl Into<SharedString>)->Stateful<Div>{
  let label:SharedString=label.into();
@@ -250,14 +250,38 @@ impl Studio {
   }).detach();
  }
 
+ fn start_analysis_job(&mut self,cx:&mut Context<Self>)->color_convert_rust::analysis_job::Job{
+  let job=color_convert_rust::analysis_job::Job::default();self.analysis_job=Some(job.clone());let poll=job.clone();
+  cx.spawn(async move|this,cx|{loop{
+   cx.background_executor().timer(Duration::from_millis(120)).await;
+   if !matches!(this.update(cx,|v,cx|{let active=v.analysis_job.as_ref().is_some_and(|j|j.same(&poll));if active{cx.notify();}active}),Ok(true)){break}
+  }}).detach();
+  job
+ }
+ fn finish_analysis_job(&mut self,job:&color_convert_rust::analysis_job::Job,cx:&mut Context<Self>)->bool{
+  if !self.analysis_job.as_ref().is_some_and(|j|j.same(job)){return false}
+  self.analysis_job=None;self.busy=false;
+  if job.cancelled(){self.status="Analysis cancelled".into();cx.notify();return false}true
+ }
+ fn analysis_progress(&self,scope:usize,cx:&mut Context<Self>)->Div{
+  let mut p=div().flex().flex_col().gap_1();
+  if let Some(j)=&self.analysis_job{
+   let x=j.progress();
+   p=p.child(div().flex().flex_wrap().items_center().gap_2()
+    .child(div().flex_1().text_xs().child(if x.phase.is_empty(){tr("Working…")}else{tr(x.phase)}))
+    .child(button(("cancel-analysis",scope),if x.cancelled{tr("Cancelling…")}else{tr("Cancel analysis")}).on_click(cx.listener(|v,_,_,cx|{if let Some(j)=&v.analysis_job{j.cancel();cx.notify();}}))));
+   if x.total>0{p=p.child(bar(x.completed as f64/x.total as f64,0xe87935,6.)).child(format!("{} / {}",x.completed,x.total));}
+   else{p=p.child(format!("{}: {}",tr("Completed checkpoints"),x.checkpoints));}
+  }p
+ }
  fn compare_profiles(&mut self,cx:&mut Context<Self>){
   if self.busy{return}
   let (Some(a),Some(b))=(self.source.clone(),self.candidate.clone())else{return};
   let grid=self.compare_grid;let intent=self.compare_intent;
   self.busy=true;self.comparison=None;self.compare_error=None;self.status="Comparing profile predictions with LittleCMS...".into();cx.notify();
-  cx.spawn(async move |this,cx|{
-   let result=cx.background_spawn(async move{comparison::compare(&a,&b,grid,intent)}).await;
-   let _=this.update(cx,|view,cx|{
+  let job=self.start_analysis_job(cx);cx.spawn(async move |this,cx|{
+   let worker=job.clone();let result=cx.background_spawn(async move{worker.run(||comparison::compare(&a,&b,grid,intent))}).await;
+   let _=this.update(cx,|view,cx|{if !view.finish_analysis_job(&job,cx){return}
     match result{Ok(r)=>{view.status=format!("Compared {} sRGB samples and 33 neutrals.",r.count);view.comparison=Some(r)},Err(e)=>{view.status="Comparison failed".into();view.compare_error=Some(e)}}
     view.busy=false;cx.notify();
    });
@@ -495,10 +519,10 @@ impl Studio {
   let candidate=self.candidate.clone();let grid=self.gamut_grid;
   let reference_intent=self.gamut_reference_intent;let candidate_intent=if self.gamut_separate_intents{self.gamut_candidate_intent}else{reference_intent};
   self.preview=None;self.busy=true;self.status="Sampling effective Lab gamut with LittleCMS…".into();cx.notify();
-  cx.spawn(async move |this,cx|{
-   let result=cx.background_spawn(async move{gamut::overlay_with_intents(&reference,candidate.as_deref(),grid,reference_intent,candidate_intent)}).await;
-   let _=this.update(cx,|view,cx|{
-    let status=match &result.reference{Ok(c)=>format!("Gamut ready: {} reference points{}",c.points.len(),match &result.candidate{Some(Ok(c))=>format!(", {} candidate points",c.points.len()),Some(Err(e))=>format!("; candidate failed: {e}"),None=>String::new()}),Err(e)=>format!("Reference gamut failed: {e}")};view.preview=Some(result);view.preview_revision=view.preview_revision.wrapping_add(1);view.busy=false;view.status=status;cx.notify();
+  let job=self.start_analysis_job(cx);cx.spawn(async move |this,cx|{
+   let worker=job.clone();let result=cx.background_spawn(async move{worker.run(||Ok(gamut::overlay_with_intents(&reference,candidate.as_deref(),grid,reference_intent,candidate_intent)))}).await;
+   let _=this.update(cx,|view,cx|{if !view.finish_analysis_job(&job,cx){return}
+    let result=match result{Ok(r)=>r,Err(e)=>{view.status=e;cx.notify();return}};let status=match &result.reference{Ok(c)=>format!("Gamut ready: {} reference points{}",c.points.len(),match &result.candidate{Some(Ok(c))=>format!(", {} candidate points",c.points.len()),Some(Err(e))=>format!("; candidate failed: {e}"),None=>String::new()}),Err(e)=>format!("Reference gamut failed: {e}")};view.preview=Some(result);view.preview_revision=view.preview_revision.wrapping_add(1);view.busy=false;view.status=status;cx.notify();
    });
   }).detach();
  }
@@ -556,6 +580,7 @@ impl Studio {
      .when(!full,|p|p.child(seg("collapse-preview","»",false).on_click(cx.listener(|v,_,_,cx|{v.preview_open=false;cx.notify();}))))))
    .child(self.gamut_toolbar(cx))
    .child(self.gamut_plot(display,"gamut-orbit",cx))
+   .child(self.analysis_progress(1,cx))
    .child(div().id("preview-scroll").flex_1().min_h(px(0.)).overflow_y_scroll().p_2().child(self.gamut_controls(cx)));
   panel
  }
@@ -625,9 +650,9 @@ impl Studio {
  fn analyze_gradient(&mut self,cx:&mut Context<Self>){
   if self.busy{return}let Some(reference)=self.source.clone()else{return};
   let candidate=self.candidate.clone();self.gradient=None;self.gradient_detail=None;self.gradient_selected=0;self.gradient_error=None;self.busy=true;self.status="Analyzing 13 gradients with LittleCMS…".into();cx.notify();
-  cx.spawn(async move |this,cx|{
-   let result=cx.background_spawn(async move{gradient::compare(&reference,candidate.as_deref())}).await;
-   let _=this.update(cx,|view,cx|{view.busy=false;match result{Ok(r)=>{view.gradient=Some(r);view.status="Gradient analysis complete.".into();},Err(e)=>{view.gradient_error=Some(e);view.status="Gradient analysis failed.".into();}}cx.notify();});
+  let job=self.start_analysis_job(cx);cx.spawn(async move |this,cx|{
+   let worker=job.clone();let result=cx.background_spawn(async move{worker.run(||gradient::compare(&reference,candidate.as_deref()))}).await;
+   let _=this.update(cx,|view,cx|{if !view.finish_analysis_job(&job,cx){return}view.busy=false;match result{Ok(r)=>{view.gradient=Some(r);view.status="Gradient analysis complete.".into();},Err(e)=>{view.gradient_error=Some(e);view.status="Gradient analysis failed.".into();}}cx.notify();});
   }).detach();
  }
  fn gradient_page(&self,cx:&mut Context<Self>)->Div{
@@ -879,9 +904,9 @@ impl Studio {
    .child(button("solve-recipe",if self.busy{"Working…"}else{"Find ink recipes"}).bg(rgb(0xc65f24)).on_click(cx.listener(|v,_,_,cx|{
     if v.busy{return}let Some(p)=v.source.clone()else{return};let target=v.recipe_target;let mut s=v.recipe_settings.clone();let dynamic=v.display_profile.as_ref().is_some_and(|p|!p.cmyk());s.caps=v.caps.clone();s.tac=v.tac;
     v.busy=true;v.recipe_result=None;v.status="Searching feasible ink recipes…".into();cx.notify();
-    cx.spawn(async move|this,cx|{
-     let result=cx.background_spawn(async move{optimizer::find_multi(&p,target,s)}).await;
-     let _=this.update(cx,|v,cx|{v.busy=false;match result{Ok(r)=>{v.status=format!("{} candidate recipes evaluated",r.evaluated);v.recipe_result=Some(r)},Err(e)=>v.status=format!("Error: {e}")}cx.notify();});
+    let job=v.start_analysis_job(cx);cx.spawn(async move|this,cx|{
+     let worker=job.clone();let result=cx.background_spawn(async move{worker.run(||optimizer::find_multi(&p,target,s))}).await;
+     let _=this.update(cx,|v,cx|{if !v.finish_analysis_job(&job,cx){return}v.busy=false;match result{Ok(r)=>{v.status=format!("{} candidate recipes evaluated",r.evaluated);v.recipe_result=Some(r)},Err(e)=>v.status=format!("Error: {e}")}cx.notify();});
     }).detach();
    })));
   if let Some(r)=&self.recipe_result{
@@ -970,9 +995,9 @@ impl Studio {
     if v.busy||v.lab_loading{return}let Some(c)=v.characterization.clone()else{return};
     let n=v.capability.as_ref().map(|c|c.channels).unwrap_or(0);
     v.busy=true;v.ncolor_report=None;v.status="Evaluating N-color baseline…".into();cx.notify();
-    cx.spawn(async move|this,cx|{
-     let result=cx.background_spawn(async move{color_convert_rust::ncolor_model::cross_validate(&c,n)}).await;
-     let _=this.update(cx,|v,cx|{v.busy=false;match result{Ok(r)=>{v.ncolor_report=Some(r);v.status="N-color baseline evaluated".into()},Err(e)=>v.status=format!("Error: {e}")}cx.notify();});
+    let job=v.start_analysis_job(cx);cx.spawn(async move|this,cx|{
+     let worker=job.clone();let result=cx.background_spawn(async move{worker.run(||color_convert_rust::ncolor_model::cross_validate(&c,n))}).await;
+     let _=this.update(cx,|v,cx|{if !v.finish_analysis_job(&job,cx){return}v.busy=false;match result{Ok(r)=>{v.ncolor_report=Some(r);v.status="N-color baseline evaluated".into()},Err(e)=>v.status=format!("Error: {e}")}cx.notify();});
     }).detach();
    })));
   if let Some(r)=&self.ncolor_report{
@@ -1004,9 +1029,9 @@ impl Studio {
     if v.busy||v.lab_loading{return}let Some(c)=v.characterization.clone()else{return};
     let n=v.capability.as_ref().map(|c|c.channels).unwrap_or(0);
     v.busy=true;v.ncolor_audit=None;v.status="Evaluating model continuity…".into();cx.notify();
-    cx.spawn(async move|this,cx|{
-     let result=cx.background_spawn(async move{color_convert_rust::ncolor_model::audit_continuity(&c,n)}).await;
-     let _=this.update(cx,|v,cx|{v.busy=false;match result{Ok(r)=>{v.ncolor_audit=Some(r);v.status="Continuity audit completed".into()},Err(e)=>v.status=format!("Error: {e}")}cx.notify();});
+    let job=v.start_analysis_job(cx);cx.spawn(async move|this,cx|{
+     let worker=job.clone();let result=cx.background_spawn(async move{worker.run(||color_convert_rust::ncolor_model::audit_continuity(&c,n))}).await;
+     let _=this.update(cx,|v,cx|{if !v.finish_analysis_job(&job,cx){return}v.busy=false;match result{Ok(r)=>{v.ncolor_audit=Some(r);v.status="Continuity audit completed".into()},Err(e)=>v.status=format!("Error: {e}")}cx.notify();});
     }).detach();
    })));
   if let Some(r)=&self.ncolor_audit{
@@ -1044,9 +1069,9 @@ impl Studio {
     let target=v.ncolor_target;
     let settings=color_convert_rust::ncolor_model::InverseSettings{caps_percent:v.caps.clone(),tac_percent:v.tac,tolerance:v.ncolor_tolerance,max_recipe_distance:v.ncolor_distance};
     v.busy=true;v.ncolor_inverse=None;v.status="Solving N-color recipe…".into();cx.notify();
-    cx.spawn(async move|this,cx|{
-     let result=cx.background_spawn(async move{color_convert_rust::ncolor_model::solve_inverse(&c,n,target,settings)}).await;
-     let _=this.update(cx,|v,cx|{v.busy=false;match result{Ok(r)=>{v.ncolor_inverse=Some(r);v.status="N-color recipe evaluated".into()},Err(e)=>v.status=format!("Error: {e}")}cx.notify();});
+    let job=v.start_analysis_job(cx);cx.spawn(async move|this,cx|{
+     let worker=job.clone();let result=cx.background_spawn(async move{worker.run(||color_convert_rust::ncolor_model::solve_inverse(&c,n,target,settings))}).await;
+     let _=this.update(cx,|v,cx|{if !v.finish_analysis_job(&job,cx){return}v.busy=false;match result{Ok(r)=>{v.ncolor_inverse=Some(r);v.status="N-color recipe evaluated".into()},Err(e)=>v.status=format!("Error: {e}")}cx.notify();});
     }).detach();
    })));
   if let Some(r)=&self.ncolor_inverse{
@@ -1068,9 +1093,9 @@ impl Studio {
     let n=v.capability.as_ref().map(|c|c.channels).unwrap_or(0);let center=v.ncolor_target;
     let settings=color_convert_rust::ncolor_model::InverseSettings{caps_percent:v.caps.clone(),tac_percent:v.tac,tolerance:v.ncolor_tolerance,max_recipe_distance:v.ncolor_distance};
     v.busy=true;v.ncolor_ramp=None;v.status="Auditing inverse lightness ramp…".into();cx.notify();
-    cx.spawn(async move|this,cx|{
-     let result=cx.background_spawn(async move{color_convert_rust::ncolor_model::audit_inverse_ramp(&c,n,center,settings)}).await;
-     let _=this.update(cx,|v,cx|{v.busy=false;match result{Ok(r)=>{v.ncolor_ramp=Some(r);v.status="Inverse ramp audit completed".into()},Err(e)=>v.status=format!("Error: {e}")}cx.notify();});
+    let job=v.start_analysis_job(cx);cx.spawn(async move|this,cx|{
+     let worker=job.clone();let result=cx.background_spawn(async move{worker.run(||color_convert_rust::ncolor_model::audit_inverse_ramp(&c,n,center,settings))}).await;
+     let _=this.update(cx,|v,cx|{if !v.finish_analysis_job(&job,cx){return}v.busy=false;match result{Ok(r)=>{v.ncolor_ramp=Some(r);v.status="Inverse ramp audit completed".into()},Err(e)=>v.status=format!("Error: {e}")}cx.notify();});
     }).detach();
    })));
   if let Some(r)=&self.ncolor_ramp{
@@ -1095,9 +1120,9 @@ impl Studio {
     let n=v.capability.as_ref().map(|c|c.channels).unwrap_or(0);let center=v.ncolor_target;let lambda=v.ncolor_lambda;
     let settings=color_convert_rust::ncolor_model::InverseSettings{caps_percent:v.caps.clone(),tac_percent:v.tac,tolerance:v.ncolor_tolerance,max_recipe_distance:v.ncolor_distance};
     v.busy=true;v.ncolor_regularized=None;v.status="Regularizing inverse ramp…".into();cx.notify();
-    cx.spawn(async move|this,cx|{
-     let result=cx.background_spawn(async move{color_convert_rust::ncolor_model::regularize_inverse_ramp(&c,n,center,settings,lambda)}).await;
-     let _=this.update(cx,|v,cx|{v.busy=false;match result{Ok(r)=>{v.ncolor_regularized=Some(r);v.status="Regularized ramp evaluated".into()},Err(e)=>v.status=format!("Error: {e}")}cx.notify();});
+    let job=v.start_analysis_job(cx);cx.spawn(async move|this,cx|{
+     let worker=job.clone();let result=cx.background_spawn(async move{worker.run(||color_convert_rust::ncolor_model::regularize_inverse_ramp(&c,n,center,settings,lambda))}).await;
+     let _=this.update(cx,|v,cx|{if !v.finish_analysis_job(&job,cx){return}v.busy=false;match result{Ok(r)=>{v.ncolor_regularized=Some(r);v.status="Regularized ramp evaluated".into()},Err(e)=>v.status=format!("Error: {e}")}cx.notify();});
     }).detach();
    })));
   if let Some(r)=&self.ncolor_regularized{
@@ -1132,9 +1157,9 @@ impl Studio {
     let inverse=color_convert_rust::ncolor_model::InverseSettings{caps_percent:v.caps.clone(),tac_percent:v.tac,tolerance:v.ncolor_tolerance,max_recipe_distance:v.ncolor_distance};
     let settings=color_convert_rust::ncolor_model::LatticeSettings{center:v.ncolor_target,half_span:v.ncolor_span,inverse,lambda:v.ncolor_lambda};
     v.busy=true;v.ncolor_lattice=None;v.status="Auditing 3D Lab lattice…".into();cx.notify();
-    cx.spawn(async move|this,cx|{
-     let result=cx.background_spawn(async move{color_convert_rust::ncolor_model::audit_lab_lattice(&c,n,settings)}).await;
-     let _=this.update(cx,|v,cx|{v.busy=false;match result{Ok(r)=>{v.ncolor_lattice=Some(r);v.status="3D lattice audit completed".into()},Err(e)=>v.status=format!("Error: {e}")}cx.notify();});
+    let job=v.start_analysis_job(cx);cx.spawn(async move|this,cx|{
+     let worker=job.clone();let result=cx.background_spawn(async move{worker.run(||color_convert_rust::ncolor_model::audit_lab_lattice(&c,n,settings))}).await;
+     let _=this.update(cx,|v,cx|{if !v.finish_analysis_job(&job,cx){return}v.busy=false;match result{Ok(r)=>{v.ncolor_lattice=Some(r);v.status="3D lattice audit completed".into()},Err(e)=>v.status=format!("Error: {e}")}cx.notify();});
     }).detach();
    })));
   if let Some(r)=&self.ncolor_lattice{
@@ -1187,9 +1212,9 @@ impl Studio {
       let grid=if v.ncolor_forward_grid.len()==n{v.ncolor_forward_grid.clone()}else{vec![default_grid;n]};
       let distance=v.ncolor_distance;
       v.busy=true;v.ncolor_forward=None;v.status="Auditing forward CLUT…".into();cx.notify();
-      cx.spawn(async move|this,cx|{
-       let result=cx.background_spawn(async move{color_convert_rust::ncolor_model::audit_forward_grid(&c,&grid,0,distance)}).await;
-       let _=this.update(cx,|v,cx|{v.busy=false;match result{Ok(r)=>{v.ncolor_forward=Some(r);v.status="Forward CLUT audit completed".into()},Err(e)=>v.status=format!("Error: {e}")}cx.notify();});
+      let job=v.start_analysis_job(cx);cx.spawn(async move|this,cx|{
+       let worker=job.clone();let result=cx.background_spawn(async move{worker.run(||color_convert_rust::ncolor_model::audit_forward_grid(&c,&grid,0,distance))}).await;
+       let _=this.update(cx,|v,cx|{if !v.finish_analysis_job(&job,cx){return}v.busy=false;match result{Ok(r)=>{v.ncolor_forward=Some(r);v.status="Forward CLUT audit completed".into()},Err(e)=>v.status=format!("Error: {e}")}cx.notify();});
       }).detach();
      })));
    }
@@ -1749,6 +1774,7 @@ impl Render for Studio {
      .child(seg("ink-name-profile","Profile names",self.embedded_names).on_click(cx.listener(|v,_,_,cx|{v.embedded_names=true;v.persist_name_mode();cx.notify();})))
      .when(self.embedded_names&&self.display_profile.as_ref().is_some_and(|p|p.colorants().iter().all(Option::is_none)),|r|r.child(div().text_xs().text_color(rgb(0xfbbf24)).child(tr("No embedded ink names")))))).child(button("toggle-preview",if vw<1100.{"Open expanded gamut"}else if docked{"Hide preview"}else{"Show preview"}).on_click(cx.listener(move|this,_,_,cx|{if vw<1100.{this.preview_fullscreen=true;}else{this.preview_open=!this.preview_open;}if (this.preview_open||this.preview_fullscreen)&&this.preview.is_none(){this.refresh_gamut(cx);}cx.notify();}))))
     .child(div().id("content-scroll").flex_1().min_h(px(0.)).overflow_y_scroll().p_5().child(div().w_full().max_w(px(1000.)).mx_auto().when(rtl,|p|p.text_right()).child(content)))
+    .child(self.analysis_progress(0,cx))
     .child(div().flex().items_center().gap_2().px_5().py_3().bg(rgb(0x262626)).text_sm().when(rtl,|p|p.flex_row_reverse()).child(div().size(px(8.)).rounded_md().bg(rgb(if self.busy{0xe87935}else{0x858585}))).child(div().flex_1().min_w(px(0.)).when(rtl,|r|r.text_right()).child(i18n::status(&self.status))).when(self.rebuild_control.is_some(),|r|r.child(button("cancel-rebuild",if self.rebuild_control.as_ref().is_some_and(|c|c.cancelled()){tr("Cancelling…")}else{tr("Cancel rebuild")}).on_click(cx.listener(|v,_,_,cx|{if let Some(c)=&v.rebuild_control{if c.cancel(){v.status="Cancelling…".into();cx.notify();}}})))));
   let mut root=div().flex().size_full().bg(rgb(0x242424)).text_color(rgb(0xe8e8e8));
   let resizer=div().id("gamut-resizer").w(px(6.)).h_full().flex_shrink_0().bg(rgb(0x383838)).hover(|s|s.bg(rgb(0xfb923c))).cursor_pointer()
