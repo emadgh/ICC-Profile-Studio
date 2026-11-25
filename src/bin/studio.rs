@@ -151,15 +151,25 @@ impl Studio {
     .on_key_down(cx.listener(move|v,e:&KeyDownEvent,window,cx|{
      if v.busy{v.numeric_edit=None;cx.notify();return}
      let Some((key,buf,_,bad))=v.numeric_edit.as_mut()else{return};if *key!=id{return}
+     if e.keystroke.modifiers.control&&!e.keystroke.modifiers.alt{
+      match e.keystroke.key.as_str(){
+       "v"=>{if let Some(text)=cx.read_from_clipboard().and_then(|item|item.text()).and_then(|t|ui_geometry::normalize_numeric(&t)){*buf=text;*bad=scale.parse(buf).is_none();}else{*bad=true;}},
+       "c"=>{if !buf.is_empty(){cx.write_to_clipboard(ClipboardItem::new_string(buf.clone()));}},
+       "a"=>{buf.clear();*bad=false;},
+       _=>{}
+      }
+      window.prevent_default();cx.stop_propagation();cx.notify();return
+     }
      match e.keystroke.key.as_str(){
       "enter"=>{if let Some(x)=scale.parse(buf){v.numeric_edit=None;set(v,x);}else{*bad=true;}},
       "escape"=>{v.numeric_edit=None;},
       "backspace"=>{buf.pop();*bad=false;},
       "delete"=>{buf.clear();*bad=false;},
-      _=>{if let Some(c)=e.keystroke.key_char.as_deref(){if buf.chars().count()<24&&c.chars().all(|x|matches!(x,'0'..='9'|'۰'..='۹'|'٠'..='٩'|'.'|','|'٫'|'-'|'−'|'+')){buf.push_str(c);*bad=false;}}}
+      _=>{if let Some(c)=e.keystroke.key_char.as_deref(){if buf.chars().count()+c.chars().count()<=24&&c.chars().all(|x|matches!(x,'0'..='9'|'۰'..='۹'|'٠'..='٩'|'.'|','|'٫'|'-'|'−'|'+')){buf.push_str(c);*bad=false;}}}
      }
      window.prevent_default();cx.stop_propagation();cx.notify();
     })));
+   control=control.child(div().text_xs().text_color(rgb(0xa1a1aa)).child(tr("Numeric input: Ctrl+V pastes; Ctrl+A clears; Enter applies; Escape cancels.")));
    if *invalid{control=control.child(div().text_xs().text_color(rgb(0xf87171)).child(tr("Invalid numeric value or outside allowed range.")));}
   }else{
    control=control.child(seg("numeric-edit",scale.label(value),false).on_click(cx.listener(move|v,_,window,cx|{
