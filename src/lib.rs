@@ -1,3 +1,4 @@
+pub mod advanced_lut;
 pub mod multichannel;
 pub mod rtl;
 pub mod print_space;
@@ -148,6 +149,12 @@ impl Profile {
   self.check()?;let mut max:[f64;4]=[0.;4];
   for k in [b"B2A0",b"B2A1",b"B2A2"]{
    let t=self.tags.get(k).ok_or("Missing rebuilt B2A intent")?;
+   if Lut::parse(t).is_err()&&t.starts_with(b"mBA "){
+    let b=crate::print_space::bounds(self)?;
+    let result:[f64;4]=b.channels.try_into().map_err(|_|"Unexpected channel count")?;
+    for j in 0..4{if result[j]>caps[j]+1e-10{return Err(format!("Channel {} exceeds limit",j+1))}}
+    return Ok(result)
+   }
    let lut=Lut::parse(t)?;
    if lut.inputs!=3 || lut.outputs!=4{return Err("Unexpected output LUT dimensions".into())}
    for j in 0..4{
