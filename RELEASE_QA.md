@@ -96,3 +96,9 @@ Verify per-ink grid controls, preset, product overflow and node/work budget, cha
 - [ ] #31 New N-color profiling remains experimental; no serialization until full domain coverage, reverse continuity, media normalization, native CMM and independent physical tests satisfy approved gates.
 
 Evidence per check: build commit, input profile signature/version/channel count, operation/intent, settings, outcome, logs/screenshots or measured data and remaining limitations. Do not mark completion on CI alone when manual/physical acceptance is required. Track issues at https://github.com/emadgh/color-convert-rust/issues.
+
+### RTL and diagnostics hardening — partial, pending CI/manual QA
+- [ ] Switch en/fa/it/ar/ru during a job; exact known status updates in current language; unknown native errors preserve details and file paths, no translated value is sent to an engine or storage.
+- [ ] Verify right-aligned workspace, sidebar and preview, mirrored system picker/header and bottom status; compare mixed-script, numbers and paths with LTR mode. Axis orientation, slider direction, channel ordering and 3D orbit unchanged.
+- [ ] Test mixed-script wrapping, punctuation, editable input, focus and Windows DPI; GPUI display-only Arabic shaping is not full native bidi layout.
+- [ ] Inventory remaining dynamic success/status messages, technical descriptions and raw native diagnostics; replace with stable typed IDs/parameters in future batches. Static literal translation checks are not proof of complete UI translation.
