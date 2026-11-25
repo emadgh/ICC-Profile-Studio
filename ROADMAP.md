@@ -271,3 +271,9 @@ Lean, vendor-independent GPUI application for CMYK and multichannel output ICCs 
 
 ## beta.40 — forward CLUT sampling diagnostics (CI pending)
 - Beta.39 merged after CI #105. Add bounded anisotropic grid, raw Lab16 size, grouped holdout, missing-node/corner rejection, common-subset comparison, UI per-ink resolution and coverage. Independent actual FOGRA55 Python fold 0: 3^7 grid covers 742/867 holdouts, mean DE00 1.296; 5^4×2^3 covers 743/867, mean 1.704. Different subsets, neither complete. No ICC serialization or PCS normalization. Next: explicit gamut mapping and full-domain support policy; validate native interpolation and PCS before experimental export.
+
+## Active UI hardening batch — after beta.40
+- Beta.40 PR #24 merged after CI #107 (fix for GUI format argument); #34 retargeted to main, CI #108 requested. Gamut intent source and documentation await exact-head CI and Windows acceptance.
+- #25 partial: align workspace text, sidebar, preview and picker in RTL; mirror picker header and status chrome without changing numerical sliders, axes, colorant order or orbit. Existing display-only shaping remains; full mixed-script wrapping, editable bidi and Windows DPI/focus acceptance remain open.
+- #26 partial: add 47 five-language dictionary entries covering common worker statuses and capability messages; localize display-only diagnostics, retain raw engine details, render stored statuses in current locale instead of translating at assignment. 594 dictionary keys, static scan of literal tr calls found no missing or duplicated keys. Arbitrary native strings remain raw under localized heading; structured diagnostic IDs and parameterized success messages still pending. No claims of full localization.
+- #27, #28, #29, #33 remain open; subsequent batches should prioritize shared job progress/cancellation and numeric controls, then updater/Windows acceptance. No new profiling research features in this hardening batch.
