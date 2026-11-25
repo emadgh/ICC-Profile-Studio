@@ -14,8 +14,9 @@ fn tokens(line:&str)->R<Vec<String>>{
 }
 fn num(s:&str)->R<f64>{let v=s.parse::<f64>().map_err(|_|"Invalid CGATS number")?;if !v.is_finite(){return Err("Nonfinite CGATS number".into())}Ok(v)}
 pub(crate) fn read(text:&str,n:usize,cmyk:bool)->R<Chart>{read_with_names(text,n,cmyk,None)}
-pub(crate) fn read_with_names(text:&str,n:usize,cmyk:bool,names:Option<&[String]>)->R<Chart>{
- if !(2..=15).contains(&n)||cmyk&&n!=4{return Err("Invalid CGATS channel count".into())}
+pub(crate) fn read_with_names(text:&str,n:usize,cmyk:bool,names:Option<&[String]>)->R<Chart>{read_with_space(text,n,cmyk,false,names)}
+pub(crate) fn read_with_space(text:&str,n:usize,cmyk:bool,cmy:bool,names:Option<&[String]>)->R<Chart>{
+ if !(2..=15).contains(&n)||cmyk&&n!=4||cmy&&n!=3||cmy&&cmyk{return Err("Invalid CGATS channel count".into())}
  if text.len()>32*1024*1024{return Err("CGATS exceeds 32 MiB".into())}
  let mut state=0;let mut fields=Vec::new();let mut rows=Vec::new();let mut meta=BTreeMap::new();let mut process=BTreeMap::<usize,String>::new();let mut iso28178=false;
  for line in text.lines(){
@@ -48,7 +49,7 @@ pub(crate) fn read_with_names(text:&str,n:usize,cmyk:bool,names:Option<&[String]
  let id=fields.iter().position(|f|f=="SAMPLE_ID");
  if id.is_none()&&!pc{return Err("Missing CGATS field SAMPLE_ID".into())}
  let device=if pc{
-  if fields.iter().any(|f|f.starts_with("CH")||f.starts_with("CMYK_")){return Err("Ambiguous process-color field mapping".into())}
+  if fields.iter().any(|f|f.starts_with("CH")||f.starts_with("CMYK_")||f.starts_with("CMY_")){return Err("Ambiguous process-color field mapping".into())}
   let names=names.filter(|v|v.len()==n).ok_or("ISO28178 requires explicit profile channel names")?;
   for j in 1..=n{
    let vendor=meta.get(&format!("LGOMCCHANNEL{j:02}")).and_then(|s|s.split_once("InkName = '")).and_then(|(_,s)|s.split_once('\'')).map(|(name,_)|name);
@@ -59,7 +60,10 @@ pub(crate) fn read_with_names(text:&str,n:usize,cmyk:bool,names:Option<&[String]
   }
   let indices=(1..=n).map(|j|index(&format!("PC{n}_{j}"))).collect::<R<Vec<_>>>()?;
   if fields.iter().filter(|f|f.starts_with("PC")&&f.contains('_')).count()!=n{return Err("Unexpected ISO28178 process-color fields".into())}indices
- }else if cmyk{["CMYK_C","CMYK_M","CMYK_Y","CMYK_K"].iter().map(|s|index(s)).collect::<R<Vec<_>>>()?}else{
+ }else if cmyk{["CMYK_C","CMYK_M","CMYK_Y","CMYK_K"].iter().map(|s|index(s)).collect::<R<Vec<_>>>()?}else if cmy&&fields.iter().any(|f|f.starts_with("CMY_")){
+  if fields.iter().any(|f|f.starts_with("CH")||f.starts_with("CMYK_"))||fields.iter().filter(|f|f.starts_with("CMY_")).count()!=3{return Err("Ambiguous CMY field mapping".into())}
+  ["CMY_C","CMY_M","CMY_Y"].iter().map(|s|index(s)).collect::<R<Vec<_>>>()?
+ }else{
   (1..=n).map(|j|index(&format!("CH{j}"))).collect::<R<Vec<_>>>()?
  };
  if device.len()!=n{return Err("CGATS device channel count mismatch".into())}
@@ -151,6 +155,13 @@ pub(crate) fn write(c:&Chart,n:usize,cmyk:bool)->R<String>{
 
 #[cfg(test)]mod tests{
  use super::*;
+ #[test]fn native_cmy_named_columns_require_native_signature(){
+  let data="CTI3\nILLUMINANT D50\nOBSERVER 2\nBEGIN_DATA_FORMAT\nSAMPLE_ID CMY_Y CMY_C CMY_M LAB_L LAB_A LAB_B\nEND_DATA_FORMAT\nBEGIN_DATA\np1 20 10 30 50 0 0\nEND_DATA\n";
+  let c=read_with_space(data,3,false,true,None).unwrap();assert_eq!(c.patches[0].inks,vec![10.,30.,20.]);
+  assert!(read(data,3,false).is_err());
+  assert!(read_with_space(&data.replace("CMY_Y","CMYK_K"),3,false,true,None).is_err());
+  assert!(read_with_space(data,4,true,false,None).is_err());
+ }
  #[test]fn export_roundtrip_never_writes_predictions(){
   let mut c=read("CGATS.17\nMEASUREMENT_CONDITION M0\nSPECTRAL_NORM 100\nBEGIN_DATA_FORMAT\nSAMPLE_ID CH1 CH2 CH3 SPEC_380 SPEC_390\nEND_DATA_FORMAT\nBEGIN_DATA\n\"Patch 1\" 0 50 25 30 70\nEND_DATA\n",3,false).unwrap();
   c.patches[0].predicted_lab=[42.,0.,0.];c.patches[0].comparison_lab=Some([50.,0.,0.]);

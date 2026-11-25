@@ -109,7 +109,7 @@ pub fn device_link_multi(reference:&Path,candidate:&Path,destination:&Path,setti
  if !settings.max_ink_pp.is_finite()||!(0.1..=10.).contains(&settings.max_ink_pp){return Err("DeviceLink channel tolerance must be 0.1–10 percentage points".into())}
  let src=crate::Profile::read(reference)?;let dst=crate::Profile::read(candidate)?;
  let a=Profile::new_icc(&src.bytes()?).map_err(err)?;let b=Profile::new_icc(&dst.bytes()?).map_err(err)?;
- let info=|p:&crate::Profile|{let names=p.channels();let standard=p.standard_channels();(0..names.len()).map(|j|crate::comparison::ChannelInfo{name:names[j].clone(),standard:standard[j].clone(),color:p.channel_swatch(j,true),standard_color:p.channel_swatch(j,false)}).collect::<Vec<_>>()};
+ let info=|p:&crate::Profile|{let names=p.channels();let standard=p.standard_channels();let predicted=crate::capabilities::predicted_swatches(p).unwrap_or_default();(0..names.len()).map(|j|crate::comparison::ChannelInfo{name:names[j].clone(),standard:standard[j].clone(),color:crate::capabilities::channel_display(p,j,&predicted,true).0,standard_color:crate::capabilities::channel_display(p,j,&predicted,false).0}).collect::<Vec<_>>()};
  let source_channels=info(&src);let destination_channels=info(&dst);
  let fi=crate::print_space::for_profile(&a)?;let fo=crate::print_space::for_profile(&b)?;
  let ni=fi.channels;let no=fo.channels;
@@ -196,6 +196,14 @@ mod multi_tests{
    if nin==6{assert_eq!(crate::u32at(&p.tags[b"clrt"],8).unwrap(),6);}
    if nout==6{assert_eq!(crate::u32at(&p.tags[b"clot"],8).unwrap(),6);}
    assert!(device_link_multi(source,dest,&out,settings).is_err());
+  }
+ }
+ #[test]fn native_cmy_link_retains_device_signatures(){
+  let d=tempfile::tempdir().unwrap();let a=d.path().join("cmy.icc");let b=d.path().join("cmyk.icc");
+  crate::print_space::fixture_cmy().save_new(&a).unwrap();crate::synthetic_cmyk_v4(true).save_new(&b).unwrap();
+  for (i,(src,dst,si,so)) in [(&a,&b,"CMY ","CMYK"),(&b,&a,"CMYK","CMY ")].into_iter().enumerate(){
+   let out=d.path().join(format!("native-cmy-link-{i}.icc"));let r=device_link_multi(src,dst,&out,LinkSettings{grid:9,max_ink_pp:10.,intent:Intent::RelativeColorimetric}).unwrap();
+   let q=crate::Profile::read(&out).unwrap();assert_eq!(q.space(),si);assert_eq!(q.pcs(),so);assert_eq!(r.source_space,si);assert_eq!(r.destination_space,so);assert_eq!(&q.header[12..16],b"link");
   }
  }
  #[test]fn invalid_grid_does_not_save(){

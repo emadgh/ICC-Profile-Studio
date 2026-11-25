@@ -28,7 +28,7 @@ fn text_preview(v:&[u8])->Option<String>{
 fn description(p:&Profile)->Option<String>{p.tags.get(b"desc").and_then(|v|text_preview(v)).filter(|s|!s.is_empty())}
 
 fn print_space(s:&[u8])->bool{
- s==b"CMYK"||(s.len()==4&&&s[1..]==b"CLR"&&matches!(s[0],b'2'..=b'9'|b'A'..=b'F'))
+ crate::print_space::format(s).is_ok()
 }
 pub fn supported(p:&Profile)->bool{
  print_space(&p.header[16..20])&&(&p.header[12..16]==b"prtr"||(&p.header[12..16]==b"link"&&print_space(&p.header[20..24])))
@@ -66,6 +66,10 @@ pub fn scan(root:&Path)->R<Catalog>{
 }
 #[cfg(test)]mod tests{
  use super::*;
+ #[test]fn native_cmy_is_listed(){
+  let d=tempfile::tempdir().unwrap();crate::print_space::fixture_cmy().save_new(&d.path().join("cmy.icc")).unwrap();
+  let c=scan(d.path()).unwrap();assert_eq!(c.entries.len(),1);assert!(c.entries[0].format.contains("CMY"));assert!(!c.entries[0].device_link);
+ }
  #[test]fn scans_supported_files_and_excludes_rgb(){
   let d=tempfile::tempdir().unwrap();let p=d.path().join("test.ICM");crate::synthetic_cmyk_v4(true).save_new(&p).unwrap();
   fs::write(d.path().join("rgb.icc"),lcms2::Profile::new_srgb().icc().unwrap()).unwrap();fs::write(d.path().join("bad.icc"),b"bad").unwrap();
