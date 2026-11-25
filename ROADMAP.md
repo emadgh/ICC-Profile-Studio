@@ -164,3 +164,9 @@ Lean, vendor-independent GPUI application for CMYK and multichannel output ICCs 
 - Workflow #87: 142 backend tests passed, GPUI failed E0277 at the two new precise-step button IDs inferred as i32; explicit usize fixes both. Rebuild pending.
 - PR #1's old automatic CI diagnostic workflow is superseded by batched fail-fast CI on main. PR #4's remaining CGATS improvements consolidated here rather than merging overlapping branches: device-only target export, homogeneous data validation, exact round-trip numeric formatting, 32 MiB limit, atomic no-clobber and sync, regression tests. Reject incomplete Lab/XYZ fields and malformed spectral column names. No predicted values emitted as measurements. Unspecified mode remains unspecified. Export layout stays CSV-only.
 - Keep PR #6 as the only integration branch; do not merge until new CI succeeds. Next: beta.28 release QA.
+
+## beta.28 — release stabilization
+- Workflow #88 validated beta.27.1: 146 tests, CIE hashes, GPUI and package; PR #6 merged. Remove obsolete navigation constant and unused UI callback variables.
+- Bound ICC file reads and expanded tag data to 128 MiB, retain valid shared tag offsets, bound serialization and stage atomic no-clobber saving. CGATS rejects conflicting metadata and malformed field/row counts. Regression tests.
+- Locked Cargo build, BUILD_INFO.json with checked-out commit, lock and EXE SHA256, compiler and target. Same-job archive verification checks required files, version, PE AMD64 and digest. ZIP-only CI artifact, same seven-day retention. No extra job.
+- RELEASE_QA.md documents outstanding manual Windows, RTL, real profile, RIP, measurement, licensing, update and Argyll integrity checks. No stable release claim. Pending CI.

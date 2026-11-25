@@ -77,3 +77,5 @@ Beta.26.5 adds bounded CMYK/nCLR characterization target preparation: determinis
 Beta.27 refines the native GPUI workspace: charcoal surfaces, compact stacked profile controls, mirrored sidebar/preview for Persian and Arabic, responsive expanded gamut below 1100 px, calibrated slider endpoints and single-step controls where previously absent, continuous finite-sample line rendering, localized characterization/profiling labels and status indicator. No ICC processing behavior changed. Interactive Windows and RTL rendering still require visual QA; CI checks compilation and pure UI geometry tests.
 
 Beta.27.1 fixes GPUI precise step button ID typing and consolidates CGATS export: device-only targets remain unmeasured, homogeneous measured data uses round-trip precision, with atomic no-clobber saving and a bounded table. Windows build pending.
+
+Beta.28 stabilizes ICC parsing and saving, CGATS metadata validation, locked builds and ZIP verification (version, AMD64 PE, SHA256, build provenance). CI uploads a single ZIP for seven days. See RELEASE_QA.md for outstanding Windows/RTL, RIP, actual measurement, licensing and update checks. No stable release claimed.

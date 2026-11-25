@@ -20,10 +20,6 @@ const STUDIO_VERSION:&str=include_str!("../../STUDIO_VERSION");
 
 #[derive(Clone,Copy,PartialEq,Eq)]
 enum Page { Inspector, Validator, Rebuilder, Comparison, Curves, Reorder, Version, Gamut, Gradient, Correction, Smoothing, DeviceLink, Recipes, Black, Lab, Settings, About }
-const PAGES: [(Page,&str);17] = [
- (Page::Inspector,"Profile Inspector"),(Page::Validator,"Profile Validator"),(Page::Rebuilder,"Profile Rebuilder"),
- (Page::Comparison,"Profile Comparison"),(Page::Curves,"Tone Curves"),(Page::Reorder,"Channel Reorder"),(Page::Version,"ICC Version Conversion"),(Page::Gamut,"Gamut Viewer"),(Page::Gradient,"Gradient Analyzer"),(Page::Correction,"Color Correction"),(Page::Smoothing,"LUT Smoothing"),(Page::DeviceLink,"DeviceLink Generator"),(Page::Recipes,"Ink Optimizer"),(Page::Black,"Black Generation"),(Page::Lab,"Profiling Lab"),(Page::Settings,"Settings"),(Page::About,"About & Updates")
-];
 #[derive(Clone,Copy,PartialEq,Eq)]
 enum Picker{Reference,Comparison,Gamut}
 enum Event { Progress(String), Done(Result<String,String>) }
@@ -154,7 +150,7 @@ impl Studio {
    }).size_full())
    .on_mouse_down(MouseButton::Left,cx.listener(move|v,e:&MouseDownEvent,_,cx|{if !v.busy{if let Some(b)=down.get(){v.slider_drag=Some(id);set(v,get(b,e.position.x));cx.notify();cx.stop_propagation();}}}))
    .on_mouse_move(cx.listener(move|v,e:&MouseMoveEvent,_,cx|{if !v.busy&&e.dragging()&&v.slider_drag==Some(id){if let Some(b)=motion.get(){set(v,get(b,e.position.x));cx.notify();}}}))
-   .on_mouse_up(MouseButton::Left,cx.listener(|v,_,_,cx|{v.slider_drag=None;})).on_mouse_up_out(MouseButton::Left,cx.listener(|v,_,_,cx|{v.slider_drag=None;}));
+   .on_mouse_up(MouseButton::Left,cx.listener(|v,_,_,_|{v.slider_drag=None;})).on_mouse_up_out(MouseButton::Left,cx.listener(|v,_,_,_|{v.slider_drag=None;}));
   // Existing callers with coarse +/- buttons retain those controls.
   // For previously bare sliders provide a precise single-step pair.
   let bare=matches!(id.0,"link-tolerance"|"target-min"|"target-max"|"target-tac"|"target-yaw"|"target-pitch");
@@ -436,7 +432,7 @@ impl Studio {
        v.curve_drag=Some((i,j,e.position.y));cx.notify();
       }
      }))
-     .on_mouse_up(MouseButton::Left,cx.listener(|v,_,_,cx|{v.curve_drag=None;}));
+     .on_mouse_up(MouseButton::Left,cx.listener(|v,_,_,_|{v.curve_drag=None;}));
     let mut card=div().flex().flex_col().flex_1().min_w(px(0.)).gap_1().p_2().rounded_md().bg(rgb(0x282828))
      .child(div().flex().items_center().justify_between().child(div().text_sm().child(name))
       .child(seg((if point_mode{"point-reset"}else{"gamma-reset"},i),"Reset",false).on_click(cx.listener(move|v,_,_,cx|{if !v.busy{if point_mode{v.curve_points[i]=IDENTITY_POINTS[0];}else{v.gamma[i]=1.;}cx.notify();}}))))
@@ -1162,7 +1158,7 @@ impl Studio {
      v.curve_drag=Some((4,j,e.position.y));cx.notify();
     }
    }))
-   .on_mouse_up(MouseButton::Left,cx.listener(|v,_,_,cx|{v.curve_drag=None;}));
+   .on_mouse_up(MouseButton::Left,cx.listener(|v,_,_,_|{v.curve_drag=None;}));
   p=p.child(div().text_sm().child("Requested K preference (before constraints, chroma and tolerance)"))
    .child(graph)
    .child(format!("{}: {:.1}% · {}: {:.1}%",tr("Requested maximum"),s.maximum*100.,tr("Effective target maximum"),effective_max*100.))
@@ -1400,7 +1396,7 @@ impl Render for Studio {
     if !e.dragging(){v.resize_last=None;v.slider_drag=None;return}
     if let Some(last)=v.resize_last{v.preview_width=(v.preview_width+if rtl{f32::from(e.position.x-last)}else{-f32::from(e.position.x-last)}).clamp(280.,(vw-760.).max(280.));v.resize_last=Some(e.position.x);cx.notify();}
    }))
-   .on_mouse_up(MouseButton::Left,cx.listener(|v,_,_,cx|{v.resize_last=None;v.curve_drag=None;}))
+   .on_mouse_up(MouseButton::Left,cx.listener(|v,_,_,_|{v.resize_last=None;v.curve_drag=None;}))
  }
 }
 fn main(){

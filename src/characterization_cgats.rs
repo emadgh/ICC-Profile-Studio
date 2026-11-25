@@ -26,9 +26,9 @@ pub(crate) fn read(text:&str,n:usize,cmyk:bool)->R<Chart>{
    "END_DATA" if state==3=>state=4,
    "BEGIN_DATA_FORMAT"|"END_DATA_FORMAT"|"BEGIN_DATA"|"END_DATA"=>return Err("Multiple or malformed CGATS tables".into()),
    _=>match state{
-    0|2=>{if v.len()==2{meta.insert(v[0].clone(),v[1].clone());}},
-    1=>fields.extend(v),
-    3=>{if rows.len()>=100000{return Err("Too many CGATS patches".into())}rows.push(v);},
+    0|2=>{if v.len()==2{if matches!(v[0].as_str(),"ILLUMINANT"|"OBSERVER"|"MEASUREMENT_CONDITION"|"SPECTRAL_NORM"|"NUMBER_OF_FIELDS"|"NUMBER_OF_SETS")&&meta.get(&v[0]).is_some_and(|prior|prior!=&v[1]){return Err(format!("Conflicting CGATS metadata {}",v[0]))}meta.insert(v[0].clone(),v[1].clone());}},
+    1=>{if fields.len()+v.len()>1100{return Err("Too many CGATS fields".into())}fields.extend(v);},
+    3=>{if v.len()!=fields.len(){return Err("CGATS record width mismatch".into())}if rows.len()>=100000{return Err("Too many CGATS patches".into())}rows.push(v);},
     _=>return Err("Unexpected data after CGATS table".into())
    }
   }
@@ -152,6 +152,9 @@ pub(crate) fn write(c:&Chart,n:usize,cmyk:bool)->R<String>{
  #[test]fn measured_and_quoted_ids(){
   let c=read("CTI3\nILLUMINANT D50\nOBSERVER 2\nNUMBER_OF_FIELDS 8\nNUMBER_OF_SETS 1\nBEGIN_DATA_FORMAT\nSAMPLE_ID CMYK_C CMYK_M CMYK_Y CMYK_K LAB_L LAB_A LAB_B\nEND_DATA_FORMAT\nBEGIN_DATA\n\"Patch 1\" 0 50 25 0 42 -3 12\nEND_DATA\n",4,true).unwrap();
   assert_eq!(c.patches[0].id,"Patch 1");assert_eq!(c.patches[0].measured_lab,Some([42.,-3.,12.]));assert!(!c.original_layout);
+ }
+ #[test]fn refuse_conflicting_metadata(){
+  assert!(read("CGATS.17\nILLUMINANT D50\nILLUMINANT D65\nBEGIN_DATA_FORMAT\nSAMPLE_ID CH1 CH2\nEND_DATA_FORMAT\nBEGIN_DATA\np 0 0\nEND_DATA\n",2,false).is_err());
  }
  #[test]fn refuse_duplicate_fields(){assert!(read("CGATS.17\nBEGIN_DATA_FORMAT\nSAMPLE_ID SAMPLE_ID\nEND_DATA_FORMAT\nBEGIN_DATA\na b\nEND_DATA",4,true).is_err());}
 }

@@ -35,9 +35,9 @@ jobs:
       - name: Test LittleCMS inspection and ICC backend
         env:
           REQUIRE_CIE_DATA: '1'
-        run: cargo test --lib --no-default-features --release --target x86_64-pc-windows-msvc
+        run: cargo test --locked --lib --no-default-features --release --target x86_64-pc-windows-msvc
       - name: Build GPUI preview
-        run: cargo build --release --bin icc-profile-studio --target x86_64-pc-windows-msvc
+        run: cargo build --locked --release --bin icc-profile-studio --target x86_64-pc-windows-msvc
       - name: Package Studio preview
         shell: pwsh
         run: |
@@ -45,8 +45,15 @@ jobs:
           Copy-Item target/x86_64-pc-windows-msvc/release/icc-profile-studio.exe studio-dist/ICC-Profile-Studio.exe
           $hash = (Get-FileHash studio-dist/ICC-Profile-Studio.exe -Algorithm SHA256).Hash.ToLower()
           "$hash  ICC-Profile-Studio.exe" | Set-Content -Encoding ascii studio-dist/ICC-Profile-Studio.exe.sha256
-          Copy-Item README.md,ROADMAP.md,PROFILE_WORKFLOW.md,CIE_DATA.md,STUDIO_VERSION studio-dist/
+          Copy-Item README.md,ROADMAP.md,PROFILE_WORKFLOW.md,CIE_DATA.md,STUDIO_VERSION,RELEASE_QA.md studio-dist/
+          $version = (Get-Content STUDIO_VERSION -Raw).Trim()
+          $source = (git rev-parse HEAD).Trim()
+          $lock = (Get-FileHash Cargo.lock -Algorithm SHA256).Hash.ToLowerInvariant()
+          @{version=$version;source_commit=$source;lock_sha256=$lock;exe_sha256=$hash;target='x86_64-pc-windows-msvc';rustc=(rustc --version);run_id=$env:GITHUB_RUN_ID} | ConvertTo-Json | Set-Content -Encoding utf8 studio-dist/BUILD_INFO.json
           Compress-Archive -Path studio-dist/* -DestinationPath ICC-Profile-Studio-Windows-x64.zip
+      - name: Verify packaged executable and archive
+        shell: pwsh
+        run: ./scripts/verify-studio-package.ps1 -Archive ICC-Profile-Studio-Windows-x64.zip -Version (Get-Content STUDIO_VERSION -Raw).Trim()
       - name: Publish separate Studio prerelease
         if: github.event_name == 'workflow_dispatch' && inputs.publish_preview && github.ref == 'refs/heads/main'
         shell: pwsh
@@ -63,6 +70,6 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: ICC-Profile-Studio-GPUI-preview
-          path: studio-dist/
+          path: ICC-Profile-Studio-Windows-x64.zip
           retention-days: 7
           if-no-files-found: error
