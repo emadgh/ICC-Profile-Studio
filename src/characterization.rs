@@ -181,5 +181,19 @@ mod tests{
   let mut z=flate2::write::ZlibEncoder::new(Vec::new(),flate2::Compression::default());z.write_all(xml.as_bytes()).unwrap();z.write_all(b"\0").unwrap();raw.extend(z.finish().unwrap());
   let c=cxf(&raw,4).unwrap();assert_eq!(c.patches.len(),1);let p=&c.patches[0];assert_eq!(p.inks,vec![20.,0.,50.,0.]);assert_eq!(p.spectrum.as_deref(),Some(&[0.1,0.2][..]));assert_eq!(p.step_nm,Some(10));assert!(p.measured_lab.is_none());
  }
+ #[test]fn fit_is_explicit_and_uses_absolute_not_relative(){
+  let mut c=Chart{source:"test".into(),original_layout:false,patches:vec![Patch{
+   id:"1".into(),page:1,row:0,column:0,inks:vec![0.;4],spectrum:Some(vec![0.5;36]),start_nm:Some(380),step_nm:Some(10),measurement:"M0".into(),predicted_lab:[99.,0.,0.],measured_lab:None,absolute_lab:Some([76.069261,0.,0.]),comparison_lab:None,delta_e:None,measurement_basis:String::new()
+  }]};
+  prepare_measurements(&mut c);assert!(c.patches[0].measured_lab.is_none());assert!(c.patches[0].delta_e.is_none());
+  let r=compare_absolute(&mut c).unwrap();assert_eq!(r.count,1);assert!(r.max<0.0001);
+ }
+ #[test]fn embedded_targ_extracts_declared_measured_lab(){
+  let mut p=crate::synthetic_cmyk_v4(true);
+  let mut t=b"text\0\0\0\0".to_vec();
+  t.extend(b"CTI3\nILLUMINANT D50\nOBSERVER 2\nBEGIN_DATA_FORMAT\nSAMPLE_ID CMYK_C CMYK_M CMYK_Y CMYK_K LAB_L LAB_A LAB_B\nEND_DATA_FORMAT\nBEGIN_DATA\n1 0 0 0 0 90 0 0\nEND_DATA\n\0");
+  p.tags.insert(*b"targ",t);let c=extract(&p).unwrap();
+  assert_eq!(c.patches[0].comparison_lab,Some([90.,0.,0.]));assert!(c.patches[0].delta_e.is_none());assert!(!c.original_layout);
+ }
  #[test]fn virtual_is_not_measured(){let p=crate::print_space::fixture(6);let c=virtual_chart(&p).unwrap();assert!(!c.original_layout);assert!(c.patches.iter().all(|p|p.spectrum.is_none()&&p.inks.len()==6));}
 }
