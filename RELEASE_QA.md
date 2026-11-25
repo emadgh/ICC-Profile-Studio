@@ -74,3 +74,6 @@ Verify inverse solver with closed channels, zero and fractional caps/TAC, imposs
 
 ### beta.38 acceptance (pending)
 Compare independent and refined ramps in Profiling Lab. Check lambda=0 identical baseline, invalid weight rejected, pointwise tolerance guard, zero and fractional ink caps/TAC, deterministic refinement, stale settings, chart resets and five languages. Run synthetic tests and optional FOGRA55 reference test. Assess dark ramp separately; no ICC production claims.
+
+### beta.39 acceptance (pending)
+Run 3D lattice audit in Profiling Lab. Check 27 nodes, 18 edges per axis for complete cube, eight complete cell centers, missing nodes not zero-filled, invalid spans/PCS/budget rejection, lambda=0 identity, caps/TAC and pointwise tolerance, stale results and L* slice navigation, five languages. Opt-in real FOGRA55 test; no claims of whole-cell or global gamut coverage, no ICC output.
