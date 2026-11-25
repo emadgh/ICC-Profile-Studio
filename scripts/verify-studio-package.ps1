@@ -36,5 +36,11 @@ try {
     if ($reader.ReadBytes($pe-64).Length -ne $pe-64) { throw 'Truncated PE header' }
     if ($reader.ReadUInt32() -ne 0x00004550 -or $reader.ReadUInt16() -ne 0x8664) { throw 'Expected Windows AMD64 executable' }
   } finally { $reader.Dispose() }
+  $probe = Join-Path ([IO.Path]::GetTempPath()) ("icc-studio-version-" + [Guid]::NewGuid().ToString("N") + ".exe")
+  try {
+    [IO.Compression.ZipFileExtensions]::ExtractToFile($exe,$probe)
+    $metadata = [Diagnostics.FileVersionInfo]::GetVersionInfo($probe)
+    if ($metadata.FileDescription -cne 'ICC Profile Studio' -or $metadata.ProductName -cne 'ICC Profile Studio' -or $metadata.ProductVersion -cne $Version -or $metadata.OriginalFilename -cne 'ICC-Profile-Studio.exe') { throw "Unexpected executable version metadata" }
+  } finally { Remove-Item -LiteralPath $probe -Force -ErrorAction SilentlyContinue }
   Write-Host "Verified $Version Windows x64 archive; SHA256 $actual; source $($info.source_commit)"
 } finally { $zip.Dispose() }
