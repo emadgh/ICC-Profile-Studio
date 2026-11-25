@@ -99,7 +99,7 @@ pub struct Validation{pub train:usize,pub test:usize,pub nearest:ErrorStats,pub 
 pub struct CrossValidation{pub channels:usize,pub input_rows:usize,pub unique_recipes:usize,pub duplicate_rows:usize,pub measurement:String,pub folds:Vec<Validation>,pub pooled:Validation,pub stress:Option<Validation>,pub active_counts:Vec<usize>,pub peak_tac_percent:f64}
 fn local_prediction(training:&[&Sample],target:&[u32])->R<([f64;3],[f64;3],[f64;3],f64)>{local_kernel(training,target,false)}
 fn local_kernel(training:&[&Sample],target:&[u32],tapered:bool)->R<([f64;3],[f64;3],[f64;3],f64)>{
- let count=LOCAL_K+usize::from(tapered);
+ let count=LOCAL_K+if tapered{1}else{0};
  if training.len()<count{return Err("Insufficient neighbors for local model".into())}
  let mut best=[(u64::MAX,usize::MAX);LOCAL_K+1];
  for (i,s) in training.iter().enumerate(){
@@ -297,6 +297,31 @@ fn solve_samples(samples:&[Sample],measurement:String,n:usize,target:[f64;3],set
   nearest_recipe_distance:best.distance,exact_recipe:best.distance==0.,measurement,training_recipes:samples.len(),
   evaluations:search.evaluations,settings,sensitivity_max_de,sensitivity_supported:supported,sensitivity_unsupported:unsupported})
 }
+#[derive(Clone,Debug)]
+pub struct InverseRampAudit{
+ pub center:[f64;3],pub settings:InverseSettings,pub points:Vec<InverseReport>,
+ pub adjacent_max_channel_pp:Vec<f64>,pub adjacent_total_change_pp:Vec<f64>,
+ pub max_channel_jump_pp:f64,pub max_predicted_error:f64,pub within_tolerance_count:usize,
+}
+/// Five independent solutions on a neutral or chromatic lightness ramp.
+/// Report discontinuities without silently smoothing or changing recipes.
+pub fn audit_inverse_ramp(chart:&Chart,channels:usize,center:[f64;3],settings:InverseSettings)->R<InverseRampAudit>{
+ if !center[0].is_finite()||!(2.0..=98.).contains(&center[0]){return Err("Ramp center L* must be 2–98".into())}
+ let (mode,samples)=grouped(chart,channels)?;
+ let mut points=Vec::with_capacity(5);
+ for delta in [-2.,-1.,0.,1.,2.]{
+  let target=[center[0]+delta,center[1],center[2]];
+  points.push(solve_samples(&samples,mode.clone(),channels,target,settings.clone())?);
+ }
+ let mut adjacent_max_channel_pp=Vec::new();let mut adjacent_total_change_pp=Vec::new();
+ for pair in points.windows(2){
+  let differences=pair[0].inks_percent.iter().zip(&pair[1].inks_percent).map(|(a,b)|(a-b).abs());
+  adjacent_max_channel_pp.push(differences.clone().fold(0.,f64::max));adjacent_total_change_pp.push(differences.sum());
+ }
+ Ok(InverseRampAudit{center,settings,max_channel_jump_pp:adjacent_max_channel_pp.iter().copied().fold(0.,f64::max),
+  max_predicted_error:points.iter().map(|p|p.delta_e).fold(0.,f64::max),
+  within_tolerance_count:points.iter().filter(|p|p.within_tolerance).count(),points,adjacent_max_channel_pp,adjacent_total_change_pp})
+}
 /// An audit of sampled jumps near exact reference recipes and held-out
 /// errors. Tapered model is a candidate only; the inverse solver still uses
 /// the beta.36 hard-neighborhood ridge. Distances are not uncertainty bounds.
@@ -404,6 +429,10 @@ pub fn audit_continuity(chart:&Chart,channels:usize)->R<ContinuityAudit>{
   let c=crate::characterization_cgats::read_with_names(&text,7,false,Some(&names)).unwrap();
   let r=evaluate(&c,7,0).unwrap();println!("{r:#?}");
   assert_eq!(r.input_rows,4884);assert_eq!(r.unique_recipes,4272);assert_eq!(r.training_recipes,3405);assert_eq!(r.holdout_recipes,867);
+  let ramp=audit_inverse_ramp(&c,7,[50.,0.,0.],InverseSettings{caps_percent:vec![100.,100.,100.,0.,100.,100.,100.],tac_percent:300.,tolerance:2.,max_recipe_distance:0.4}).unwrap();
+  println!("{ramp:#?}");assert_eq!(ramp.points.len(),5);
+  for p in &ramp.points{assert_eq!(p.inks_percent[3],0.);assert!(p.tac_percent<=300.0000001);assert!(p.delta_e<=p.initial_delta_e);}
+  assert_eq!(ramp.adjacent_max_channel_pp.len(),4);assert_eq!(ramp.within_tolerance_count,5);
   let audit=audit_continuity(&c,7).unwrap();println!("{audit:#?}");
   assert_eq!(audit.anchors,128);assert_eq!(audit.perturbations[0].samples.count,1237);
   assert!((audit.perturbations[0].samples.hard.max-1.35925).abs()<0.01);
