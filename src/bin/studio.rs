@@ -678,9 +678,9 @@ impl Studio {
   let estimate=self.profile.as_ref().and_then(|p|p.estimated_tac_percent());
   let source_bound=self.display_profile.as_ref().and_then(|p|color_convert_rust::print_space::bounds(p).ok()).map(|b|b.tac*100.);
   let dynamic=self.display_profile.as_ref().is_some_and(|p|!p.cmyk());let maximum=if dynamic{self.gamma.len() as f64*100.}else{400.};
-  let mut p=div().flex().flex_col().gap_2()
-   .child(div().flex().items_center().gap_1().child(tr("CLUT grid")).children([17usize,33,49,65].into_iter().filter(|&g|!dynamic||g<=33).map(|g|button(("edit-grid",g),if self.correction_grid==g{format!("{g} ✓")}else{g.to_string()}).on_click(cx.listener(move|this,_,_,cx|{if !this.busy{this.correction_grid=g;cx.notify();}})))))
-   .child(div().flex().items_center().gap_2().child(format!("{}: {:.0}%",tr("TAC ceiling"),self.correction_tac))
+  let mut p=div().flex().flex_col().gap_2().p_3().rounded_md().bg(rgb(0x282828)).child(div().text_lg().child(tr("Output settings")))
+   .child(div().flex().flex_wrap().items_center().gap_1().child(tr("CLUT grid")).children([17usize,33,49,65].into_iter().filter(|&g|!dynamic||g<=33).map(|g|button(("edit-grid",g),if self.correction_grid==g{format!("{g} ✓")}else{g.to_string()}).on_click(cx.listener(move|this,_,_,cx|{if !this.busy{this.correction_grid=g;cx.notify();}})))))
+   .child(div().flex().flex_wrap().items_center().gap_2().child(format!("{}: {:.0}%",tr("TAC ceiling"),self.correction_tac))
     .child(button("edit-tac-minus","−5").on_click(cx.listener(|this,_,_,cx|{if !this.busy{this.correction_tac=(this.correction_tac-5.).max(0.);cx.notify();}})))
     .child(self.numeric_slider(("edit-tac-slider",0),self.correction_tac,0.,maximum,1.,|v,x|v.correction_tac=x,cx)).child(button("edit-tac-plus","+5").on_click(cx.listener(move|this,_,_,cx|{if !this.busy{this.correction_tac=(this.correction_tac+5.).min(maximum);cx.notify();}}))));
   if let Some(v)=source_bound{p=p.child(button("edit-tac-bound",format!("{} ({v:.2}%)",tr("Use source TAC upper bound"))).on_click(cx.listener(move|this,_,_,cx|{if !this.busy{this.correction_tac=v.clamp(0.,maximum);cx.notify();}})));}
@@ -692,7 +692,21 @@ impl Studio {
   let Some(profile)=&self.display_profile else{return p.child(tr("Open a compatible ICC v4 Lab printer profile."))};
   if profile.version_major()!=4||profile.pcs()!="Lab "||(!profile.cmyk()&&color_convert_rust::multichannel::channel_count(profile).is_err()){return p.child(tr("Bounded correction requires compatible ICC v4 Lab profiles."))}
   let selected=self.region_selected;let r=self.regions[selected];
-  p=p.child(div().flex().gap_1().flex_wrap().items_center().children((0..self.region_count).map(|i|{
+  let source=[65.,45.*r.center.to_radians().cos(),45.*r.center.to_radians().sin()];
+  let corrected=color_convert_rust::correction::corrected_regions(source,&self.regions[..self.region_count]);
+  let mut visual=div().flex().flex_col().gap_2().p_3().rounded_md().bg(rgb(0x282828))
+   .child(div().text_lg().child(tr("Live Lab target preview")))
+   .child(div().flex().gap_2().children([(source,"Before"),(corrected,"After")].map(|(lab,label)|div().flex_1().min_w(px(0.)).flex().flex_col().gap_1().child(div().w_full().h(px(64.)).rounded_md().bg(rgb(lab_swatch(lab)))).child(tr(label)).child(div().text_xs().child(format!("L*a*b* {:.1?}",lab)))));
+  for after in [false,true]{
+   visual=visual.child(div().text_xs().child(tr(if after{"After"}else{"Before"}))).child(div().flex().h(px(20.)).rounded_md().overflow_hidden().children((0..36).map(|i|{
+    let angle=(i as f64*10.).to_radians();let lab=[65.,45.*angle.cos(),45.*angle.sin()];
+    let out=if after{color_convert_rust::correction::corrected_regions(lab,&self.regions[..self.region_count])}else{lab};
+    div().flex_1().h_full().bg(rgb(lab_swatch(out)))
+   })));
+  }
+  p=p.child(visual.child(div().text_xs().text_color(rgb(0xa1a1aa)).child(tr("Illustrative Lab target adjustment, not a measured or predicted printer output."))))
+   .child(div().text_lg().child(tr("Hue regions")))
+   .child(div().flex().gap_1().flex_wrap().items_center().children((0..self.region_count).map(|i|{
    let r=self.regions[i];let rgb=color_convert_rust::gamut_raster::lab_rgb([65.,(45.*r.center.to_radians().cos()) as f32,(45.*r.center.to_radians().sin()) as f32]);
    let color=(u32::from(rgb[0])<<16)|(u32::from(rgb[1])<<8)|u32::from(rgb[2]);
    seg(("region",i),format!("{} · {:.0}°{}",i+1,r.center,if r.active(){" *"}else{""}),i==selected)
@@ -704,13 +718,12 @@ impl Studio {
   p=p.child(div().flex().gap_1().flex_wrap().children([("Red",40.,0xc34c4c),("Yellow",90.,0xdbbb35),("Green",135.,0x47a86a),("Cyan",200.,0x2fa6b8),("Blue",270.,0x547cda),("Magenta",320.,0xb865b5)].into_iter().enumerate().map(|(i,(name,hue,color))|seg(("hue-preset",i),name,false).bg(rgb(color)).on_click(cx.listener(move|v,_,_,cx|{if !v.busy{v.regions[v.region_selected].center=hue;cx.notify();}})))));
   for (i,(name,value,lo,hi,step,unit)) in [("Hue center",r.center,0.,360.,5.,"°"),("Hue half-width",r.width,10.,180.,5.,"°"),("Lightness",r.light,-30.,30.,1.," L*"),("Chroma",r.chroma_percent,-80.,80.,5.,"%"),("Hue shift",r.hue_shift,-60.,60.,5.,"°")].into_iter().enumerate(){
    let change=move|v:&mut Self,delta:f64|{let r=&mut v.regions[v.region_selected];let f=match i{0=>&mut r.center,1=>&mut r.width,2=>&mut r.light,3=>&mut r.chroma_percent,_=>&mut r.hue_shift};*f=(*f+delta).clamp(lo,hi);};
-   p=p.child(div().flex().items_center().gap_2().child(div().w(px(120.)).child(tr(name)))
+   p=p.child(div().flex().flex_wrap().items_center().gap_2().p_2().rounded_md().bg(rgb(0x282828)).child(div().w(px(120.)).child(tr(name)))
     .child(seg(("correction-minus",i),"−",false).on_click(cx.listener(move|v,_,_,cx|{if !v.busy{change(v,-step);cx.notify();}})))
     .child(div().w(px(75.)).child(format!("{value:.0}{unit}")))
     .child(self.numeric_slider(("correction-slider",i),value,lo,hi,1.,move|v,x|{let r=&mut v.regions[v.region_selected];*match i{0=>&mut r.center,1=>&mut r.width,2=>&mut r.light,3=>&mut r.chroma_percent,_=>&mut r.hue_shift}=x;},cx)).child(seg(("correction-plus",i),"+",false).on_click(cx.listener(move|v,_,_,cx|{if !v.busy{change(v,step);cx.notify();}}))));
   }
-  let source=[65.,45.*r.center.to_radians().cos(),45.*r.center.to_radians().sin()];let corrected=color_convert_rust::correction::corrected_regions(source,&self.regions[..self.region_count]);
-  p=p.child(div().flex().gap_2().items_center().child(div().flex_1().child(swatch(lab_swatch(source),44.)).child(tr("Before"))).child(div().flex_1().child(swatch(lab_swatch(corrected),44.)).child(tr("After")))).child(div().text_xs().child(tr("Illustrative Lab target adjustment, not a measured or predicted printer output.")));
+
   let active=self.regions[..self.region_count].iter().filter(|r|r.active()).count();
   p.child(div().flex().gap_1().child(seg("reset-selective","Reset region",false).on_click(cx.listener(|v,_,_,cx|{if !v.busy{v.regions[v.region_selected]=Selective::default();cx.notify();}})))
    .child(seg("reset-regions","Reset all",false).on_click(cx.listener(|v,_,_,cx|{if !v.busy{v.regions=[Selective::default();MAX_REGIONS];v.region_count=1;v.region_selected=0;cx.notify();}}))))
