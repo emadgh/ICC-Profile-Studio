@@ -194,7 +194,7 @@ Lean, vendor-independent GPUI application for CMYK and multichannel output ICCs 
 - CI pending; manual testing of RTL, dropdown, controls and printer/RIP behavior remains required.
 
 ## beta.31 — Multichannel engine audit (preview; CI pending)
-- Share the custom constrained CMYK/nCLR rebuild engine and bounded correction entry point; keep Argyll v2 CMYK legacy adapter and fixed-size compatibility APIs. UI caps use dynamic storage; separate legacy mode state remains for regression safety.
+- Share the custom constrained CMYK/nCLR rebuild engine and bounded correction entry point; keep Argyll v2 CMYK legacy adapter and fixed-size compatibility APIs. UI uses one dynamic channel cap vector, TAC and rebuild dispatch; fixed conversion only at the Argyll adapter boundary.
 - Cache structural/native preflight per loaded profile, show capability diagnostics and block unsupported edit workspaces/actions. Native predicted single-ink swatches where embedded v4 colorant coordinates are unavailable; no invented ink names or measurement claims.
 - Allow bounded native resampling of complex v4 mBA reverse LUTs when conservative device bounds and native dimensions are verified. mpet, alternate pipelines and complex version conversion remain unsupported.
 - Add synthetic 3/5/6/7/8/15-channel preflight and CMYK rebuild tests plus opt-in real profile corpus harness. Real profiles, UI, physical print and N-color fitting remain pending. See MULTICHANNEL_QA.md for acquisition and profiling research.
