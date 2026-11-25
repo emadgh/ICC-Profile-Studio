@@ -519,6 +519,7 @@ impl Studio {
     .child(format!("{} device + {} PCS samples per intent",r.forward_samples,r.reverse_samples))
     .child(format!("Channel bound {:?}% · TAC bound {:.3}%",r.bounds.channels.iter().map(|x|100.*x).collect::<Vec<_>>(),100.*r.bounds.tac));
    if !r.colorant_metadata.is_empty(){p=p.child(format!("{}: {}",tr("Retained colorant metadata"),r.colorant_metadata.join(", ")));}
+   if r.channels.len()!=4||self.display_profile.as_ref().is_some_and(|v|!v.cmyk()){if !r.colorant_metadata.iter().any(|v|v=="clrt"){p=p.child(div().text_sm().text_color(rgb(0xfbbf24)).child(tr("No valid colorant table was retained; channel names or colorant coordinates may be unavailable in the target RIP.")));}}
    for (j,cap) in r.bounds.channels.iter().enumerate(){p=p.child(div().flex().items_center().gap_2().child(div().w(px(120.)).child(format!("{} · {}",j+1,r.channels[j]))).child(div().flex_1().child(bar(*cap,self.ink_color(j),10.))).child(format!("{:.3}%",cap*100.)));}
    for i in &r.checks{p=p.child(div().text_sm().text_color(rgb(if i.passed{0xa7f3d0}else{0xfbbf24})).child(format!("{} [{}]: mean ΔE00 {:.4} · max {:.4} · channel Δ {:.4} pp · TAC Δ {:.4} pp",i.name,if i.passed{"PASS"}else if i.required{"FAIL"}else{"OUTSIDE TOLERANCE — NOT CERTIFIED"},i.mean_de,i.max_de,i.max_ink_pp,i.max_tac_pp)));}
    if !r.omitted.is_empty(){p=p.child(format!("Omitted by consent: {}",r.omitted.join(", ")));}
