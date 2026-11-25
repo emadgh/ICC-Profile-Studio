@@ -20,6 +20,9 @@ use color_convert_rust::{reports,preferences::{self,Preferences}};
 use color_convert_rust::{optimizer::{self,MultiSettings as RecipeSettings,MultiReport as RecipeReport},lab::{self,MeasuredComparison}};
 
 const STUDIO_VERSION:&str=include_str!("../../STUDIO_VERSION");
+fn intent_code(i:lcms2::Intent)->u8{match i{lcms2::Intent::Perceptual=>0,lcms2::Intent::RelativeColorimetric=>1,lcms2::Intent::Saturation=>2,lcms2::Intent::AbsoluteColorimetric=>3,_=>1}}
+fn intent_from_code(i:u8)->lcms2::Intent{match i{0=>lcms2::Intent::Perceptual,2=>lcms2::Intent::Saturation,3=>lcms2::Intent::AbsoluteColorimetric,_=>lcms2::Intent::RelativeColorimetric}}
+fn intent_label(i:lcms2::Intent)->&'static str{match i{lcms2::Intent::Perceptual=>"Perceptual",lcms2::Intent::Saturation=>"Saturation",lcms2::Intent::AbsoluteColorimetric=>"Absolute",_=>"Relative"}}
 
 #[derive(Clone,Copy,PartialEq,Eq)]
 enum Page { Inspector, Validator, Rebuilder, Comparison, Curves, Reorder, Version, Gamut, Gradient, Correction, Smoothing, DeviceLink, Recipes, Black, Lab, Settings, About }
@@ -157,6 +160,7 @@ impl Studio {
      }
      window.prevent_default();cx.stop_propagation();cx.notify();
     })));
+   if *invalid{control=control.child(div().text_xs().text_color(rgb(0xf87171)).child(tr("Invalid numeric value or outside allowed range.")));}
   }else{
    control=control.child(seg("numeric-edit",scale.label(value),false).on_click(cx.listener(move|v,_,window,cx|{
     if !v.busy{let focus=cx.focus_handle();window.focus(&focus);v.numeric_edit=Some((id,String::new(),focus,false));cx.notify();}
@@ -271,7 +275,7 @@ impl Studio {
  }
 
  fn start_analysis_job(&mut self,cx:&mut Context<Self>)->color_convert_rust::analysis_job::Job{
-  let job=color_convert_rust::analysis_job::Job::default();self.analysis_job=Some(job.clone());let poll=job.clone();
+  self.numeric_edit=None;let job=color_convert_rust::analysis_job::Job::default();self.analysis_job=Some(job.clone());let poll=job.clone();
   cx.spawn(async move|this,cx|{loop{
    cx.background_executor().timer(Duration::from_millis(120)).await;
    if !matches!(this.update(cx,|v,cx|{let active=v.analysis_job.as_ref().is_some_and(|j|j.same(&poll));if active{cx.notify();}active}),Ok(true)){break}
@@ -290,7 +294,7 @@ impl Studio {
    p=p.child(div().flex().flex_wrap().items_center().gap_2()
     .child(div().flex_1().text_xs().child(if x.phase.is_empty(){tr("Working…")}else{tr(x.phase)}))
     .child(button(("cancel-analysis",scope),if x.cancelled{tr("Cancelling…")}else{tr("Cancel analysis")}).on_click(cx.listener(|v,_,_,cx|{if let Some(j)=&v.analysis_job{j.cancel();cx.notify();}}))));
-   if x.total>0{p=p.child(bar(x.completed as f64/x.total as f64,0xe87935,6.)).child(format!("{} / {}",x.completed,x.total));}
+   if x.total>0{p=p.child(bar(x.completed as f64/x.total as f64,0xe87935,6.)).child(format!("{} / {} · {:.0}%",x.completed,x.total,100.*x.completed as f64/x.total as f64));}
    else{p=p.child(format!("{}: {}",tr("Completed checkpoints"),x.checkpoints));}
   }p
  }
@@ -573,7 +577,8 @@ impl Studio {
  fn gamut_toolbar(&self,cx:&mut Context<Self>)->Div{
   let o=self.preview_options;
   let style=|i:usize|o.style_label(i);
-  let name=if self.candidate.is_some(){format!("Reference: {} · Candidate: {}",style(0),style(1))}else{format!("Reference only · {}",style(0))};
+  let candidate_intent=if self.gamut_separate_intents{self.gamut_candidate_intent}else{self.gamut_reference_intent};
+  let name=if self.candidate.is_some(){format!("{}: {} · {} | {}: {} · {}",tr("Reference"),style(0),tr(intent_label(self.gamut_reference_intent)),tr("Candidate"),style(1),tr(intent_label(candidate_intent)))}else{format!("{}: {} · {}",tr("Reference"),style(0),tr(intent_label(self.gamut_reference_intent)))};
   div().flex().flex_col().gap_1().p_2().flex_shrink_0()
    .child(div().flex().items_center().gap_1()
     .child(seg("view-2d","2D",!o.three_d).on_click(cx.listener(|v,_,_,cx|{v.preview_options.three_d=false;cx.notify();})))
@@ -1508,7 +1513,7 @@ impl Studio {
      let active=cap>0.;
      let selected=self.black_channel==Some(k);
      let label=format!("{} · {} · {:.1}%{}",k+1,self.ink_name(k),cap,if selected{" ✓"}else{""});
-     seg(("physical-black",k),label,selected).child(swatch(self.ink_color(k),12.)).on_click(cx.listener(move|v,_,_,cx|{if !v.busy{if active{v.black_channel=Some(k);}else{v.status=tr("Selected channel is closed or its limit cannot be established.").into();}cx.notify();}}))
+     seg(("physical-black",k),label,selected).child(swatch(self.ink_color(k),12.)).on_click(cx.listener(move|v,_,_,cx|{if !v.busy{if active{v.black_channel=Some(k);}else{v.status="Selected channel is closed or its limit cannot be established.".into();}cx.notify();}}))
    })))
    .child(format!("{}: {}",tr("Physical black channel"),self.black_channel.map(|k|format!("{} · {}",k+1,self.ink_name(k))).unwrap_or_else(||tr("Not selected").into())))
    .child(format!("{}: {:.1}%",tr("Effective TAC ceiling"),effective_tac))
@@ -1556,11 +1561,11 @@ impl Studio {
    .child(button("save-black","Generate black preference ICC").bg(rgb(0xc65f24)).on_click(cx.listener(|v,_,_,cx|v.save_edit(6,cx))))
  }
  fn preference_snapshot(&self)->Preferences{
-  Preferences{schema:1,preview_open:self.preview_open,three_d:self.preview_options.three_d,wireframe:self.preview_options.wireframe,solid:self.preview_options.solid,profile_colors:self.preview_options.profile_colors,language:self.language,embedded_names:self.embedded_names,layout:self.preview_options.layout,floor_contour:self.preview_options.floor_contour,preview_width:self.preview_width,opacity_2d:self.preview_options.opacity_2d,gamut_grid:self.gamut_grid,compare_grid:self.compare_grid,chart_dpi:self.chart_dpi}
+  Preferences{schema:1,preview_open:self.preview_open,three_d:self.preview_options.three_d,wireframe:self.preview_options.wireframe,solid:self.preview_options.solid,profile_colors:self.preview_options.profile_colors,language:self.language,embedded_names:self.embedded_names,layout:self.preview_options.layout,floor_contour:self.preview_options.floor_contour,preview_width:self.preview_width,opacity_2d:self.preview_options.opacity_2d,gamut_grid:self.gamut_grid,compare_grid:self.compare_grid,chart_dpi:self.chart_dpi,gamut_reference_intent:intent_code(self.gamut_reference_intent),gamut_candidate_intent:intent_code(self.gamut_candidate_intent),gamut_separate_intents:self.gamut_separate_intents}
  }
  fn apply_preferences(&mut self,p:Preferences){
   self.preview_open=p.preview_open;self.preview_options.three_d=p.three_d;self.preview_options.wireframe=p.wireframe;self.preview_options.solid=p.solid;self.preview_options.profile_colors=p.profile_colors;self.language=p.language;self.embedded_names=p.embedded_names;self.preview_options.layout=p.layout;self.preview_options.floor_contour=p.floor_contour;self.preview_width=p.preview_width;self.preview_options.opacity_2d=p.opacity_2d;
-  self.gamut_grid=p.gamut_grid;self.compare_grid=p.compare_grid;self.chart_dpi=p.chart_dpi;
+  self.gamut_grid=p.gamut_grid;self.compare_grid=p.compare_grid;self.chart_dpi=p.chart_dpi;self.gamut_reference_intent=intent_from_code(p.gamut_reference_intent);self.gamut_candidate_intent=intent_from_code(p.gamut_candidate_intent);self.gamut_separate_intents=p.gamut_separate_intents;self.numeric_edit=None;
   self.preview=None;self.comparison=None;self.compare_error=None;
  }
  fn startup()->Self{
