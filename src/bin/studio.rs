@@ -28,12 +28,12 @@ enum Picker{Reference,Comparison,Gamut}
 enum Event { Progress(String), Done(Result<String,String>) }
 struct Studio {
  link_grid:usize,link_tolerance:f64,link_intent:lcms2::Intent,link_report:Option<(PathBuf,PathBuf,PathBuf,device_link::MultiLinkReport)>,
- slider_drag:Option<(&'static str,usize)>,embedded_names:bool,display_profile:Option<Profile>,language:Language,nav_collapsed:[bool;5],picker:Option<Picker>,system_catalog:Option<system_profiles::Catalog>,system_error:Option<String>,system_loading:bool,
+ slider_drag:Option<(&'static str,usize)>,numeric_edit:Option<((&'static str,usize),String,FocusHandle,bool)>,embedded_names:bool,display_profile:Option<Profile>,language:Language,nav_collapsed:[bool;5],picker:Option<Picker>,system_catalog:Option<system_profiles::Catalog>,system_error:Option<String>,system_loading:bool,
  version_allow_omit:bool,version_relative_only:bool,version_de:f64,version_ink:f64,version_report:Option<versioning::Report>,page:Page, source:Option<PathBuf>, capability:Option<Capabilities>, predicted_inks:Vec<u32>, report:Option<Inspection>, error:Option<String>,
  caps:Vec<f64>,tac:f64,grid:usize,mode:Mode,status:String,busy:bool,analysis_job:Option<color_convert_rust::analysis_job::Job>,rebuild_control:Option<color_convert_rust::multichannel::RebuildControl>, candidate:Option<PathBuf>,comparison:Option<Comparison>,compare_error:Option<String>,compare_grid:usize,compare_intent:lcms2::Intent,gamma:Vec<f64>,order:Vec<usize>, preview_open:bool, preview:Option<Overlay>, preview_revision:u64, preview_width:f32,preview_fullscreen:bool,resize_last:Option<Pixels>,gamut_advanced:bool,curve_drag:Option<(usize,usize,Pixels)>,curve_mode:usize,curve_channel:usize, preview_cache:std::cell::RefCell<gamut_view::PreviewCache>, preview_options:ViewOptions, gamut_grid:usize,gamut_reference_intent:lcms2::Intent,gamut_candidate_intent:lcms2::Intent,gamut_separate_intents:bool,gradient:Option<GradientReport>,gradient_detail:Option<usize>,gradient_selected:usize,gradient_shared_scale:bool,gradient_error:Option<String>,coverage_threshold:f64, regions:[Selective;MAX_REGIONS],region_count:usize,region_selected:usize, correction_grid:usize, correction_tac:f64, smoothing:f64, smoothing_passes:usize,orbit_last:Option<Point<Pixels>>,chart_dpi:u32,recipe_target:[f64;3],recipe_settings:RecipeSettings,recipe_result:Option<RecipeReport>,lab_levels:usize,lab_tab:usize,lab_advanced:bool,lab_loading:bool,lab_attempted:bool,lab_epoch:u64,lab_error:Option<String>,compare_overlay:bool,compare_details:bool,recipe_tab:usize,recipe_weights_open:bool,characterization:Option<color_convert_rust::characterization::Chart>,characterization_page:usize,characterization_patch:Option<usize>,characterization_fit:Option<color_convert_rust::characterization::Fit>,ncolor_report:Option<color_convert_rust::ncolor_model::CrossValidation>,ncolor_inverse:Option<color_convert_rust::ncolor_model::InverseReport>,ncolor_audit:Option<color_convert_rust::ncolor_model::ContinuityAudit>,ncolor_ramp:Option<color_convert_rust::ncolor_model::InverseRampAudit>,ncolor_regularized:Option<color_convert_rust::ncolor_model::RegularizedRamp>,ncolor_lattice:Option<color_convert_rust::ncolor_model::LatticeAudit>,ncolor_forward:Option<color_convert_rust::ncolor_model::ForwardGridAudit>,ncolor_forward_grid:Vec<usize>,ncolor_span:[f64;3],ncolor_slice:usize,ncolor_lambda:f64,ncolor_target:[f64;3],ncolor_tolerance:f64,ncolor_distance:f64,characterization_measured:bool,characterization_heat:bool,spectral_illuminant:Illuminant,spectral_observer:Observer,characterization_filter:target_tools::Filter,characterization_cloud:bool,characterization_view:ViewOptions,characterization_cache:std::cell::RefCell<gamut_view::PreviewCache>,characterization_revision:u64,measured:[Option<PathBuf>;2],measurement_result:Option<MeasuredComparison>,black:BlackGeneration,black_channel:Option<usize>,curve_points:Vec<[f64;5]>,logo:std::sync::Arc<gpui::Image>,#[cfg(windows)] updater:StudioUpdater,#[cfg(windows)] update_started:bool,#[cfg(windows)] update_notice:Option<String>,#[cfg(windows)] notified_version:Option<String>,
 }
 impl Default for Studio {
- fn default()->Self{Self{link_grid:0,link_tolerance:2.,link_intent:lcms2::Intent::RelativeColorimetric,link_report:None,slider_drag:None,embedded_names:true,display_profile:None,language:Language::En,nav_collapsed:[false;5],picker:None,system_catalog:None,system_error:None,system_loading:false,version_allow_omit:false,version_relative_only:false,version_de:0.5,version_ink:0.5,version_report:None,page:Page::Inspector,source:None,capability:None,predicted_inks:vec![],report:None,error:None,caps:vec![],tac:240.,grid:33,mode:Mode::Custom,status:"Open an ICC or ICM profile to start.".into(),busy:false,analysis_job:None,rebuild_control:None,candidate:None,comparison:None,compare_error:None,compare_grid:17,compare_intent:lcms2::Intent::RelativeColorimetric,gamma:vec![],order:vec![],preview_open:true,preview:None,preview_revision:0,preview_width:360.,preview_fullscreen:false,resize_last:None,gamut_advanced:false,curve_drag:None,curve_mode:0,curve_channel:0,preview_cache:std::cell::RefCell::new(gamut_view::PreviewCache::default()),preview_options:ViewOptions::default(),gamut_grid:33,gamut_reference_intent:lcms2::Intent::RelativeColorimetric,gamut_candidate_intent:lcms2::Intent::RelativeColorimetric,gamut_separate_intents:false,gradient:None,gradient_detail:None,gradient_selected:0,gradient_shared_scale:true,gradient_error:None,coverage_threshold:2.,regions:[Selective::default();MAX_REGIONS],region_count:1,region_selected:0,correction_grid:33,correction_tac:400.,smoothing:0.20,smoothing_passes:1,orbit_last:None,chart_dpi:300,recipe_target:[50.,0.,0.],recipe_settings:RecipeSettings{caps:vec![100.;4],tac:240.,weights:vec![1.;4],tolerance:2.},recipe_result:None,lab_levels:5,lab_tab:0,lab_advanced:false,lab_loading:false,lab_attempted:false,lab_epoch:0,lab_error:None,compare_overlay:true,compare_details:false,recipe_tab:0,recipe_weights_open:false,characterization:None,characterization_page:1,characterization_patch:None,characterization_fit:None,ncolor_report:None,ncolor_inverse:None,ncolor_audit:None,ncolor_ramp:None,ncolor_regularized:None,ncolor_lattice:None,ncolor_forward:None,ncolor_forward_grid:vec![],ncolor_span:[1.;3],ncolor_slice:1,ncolor_lambda:0.02,ncolor_target:[50.,0.,0.],ncolor_tolerance:2.,ncolor_distance:0.4,characterization_measured:false,characterization_heat:false,spectral_illuminant:Illuminant::D50,spectral_observer:Observer::Two,characterization_filter:target_tools::Filter::default(),characterization_cloud:false,characterization_view:ViewOptions{profile_colors:false,layout:CompareLayout::Shared,solid:false,wireframe:false,floor_contour:false,..ViewOptions::default()},characterization_cache:std::cell::RefCell::new(gamut_view::PreviewCache::default()),characterization_revision:0,measured:[None,None],measurement_result:None,black:BlackGeneration::default(),black_channel:None,curve_points:IDENTITY_POINTS.to_vec(),logo:std::sync::Arc::new(gpui::Image::from_bytes(gpui::ImageFormat::Png,include_bytes!("../../assets/icon.png").to_vec())),#[cfg(windows)] update_started:false,#[cfg(windows)] update_notice:None,#[cfg(windows)] notified_version:None,#[cfg(windows)] updater:StudioUpdater::new(UpdateConfig::new("emadgh/color-convert-rust","ICC-Profile-Studio.exe",STUDIO_VERSION.trim()).with_app_name("ICC Profile Studio").with_checksum_asset("ICC-Profile-Studio.exe.sha256").with_required_checksum(true))}}
+ fn default()->Self{Self{link_grid:0,link_tolerance:2.,link_intent:lcms2::Intent::RelativeColorimetric,link_report:None,slider_drag:None,numeric_edit:None,embedded_names:true,display_profile:None,language:Language::En,nav_collapsed:[false;5],picker:None,system_catalog:None,system_error:None,system_loading:false,version_allow_omit:false,version_relative_only:false,version_de:0.5,version_ink:0.5,version_report:None,page:Page::Inspector,source:None,capability:None,predicted_inks:vec![],report:None,error:None,caps:vec![],tac:240.,grid:33,mode:Mode::Custom,status:"Open an ICC or ICM profile to start.".into(),busy:false,analysis_job:None,rebuild_control:None,candidate:None,comparison:None,compare_error:None,compare_grid:17,compare_intent:lcms2::Intent::RelativeColorimetric,gamma:vec![],order:vec![],preview_open:true,preview:None,preview_revision:0,preview_width:360.,preview_fullscreen:false,resize_last:None,gamut_advanced:false,curve_drag:None,curve_mode:0,curve_channel:0,preview_cache:std::cell::RefCell::new(gamut_view::PreviewCache::default()),preview_options:ViewOptions::default(),gamut_grid:33,gamut_reference_intent:lcms2::Intent::RelativeColorimetric,gamut_candidate_intent:lcms2::Intent::RelativeColorimetric,gamut_separate_intents:false,gradient:None,gradient_detail:None,gradient_selected:0,gradient_shared_scale:true,gradient_error:None,coverage_threshold:2.,regions:[Selective::default();MAX_REGIONS],region_count:1,region_selected:0,correction_grid:33,correction_tac:400.,smoothing:0.20,smoothing_passes:1,orbit_last:None,chart_dpi:300,recipe_target:[50.,0.,0.],recipe_settings:RecipeSettings{caps:vec![100.;4],tac:240.,weights:vec![1.;4],tolerance:2.},recipe_result:None,lab_levels:5,lab_tab:0,lab_advanced:false,lab_loading:false,lab_attempted:false,lab_epoch:0,lab_error:None,compare_overlay:true,compare_details:false,recipe_tab:0,recipe_weights_open:false,characterization:None,characterization_page:1,characterization_patch:None,characterization_fit:None,ncolor_report:None,ncolor_inverse:None,ncolor_audit:None,ncolor_ramp:None,ncolor_regularized:None,ncolor_lattice:None,ncolor_forward:None,ncolor_forward_grid:vec![],ncolor_span:[1.;3],ncolor_slice:1,ncolor_lambda:0.02,ncolor_target:[50.,0.,0.],ncolor_tolerance:2.,ncolor_distance:0.4,characterization_measured:false,characterization_heat:false,spectral_illuminant:Illuminant::D50,spectral_observer:Observer::Two,characterization_filter:target_tools::Filter::default(),characterization_cloud:false,characterization_view:ViewOptions{profile_colors:false,layout:CompareLayout::Shared,solid:false,wireframe:false,floor_contour:false,..ViewOptions::default()},characterization_cache:std::cell::RefCell::new(gamut_view::PreviewCache::default()),characterization_revision:0,measured:[None,None],measurement_result:None,black:BlackGeneration::default(),black_channel:None,curve_points:IDENTITY_POINTS.to_vec(),logo:std::sync::Arc::new(gpui::Image::from_bytes(gpui::ImageFormat::Png,include_bytes!("../../assets/icon.png").to_vec())),#[cfg(windows)] update_started:false,#[cfg(windows)] update_notice:None,#[cfg(windows)] notified_version:None,#[cfg(windows)] updater:StudioUpdater::new(UpdateConfig::new("emadgh/color-convert-rust","ICC-Profile-Studio.exe",STUDIO_VERSION.trim()).with_app_name("ICC Profile Studio").with_checksum_asset("ICC-Profile-Studio.exe.sha256").with_required_checksum(true))}}
 }
 fn button(id: impl Into<ElementId>,label:impl Into<SharedString>)->Stateful<Div>{
  let label:SharedString=label.into();
@@ -49,11 +49,12 @@ fn heading(title:&str,sub:&str)->Div{div().flex().flex_col().gap_1().when(i18n::
 fn visible_ink(color:u32)->u32{if color==0||((color>>16)&255)<32&&((color>>8)&255)<32&&(color&255)<32{0x262626}else{color}}
 fn swatch(color:u32,height:f32)->Div{div().h(px(height)).min_w(px(height)).rounded_md().border_1().border_color(rgb(0x777777)).bg(rgb(color))}
 fn bar(value:f64,color:u32,height:f32)->Div{
+ let value=if value.is_finite(){value.clamp(0.,1.)}else{0.};
  div().w_full().h(px(height)).rounded_md().bg(rgb(0x171717)).overflow_hidden()
   .child(div().w(relative(value.clamp(0.,1.) as f32)).h_full().bg(rgb(color)).when(value>0.&&color==0x262626,|p|p.border_1().border_color(rgb(0x696969))))
 }
 fn ink_budget_dynamic(caps:&[f64],tac:f64)->Div{
- let max=caps.len() as f64*100.;let sum=caps.iter().sum::<f64>();let effective=sum.min(tac);
+ let max=(caps.len() as f64*100.).max(1.);let sum=caps.iter().sum::<f64>();let effective=sum.min(tac);
  div().flex().flex_col().gap_2().p_3().rounded_md().bg(rgb(0x282828))
   .child(div().text_lg().child(tr("Total ink coverage (TAC)")))
   .child(format!("{} {sum:.0}% · TAC {tac:.0}%",tr("Sum of limits")))
@@ -132,16 +133,35 @@ impl Studio {
     window.paint_quad(fill(Bounds{origin:point(x,y),size:size(w*ratio,px(4.))},rgb(if busy{0x777777}else{0xe87935})));
     window.paint_quad(fill(Bounds{origin:point(x+w*ratio-px(5.),b.origin.y+px(7.)),size:size(px(10.),px(12.))},rgb(if busy{0x858585}else{0xf1f1f1})));
    }).size_full())
-   .on_mouse_down(MouseButton::Left,cx.listener(move|v,e:&MouseDownEvent,_,cx|{if !v.busy{if let Some(b)=down.get(){v.slider_drag=Some(id);set(v,get(b,e.position.x));cx.notify();cx.stop_propagation();}}}))
+   .on_mouse_down(MouseButton::Left,cx.listener(move|v,e:&MouseDownEvent,_,cx|{if !v.busy{if let Some(b)=down.get(){v.numeric_edit=None;v.slider_drag=Some(id);set(v,get(b,e.position.x));cx.notify();cx.stop_propagation();}}}))
    .on_mouse_move(cx.listener(move|v,e:&MouseMoveEvent,_,cx|{if !v.busy&&e.dragging()&&v.slider_drag==Some(id){if let Some(b)=motion.get(){set(v,get(b,e.position.x));cx.notify();}}}))
    .on_mouse_up(MouseButton::Left,cx.listener(|v,_,_,_|{v.slider_drag=None;})).on_mouse_up_out(MouseButton::Left,cx.listener(|v,_,_,_|{v.slider_drag=None;}));
-  // Existing callers with coarse +/- buttons retain those controls.
-  // For previously bare sliders provide a precise single-step pair.
-  let bare=matches!(id.0,"target-min"|"target-max"|"target-tac"|"target-yaw"|"target-pitch");
-  let mut control=div().flex().items_center().gap_1().flex_shrink_0();
-  if bare{control=control.child(seg(("precise-minus",match id.0{"link-tolerance"=>0usize,"target-min"=>1,"target-max"=>2,"target-tac"=>3,"target-yaw"=>4,_=>5}),"−",false).on_click(cx.listener(move|v,_,_,cx|{if !v.busy{set(v,scale.adjust(value,-1));cx.notify();}})));}
+  // Unique parent identity prevents repeated +/- controls from sharing state.
+  let mut control=div().id(id).flex().flex_wrap().items_center().gap_1().flex_shrink_0();
+  let bare=matches!(id.0,"target-min"|"target-max"|"target-tac"|"target-yaw"|"target-pitch"|"link-tolerance"|"recipe-tolerance-slider"|"ncolor-target"|"ncolor-inverse-limit"|"ncolor-continuity-weight"|"ncolor-span"|"ncolor-forward-grid"|"rebuilder-tac"|"rebuild-cap");
+  if bare{control=control.child(seg("precise-minus","−",false).on_click(cx.listener(move|v,_,_,cx|{if !v.busy{v.numeric_edit=None;set(v,scale.adjust(value,-1));cx.notify();}})));}
   control=control.child(track);
-  if bare{control=control.child(seg(("precise-plus",match id.0{"link-tolerance"=>0usize,"target-min"=>1,"target-max"=>2,"target-tac"=>3,"target-yaw"=>4,_=>5}),"+",false).on_click(cx.listener(move|v,_,_,cx|{if !v.busy{set(v,scale.adjust(value,1));cx.notify();}})));}
+  if bare{control=control.child(seg("precise-plus","+",false).on_click(cx.listener(move|v,_,_,cx|{if !v.busy{v.numeric_edit=None;set(v,scale.adjust(value,1));cx.notify();}})));}
+  if let Some((_,buffer,focus,invalid))=self.numeric_edit.as_ref().filter(|(key,_,_,_)|*key==id){
+   let typed=buffer.clone();let focus=focus.clone();
+   control=control.child(div().id("number-entry").track_focus(&focus).px_2().py_1().min_w(px(56.)).border_1().border_color(rgb(if *invalid{0xf87171}else{0xe87935})).rounded_md().child(if typed.is_empty(){"…".into()}else{typed})
+    .on_key_down(cx.listener(move|v,e:&KeyDownEvent,window,cx|{
+     if v.busy{v.numeric_edit=None;cx.notify();return}
+     let Some((key,buf,_,bad))=v.numeric_edit.as_mut()else{return};if *key!=id{return}
+     match e.keystroke.key.as_str(){
+      "enter"=>{if let Some(x)=scale.parse(buf){v.numeric_edit=None;set(v,x);}else{*bad=true;}},
+      "escape"=>{v.numeric_edit=None;},
+      "backspace"=>{buf.pop();*bad=false;},
+      "delete"=>{buf.clear();*bad=false;},
+      _=>{if let Some(c)=e.keystroke.key_char.as_deref(){if buf.chars().count()<24&&c.chars().all(|x|matches!(x,'0'..='9'|'۰'..='۹'|'٠'..='٩'|'.'|','|'٫'|'-'|'−'|'+')){buf.push_str(c);*bad=false;}}}
+     }
+     window.prevent_default();cx.stop_propagation();cx.notify();
+    })));
+  }else{
+   control=control.child(seg("numeric-edit",scale.label(value),false).on_click(cx.listener(move|v,_,window,cx|{
+    if !v.busy{let focus=cx.focus_handle();window.focus(&focus);v.numeric_edit=Some((id,String::new(),focus,false));cx.notify();}
+   })));
+  }
   control
  }
  fn toggle_system_picker(&mut self,target:Picker,cx:&mut Context<Self>){
@@ -200,7 +220,7 @@ impl Studio {
  }
  fn load_reference(&mut self,path:PathBuf,cx:&mut Context<Self>){
   if self.busy{return}
-  self.picker=None;
+  self.numeric_edit=None;self.picker=None;
   let retained_candidate=if matches!(self.page,Page::Comparison|Page::DeviceLink|Page::Gradient){self.candidate.clone()}else{None};
   self.lab_epoch=self.lab_epoch.wrapping_add(1);self.lab_loading=false;self.lab_attempted=false;self.lab_error=None;self.measured=[None,None];self.measurement_result=None;self.link_report=None;
   self.source=Some(path.clone());self.characterization=None;self.ncolor_report=None;self.ncolor_inverse=None;self.ncolor_audit=None;self.ncolor_ramp=None;self.ncolor_regularized=None;self.ncolor_lattice=None;self.ncolor_forward=None;self.ncolor_forward_grid.clear();self.characterization_patch=None;self.characterization_fit=None;self.characterization_measured=false;self.characterization_heat=false;self.spectral_illuminant=Illuminant::D50;self.spectral_observer=Observer::Two;self.characterization_filter=target_tools::Filter::default();self.characterization_cloud=false;self.characterization_revision=self.characterization_revision.wrapping_add(1);self.characterization_page=1;self.version_report=None;self.version_allow_omit=false;self.version_relative_only=false;self.black=BlackGeneration::default();self.black_channel=None;self.curve_points=IDENTITY_POINTS.to_vec();self.recipe_result=None;self.recipe_settings.weights.clear();self.regions=[Selective::default();MAX_REGIONS];self.region_count=1;self.region_selected=0;self.correction_grid=33;self.correction_tac=400.;self.smoothing=0.20;self.smoothing_passes=1;self.preview=None;self.candidate=retained_candidate;self.gradient=None;self.gradient_detail=None;self.gradient_error=None;self.gamma.clear();self.order.clear();self.curve_drag=None;self.curve_channel=0;self.comparison=None;self.compare_error=None;self.report=None;self.capability=None;self.predicted_inks.clear();self.display_profile=None;self.caps.clear();self.tac=0.;self.mode=Mode::Custom;self.error=None;
@@ -1426,9 +1446,10 @@ impl Studio {
    .child(div().flex().flex_wrap().items_center().justify_between().gap_2().child(div().text_lg().child(tr("Software updates"))));
   #[cfg(windows)]{
    let state=self.updater.status();
-   let checking=matches!(&state,UpdateStatus::Checking|UpdateStatus::Downloading{..}|UpdateStatus::Ready(..));
+   let checking=matches!(&state,UpdateStatus::Checking|UpdateStatus::Downloading{..});
+   let staged=matches!(&state,UpdateStatus::Ready(..));
    updates=updates.child(div().flex().flex_wrap().gap_2()
-    .child(button("check-studio",if checking{"Working…"}else{"Check for updates"}).bg(rgb(if checking{0x383838}else{0xc65f24})).on_click(cx.listener(|v,_,_,cx|{if v.updater.start_check(false){v.update_poll(cx);cx.notify();}})))
+    .child(button("check-studio",if checking{"Working…"}else if staged{"Verified update ready"}else{"Check for updates"}).bg(rgb(if checking||staged{0x383838}else{0xc65f24})).on_click(cx.listener(|v,_,_,cx|{if v.updater.start_check(false){v.update_poll(cx);cx.notify();}})))
     .child(button("github-releases-top","Releases").on_click(cx.listener(|_,_,_,cx|cx.open_url("https://github.com/emadgh/color-convert-rust/releases")))));
    match state{
     UpdateStatus::Idle=>updates=updates.child(tr("Check for a compatible Studio release.")),
@@ -1440,7 +1461,7 @@ impl Studio {
      if let Some(n)=total.filter(|n|*n>0){updates=updates.child(bar((downloaded as f64/n as f64).clamp(0.,1.),0xe87935,10.));}
     }
     UpdateStatus::Ready(info,_)=>updates=updates.child(format!("{}: {}",tr("Verified update ready"),info.version)).child(button("install-studio","Restart and install").on_click(cx.listener(|v,_,_,cx|{if v.busy{return}match v.updater.apply_ready(){Ok(true)=>cx.quit(),Ok(false)=>{v.status="No staged update".into();cx.notify();},Err(e)=>{v.status=e;cx.notify();}}}))),
-    UpdateStatus::Failed(e)=>updates=updates.child(div().text_color(rgb(0xfca5a5)).child(e)),
+    UpdateStatus::Failed(e)=>updates=updates.child(div().text_color(rgb(0xfca5a5)).child(i18n::diagnostic(&e))),
    }
   }
   #[cfg(not(windows))]{updates=updates.child(tr("Automatic updates are available on Windows only."));}
@@ -1743,7 +1764,7 @@ impl Render for Studio {
      let row=div().id(("page",page as usize)).px_2().py_1().rounded_md().flex().items_center().gap_2().text_sm().cursor_pointer()
       .bg(rgb(if active{0x543621}else{0x262626})).hover(|s|s.bg(rgb(0x363636)));
      let row=if self.language.rtl(){row.child(label.text_right()).child(mark)}else{row.child(mark).child(label)};
-     sidebar=sidebar.child(row.on_click(cx.listener(move|v,_,_,cx|{v.page=page;v.picker=None;if page==Page::Lab{v.ensure_lab_target(cx);}if page==Page::Gamut&&v.preview.is_none(){v.refresh_gamut(cx);}cx.notify();})));
+     sidebar=sidebar.child(row.on_click(cx.listener(move|v,_,_,cx|{v.page=page;v.numeric_edit=None;v.picker=None;if page==Page::Lab{v.ensure_lab_target(cx);}if page==Page::Gamut&&v.preview.is_none(){v.refresh_gamut(cx);}cx.notify();})));
     }
    }
   }
