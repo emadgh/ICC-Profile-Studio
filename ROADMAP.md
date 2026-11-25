@@ -205,3 +205,12 @@ Lean, vendor-independent GPUI application for CMYK and multichannel output ICCs 
 - Share embedded/predicted/standard/unavailable swatch policy across Inspector, editors, Comparison and Gradient. Display per-channel provenance in Inspector; localize capability labels and fixed notices in five languages. Dynamic diagnostics still fall back to English.
 - Add single-recipe strict-bounds preflight and avoid starting gamut when source analysis is unavailable.
 - Real/reference corpus harness supports subset counts and four-intent predicted color reports. No actual industrial corpus execution or physical print test yet; FOGRA55 download unavailable in this environment.
+
+## beta.33 — performance and cancellable custom rebuilding (CI pending)
+- beta.32 merged after successful Windows CI #96.
+- Exclude closed ink channels and no-op single-channel moves from constrained search; preserve channel signatures, order, caps and TAC. Regression compares all rebuilt B2A tags against the previous full search.
+- Share the already verified result with the save backend instead of repeating the full dynamic validation. Legacy compatibility APIs and Argyll revfix remain.
+- Custom rebuild cancellation checks between slices and rows and around validation. Atomic cancel/publication state prevents a successful cancellation from writing an ICC. Argyll external processes and other jobs are not yet cancellable.
+- Native roundtrip batches 4096 pixels; scratch buffer scales with channel count and batch size rather than total sample count. Preserve full result array and surface generation. Test batch boundaries and empty inputs.
+- Restore stored gamut sampling quality (9/17/33), keeping the 33 default. Lower grids are explicitly preview/analysis approximations and never alter export LUT resolution. Localize new controls in five languages.
+- Add opt-in release benchmark, cancellation/no-output tests and persistence regression. Actual elapsed time, peak process memory, interactive responsiveness and real-profile benchmarks remain pending. Future: background raster jobs, bounded reference/candidate cache, additional cancellation and modularize Studio workspaces.
