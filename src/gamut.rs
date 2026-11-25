@@ -28,7 +28,7 @@ pub fn sample_with_intent(path:&Path,grid:usize,intent:Intent)->Result<Cloud,Str
   xyz.iter().all(|v|v.is_finite()&&*v>=0.&&*v<2.).then_some(xyz)
  }).collect();
  if values.is_empty(){return Err("No valid PCS targets".into())}
- let result=native.apply(&values)?;
+ crate::analysis_job::check()?;let result=native.apply(&values)?;
  let mut points=Vec::with_capacity(result.len());let mut errors=Vec::with_capacity(result.len());
  for (v,target) in result.into_iter().zip(&values){
   let l=CIEXYZ{X:v[0],Y:v[1],Z:v[2]}.to_lab(&white);
@@ -50,7 +50,7 @@ pub fn sample_with_intent(path:&Path,grid:usize,intent:Intent)->Result<Cloud,Str
  lo[0]=lo[0].max(-5.);hi[0]=hi[0].min(105.);
  let n=if grid<=9{25usize}else if grid<=17{41}else{57};
  let mut field=vec![20.;n.pow(3)];let mut sample_xyz=Vec::new();let mut sample_indices=Vec::new();let mut target_lab=Vec::new();
- for x in 1..n-1{for y in 1..n-1{for z in 1..n-1{
+ for x in 1..n-1{crate::analysis_job::check()?;for y in 1..n-1{for z in 1..n-1{
   let v:[f32;3]=std::array::from_fn(|j|lo[j]+(hi[j]-lo[j])*[x,y,z][j] as f32/(n-1) as f32);
   if !(0. ..=100.).contains(&v[0]){continue}
   let l=CIELab{L:v[0] as f64,a:v[1] as f64,b:v[2] as f64};let t=l.to_xyz(&white);
@@ -65,8 +65,8 @@ pub fn sample_with_intent(path:&Path,grid:usize,intent:Intent)->Result<Cloud,Str
    let e=l.cie2000_delta_e(&lab,1.,1.,1.);if e.is_finite()&&e>=0.{field[i]=e.min(20.);}
   }
  }
- let surface=crate::gamut_surface::extract(&field,n,lo,hi,crate::gamut_surface::TOLERANCE);
- Ok(Cloud{points,sampled:values.len(),errors,surface})
+ crate::analysis_job::check()?;let surface=crate::gamut_surface::extract(&field,n,lo,hi,crate::gamut_surface::TOLERANCE);
+ crate::analysis_job::check()?;Ok(Cloud{points,sampled:values.len(),errors,surface})
 }
 #[derive(Debug,Clone,Copy,PartialEq,Eq)]
 pub struct Coverage{pub total:usize,pub both:usize,pub lost:usize,pub gained:usize,pub neither:usize}
