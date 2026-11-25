@@ -5,6 +5,17 @@ on:
     paths:
       - 'src/**'
       - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'STUDIO_VERSION'
+      - 'build.rs'
+      - 'assets/**'
+      - '.github/workflows/studio.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
       - 'STUDIO_VERSION'
       - 'build.rs'
       - 'assets/**'
@@ -26,11 +37,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
+        id: toolchain
         with:
           targets: x86_64-pc-windows-msvc
       - name: Test LittleCMS inspection and ICC backend
         run: cargo test --lib --no-default-features --release --target x86_64-pc-windows-msvc
       - name: Build GPUI preview
+        if: ${{ !cancelled() && steps.toolchain.outcome == 'success' }}
         run: cargo build --release --bin icc-profile-studio --target x86_64-pc-windows-msvc
       - name: Package Studio preview
         shell: pwsh
