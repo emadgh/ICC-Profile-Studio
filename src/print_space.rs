@@ -33,7 +33,7 @@ impl Roundtrip{
   const BATCH:usize=4096;
   let stride=self.format.channels*2;
   let mut device=vec![0u8;xyz.len().min(BATCH)*stride];let mut result=vec![[0.;3];xyz.len()];
-  for (input,output) in xyz.chunks(BATCH).zip(result.chunks_mut(BATCH)){
+  for (input,output) in xyz.chunks(BATCH).zip(result.chunks_mut(BATCH)){crate::analysis_job::checkpoint()?;
    let buffer=&mut device[..input.len()*stride];self.separation.transform_pixels(input,buffer);self.appearance.transform_pixels(buffer,output);
   }
   if result.iter().flatten().any(|v|!v.is_finite()){return Err("Non-finite native PCS sample".into())}
