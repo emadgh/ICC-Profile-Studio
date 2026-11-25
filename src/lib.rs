@@ -13,6 +13,7 @@ pub mod preferences;
 pub mod reports;
 pub mod optimizer;
 pub mod lab;
+pub mod profiling_target;
 pub mod characterization;
 pub mod characterization_tools;
 mod characterization_cgats;

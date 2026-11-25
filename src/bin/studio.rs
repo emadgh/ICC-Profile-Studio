@@ -999,38 +999,45 @@ impl Studio {
   })))
  }
  fn lab_page(&self,cx:&mut Context<Self>)->Div{
-  let mut p=div().flex().flex_col().gap_3().child(heading("Profiling Lab","Direct-ink test charts, measured patch comparison and ArgyllCMS profiling.")).child(self.characterization_panel(cx))
+  let dynamic=self.display_profile.as_ref().is_some_and(|p|!p.cmyk());
+  let (caps,tac)=if dynamic{(self.multi_caps.clone(),self.multi_tac)}else{(self.caps.to_vec(),self.tac)};
+  let count=color_convert_rust::profiling_target::recipes(&caps,tac,self.lab_levels).map(|v|v.len()).unwrap_or(0);
+  let mut p=div().flex().flex_col().gap_3().child(heading("Profiling Lab","Direct-ink characterization targets, measured condition comparison and CMYK profiling.")).child(self.characterization_panel(cx))
    .child("Record device, substrate, ink configuration and measurement conditions externally. Use identical geometry and D50 Lab for both charts.")
    .child(div().text_lg().child(tr("Generate device test chart")))
    .child(div().flex().gap_1().items_center().child(tr("Levels per ink")).children([3usize,5,7].map(|n|button(("chart-level",n),if self.lab_levels==n{format!("{n} ✓")}else{n.to_string()}).on_click(cx.listener(move|v,_,_,cx|{if !v.busy{v.lab_levels=n;cx.notify();}})))))
-   .child(format!("Rebuilder caps {:?}, TAC {:.0}%; Chart DPI {}. 8 mm patches, 2 mm gaps.",self.caps,self.tac,self.chart_dpi))
+   .child(format!("{} channels · {} unique patches · caps {:?} · TAC {:.0}% · 8 mm patches, 2 mm gaps",caps.len(),count,caps,tac))
+   .child("Bounded design: single ramps, pair mixtures and distributed samples. Not a full factorial or a certified profiling target.")
    .child(div().flex().gap_2().items_center().child(format!("{}: {} DPI",tr("Chart resolution"),self.chart_dpi))
     .child(button("chart-dpi-minus","−10").on_click(cx.listener(|v,_,_,cx|{if !v.busy{v.chart_dpi=v.chart_dpi.saturating_sub(10).max(50);cx.notify();}})))
     .child(self.numeric_slider(("dpi-slider",0),self.chart_dpi as f64,50.,1200.,10.,|v,x|v.chart_dpi=x as u32,cx)).child(button("chart-dpi-plus","+10").on_click(cx.listener(|v,_,_,cx|{if !v.busy{v.chart_dpi=(v.chart_dpi+10).min(1200);cx.notify();}}))))
    .child(button("generate-chart","Export TIFF chart and measurement CSV").on_click(cx.listener(|v,_,_,cx|{
     if v.busy{return}let Some(p)=v.source.clone()else{return};let Some(root)=rfd::FileDialog::new().pick_folder()else{return};
-    let (levels,caps,tac,dpi)=(v.lab_levels,v.caps,v.tac,v.chart_dpi);
+    let dynamic=v.display_profile.as_ref().is_some_and(|p|!p.cmyk());
+    let (caps,tac)=if dynamic{(v.multi_caps.clone(),v.multi_tac)}else{(v.caps.to_vec(),v.tac)};
+    let (levels,dpi)=(v.lab_levels,v.chart_dpi);
     v.busy=true;v.status="Generating device chart…".into();cx.notify();
     cx.spawn(async move|this,cx|{
-     let result=cx.background_spawn(async move{lab::generate_chart(&p,&root,levels,caps,tac,dpi).map(|p|format!("Chart: {}",p.display()))}).await;
+     let result=cx.background_spawn(async move{color_convert_rust::profiling_target::export(&p,&root,levels,&caps,tac,dpi).map(|p|format!("Chart: {}",p.display()))}).await;
      let _=this.update(cx,|v,cx|{v.busy=false;v.status=result.unwrap_or_else(|e|format!("Error: {e}"));cx.notify();});
     }).detach();
    })))
    .child("Print the chart with no RIP color conversion; verify safe ink limits first. Fill blank measured L,a,b after printing; blank values are rejected.")
    .child(div().text_lg().child(tr("Measured condition comparison")));
   for i in 0..2{p=p.child(button(("measured-file",i),if i==0{"Select measured baseline CSV"}else{"Select measured changed-condition CSV"}).on_click(cx.listener(move|v,_,_,cx|{if !v.busy{if let Some(p)=rfd::FileDialog::new().add_filter("CSV",&["csv"]).pick_file(){v.measured[i]=Some(p);v.measurement_result=None;cx.notify();}}}))).child(self.measured[i].as_ref().map(|p|p.display().to_string()).unwrap_or("Not selected".into()));}
-  p=p.child(button("compare-measured","Compare measurements").on_click(cx.listener(|v,_,_,cx|{
+  p=p.child(button("compare-measured","Confirm comparable D50/2° conditions and compare").on_click(cx.listener(|v,_,_,cx|{
    if v.busy{return}let [Some(a),Some(b)]=v.measured.clone()else{return};v.busy=true;v.measurement_result=None;v.status="Comparing actual measurements…".into();cx.notify();
    cx.spawn(async move|this,cx|{
-    let result=cx.background_spawn(async move{lab::compare(&a,&b)}).await;
+    let result=cx.background_spawn(async move{color_convert_rust::profiling_target::compare(&a,&b)}).await;
     let _=this.update(cx,|v,cx|{v.busy=false;match result{Ok(r)=>{v.measurement_result=Some(r);v.status="Measured comparison finished".into()},Err(e)=>v.status=format!("Error: {e}")}cx.notify();});
    }).detach();
   })));
   if let Some(r)=&self.measurement_result{p=p.child(format!("{} patches | Mean ΔE {:.3} | P95 {:.3} | Max {:.3} ({}) | Mean ΔLab (after−before) {:.3?}",r.count,r.mean,r.p95,r.max,r.worst,r.bias));}
+  if dynamic{return p.child("N-color ICC fitting is not supported by Argyll colprof. Export measured data for a compatible profiling engine; no ICC is fabricated.");}
   p.child(div().text_lg().child(tr("Profile measured printing condition (Argyll colprof)")))
    .child("Supply an actual CMYK .ti3 file from a measurement workflow. Builds a new ICC with explicit TAC and Argyll default black generation. Validate it before production. No automatic compensation or matching is assumed.")
    .child(button("colprof","Build ICC from measured TI3").on_click(cx.listener(|v,_,_,cx|{
-    if v.busy{return}let Some(source)=rfd::FileDialog::new().add_filter("Measured Argyll TI3",&["ti3"]).pick_file()else{return};
+    if v.busy||v.display_profile.as_ref().is_none_or(|p|!p.cmyk()){return}let Some(source)=rfd::FileDialog::new().add_filter("Measured Argyll TI3",&["ti3"]).pick_file()else{return};
     let Some(mut dest)=rfd::FileDialog::new().add_filter("ICC",&["icc"]).set_file_name("measured_profile.icc").save_file()else{return};if dest.extension().is_none(){dest.set_extension("icc");}
     let tac=v.tac;v.busy=true;v.status="Argyll colprof is building measured profile…".into();cx.notify();
     cx.spawn(async move|this,cx|{
