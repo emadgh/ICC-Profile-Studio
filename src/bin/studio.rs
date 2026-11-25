@@ -562,10 +562,12 @@ impl Studio {
   }).detach();
  }
  fn gamut_plot(&self,display:f32,id:&'static str,cx:&mut Context<Self>)->Stateful<Div>{
-  let o=self.preview_options;
+  let mut o=self.preview_options;
+  if self.candidate.is_none()&&o.layout!=CompareLayout::Shared{o.layout=CompareLayout::Shared;o.solid=true;o.wireframe=false;}
   div().id(id).w_full().flex_shrink_0().cursor_pointer()
     .on_mouse_down(MouseButton::Left,cx.listener(|this,e:&MouseDownEvent,_,cx|{this.orbit_last=Some(e.position);cx.notify();}))
     .on_mouse_up(MouseButton::Left,cx.listener(|this,_,_,cx|{this.orbit_last=None;cx.notify();}))
+    .on_mouse_up_out(MouseButton::Left,cx.listener(|this,_,_,cx|{this.orbit_last=None;cx.notify();}))
     .on_mouse_move(cx.listener(|this,e:&MouseMoveEvent,_,cx|{
      if !e.dragging(){this.orbit_last=None;return}
      if let Some(last)=this.orbit_last{
@@ -586,7 +588,8 @@ impl Studio {
     .child(gamut_view::plot(self.preview.as_ref(),self.preview_revision,o,&mut self.preview_cache.borrow_mut(),display))
  }
  fn gamut_toolbar(&self,cx:&mut Context<Self>)->Div{
-  let o=self.preview_options;
+  let mut o=self.preview_options;
+  if self.candidate.is_none()&&o.layout!=CompareLayout::Shared{o.layout=CompareLayout::Shared;o.solid=true;o.wireframe=false;}
   let style=|i:usize|o.style_label(i);
   let candidate_intent=if self.gamut_separate_intents{self.gamut_candidate_intent}else{self.gamut_reference_intent};
   let name=if self.candidate.is_some(){format!("{}: {} · {} | {}: {} · {}",tr("Reference"),style(0),tr(intent_label(self.gamut_reference_intent)),tr("Candidate"),style(1),tr(intent_label(candidate_intent)))}else{format!("{}: {} · {}",tr("Reference"),style(0),tr(intent_label(self.gamut_reference_intent)))};
@@ -609,15 +612,13 @@ impl Studio {
  }
  fn preview_panel(&self,width:f32,display:f32,full:bool,cx:&mut Context<Self>)->Div{
   let panel=div().flex().flex_col().w(px(width)).flex_shrink_0().h_full().min_h(px(0.)).overflow_hidden().bg(rgb(0x101010)).when(self.language.rtl(),|p|p.text_right())
-   .child(div().flex().items_center().justify_between().p_2().flex_shrink_0()
+   .child(div().flex().items_center().justify_between().p_2().flex_shrink_0().when(self.language.rtl(),|p|p.flex_row_reverse())
     .child(div().text_sm().child(tr("Gamut")))
     .child(div().flex().gap_1()
      .child(seg("full-gamut",if full{"Exit expanded"}else{"Expand"},full).on_click(cx.listener(|v,_,_,cx|{v.preview_fullscreen=!v.preview_fullscreen;cx.notify();})))
      .when(!full,|p|p.child(seg("collapse-preview","»",false).on_click(cx.listener(|v,_,_,cx|{v.preview_open=false;cx.notify();}))))))
-   .child(self.gamut_toolbar(cx))
-   .child(self.gamut_plot(display,"gamut-orbit",cx))
    .child(self.analysis_progress(1,cx))
-   .child(div().id("preview-scroll").flex_1().min_h(px(0.)).overflow_y_scroll().p_2().child(self.gamut_controls(cx)));
+   .child(div().id("preview-scroll").flex_1().min_h(px(0.)).overflow_y_scroll().p_2().child(self.gamut_toolbar(cx)).child(self.gamut_plot(display,"gamut-orbit",cx)).child(self.gamut_controls(cx)));
   panel
  }
  fn gamut_intent_controls(&self,scope:usize,cx:&mut Context<Self>)->Div{
@@ -751,7 +752,7 @@ impl Studio {
   let mut p=div().flex().flex_col().gap_3().child(heading("Gamut Viewer","Effective separation coverage and sampled nonconvex surface."))
    .child(self.gamut_intent_controls(1,cx))
    .child(self.gamut_plot(320.,"gamut-page-orbit",cx))
-   .child(button("open-gamut-page-preview","Show preview pane").on_click(cx.listener(|this,_,_,cx|{this.preview_open=true;if this.preview.is_none(){this.refresh_gamut(cx);}cx.notify();})))
+   .child(button("open-gamut-page-preview","Show preview pane").on_click(cx.listener(|this,_,window,cx|{this.preview_open=true;if f32::from(window.viewport_size().width)<1100.{this.preview_fullscreen=true;}if this.preview.is_none(){this.refresh_gamut(cx);}cx.notify();})))
    .child(div().flex().gap_2().items_center().child(tr("Target tolerance ΔE00")).children([1usize,2,3,5].map(|v|button(("threshold",v),if self.coverage_threshold==v as f64{format!("{v} ✓")}else{v.to_string()}).on_click(cx.listener(move|this,_,_,cx|{this.coverage_threshold=v as f64;cx.notify();})))));
   if let Some(data)=&self.preview{
    if let (Ok(a),Some(Ok(b)))=(&data.reference,&data.candidate){
@@ -1750,7 +1751,7 @@ impl Render for Studio {
   let docked=ui_geometry::docked_preview(self.preview_open,vw);
   let width=self.preview_width.clamp(280.,(vw-760.).max(280.));
   let rtl=self.language.rtl();
-  let display=(width-24.).min((vh-240.).max(180.));
+  let display=(width-36.).min((vh-240.).max(180.));
   if self.preview_fullscreen{return div().flex().size_full().bg(rgb(0x101010)).text_color(rgb(0xe8e8e8)).child(self.preview_panel(vw,(vw-28.).min((vh-220.).max(180.)),true,cx));}
   let groups:[(&str,&[(Page,&str,&str)]);5]=[
    ("Inspection",&[(Page::Inspector,"Profile Inspector","◎"),(Page::Validator,"Profile Validator","✓")]),
@@ -1758,12 +1759,12 @@ impl Render for Studio {
    ("Separation",&[(Page::Black,"Black Generation","◕"),(Page::Recipes,"Ink Optimizer","◈"),(Page::DeviceLink,"DeviceLink Generator","↔")]),
    ("Analysis",&[(Page::Comparison,"Profile Comparison","≍"),(Page::Gamut,"Gamut Viewer","◇"),(Page::Gradient,"Gradient Analyzer","▥"),(Page::Lab,"Profiling Lab","⊞")]),
    ("Application",&[(Page::Settings,"Settings","⚙"),(Page::About,"About & Updates","ⓘ")])];
-  let mut brand=div().flex().items_center().gap_1()
-   .child(div().id("brand-about").flex().flex_1().min_w(px(0.)).items_center().gap_2().rounded_md().cursor_pointer().hover(|s|s.bg(rgb(0x363636)))
+  let mut brand=div().flex().items_center().gap_1().when(rtl,|p|p.flex_row_reverse())
+   .child(div().id("brand-about").flex().flex_1().min_w(px(0.)).items_center().gap_2().when(rtl,|p|p.flex_row_reverse()).rounded_md().cursor_pointer().hover(|s|s.bg(rgb(0x363636)))
     .child(img(self.logo.clone()).size(px(30.))).child(div().flex().flex_col().min_w(px(0.)).child(div().text_sm().child("ICC Profile Studio")).child(div().text_xs().text_color(rgb(0xa1a1aa)).child("by emadghasemi.ir")))
-    .on_click(cx.listener(|v,_,_,cx|{v.page=Page::About;v.picker=None;v.preview_fullscreen=false;cx.notify();})));
+    .on_click(cx.listener(|v,_,_,cx|{v.page=Page::About;v.numeric_edit=None;v.picker=None;v.preview_fullscreen=false;cx.notify();})));
   #[cfg(windows)] if matches!(self.updater.status(),UpdateStatus::Available(..)|UpdateStatus::Ready(..)){
-   brand=brand.child(seg("brand-update","↑",true).bg(rgb(0xc65f24)).on_click(cx.listener(|v,_,_,cx|{v.page=Page::About;v.picker=None;v.update_notice=None;cx.notify();})));
+   brand=brand.child(seg("brand-update","↑",true).bg(rgb(0xc65f24)).on_click(cx.listener(|v,_,_,cx|{v.page=Page::About;v.numeric_edit=None;v.picker=None;v.update_notice=None;cx.notify();})));
   }
   let mut sidebar=div().id("sidebar").flex().flex_col().w(px(if vw<900.{200.}else{238.})).flex_shrink_0().h_full().overflow_y_scroll().p_3().gap_1().bg(rgb(0x262626)).when(rtl,|p|p.text_right())
    .child(brand)
@@ -1813,7 +1814,7 @@ impl Render for Studio {
   let mut editor=div().flex().flex_col().flex_1().min_w(px(0.)).h_full().bg(rgb(0x242424));
   #[cfg(windows)] if let Some(version)=&self.update_notice{editor=editor.child(div().flex().flex_wrap().items_center().gap_2().px_4().py_2().bg(rgb(0x543621)).child(div().flex_1().min_w(px(0.)).child(format!("{}: {version}",tr("New update available")))).child(button("notice-about","View update").on_click(cx.listener(|v,_,_,cx|{v.page=Page::About;v.update_notice=None;v.picker=None;cx.notify();}))).child(button("notice-dismiss","Later").on_click(cx.listener(|v,_,_,cx|{v.update_notice=None;cx.notify();}))));}
   let editor=editor
-    .child(div().flex().flex_wrap().gap_2().items_center().justify_between().px_5().py_3().bg(rgb(0x282828)).child(div().flex_1().min_w(px(0.)).child(self.source.as_ref().and_then(|p|p.file_name()).map(|p|p.to_string_lossy().into_owned()).unwrap_or_else(||tr("No profile selected")))).when(self.display_profile.is_some(),|r|r.child(div().flex().gap_1().items_center()
+    .child(div().flex().flex_wrap().gap_2().items_center().justify_between().when(rtl,|p|p.flex_row_reverse()).px_5().py_3().bg(rgb(0x282828)).child(div().flex_1().min_w(px(0.)).child(self.source.as_ref().and_then(|p|p.file_name()).map(|p|p.to_string_lossy().into_owned()).unwrap_or_else(||tr("No profile selected")))).when(self.display_profile.is_some(),|r|r.child(div().flex().gap_1().items_center()
      .child(seg("ink-name-standard","Standard names",!self.embedded_names).on_click(cx.listener(|v,_,_,cx|{v.embedded_names=false;v.persist_name_mode();cx.notify();})))
      .child(seg("ink-name-profile","Profile names",self.embedded_names).on_click(cx.listener(|v,_,_,cx|{v.embedded_names=true;v.persist_name_mode();cx.notify();})))
      .when(self.embedded_names&&self.display_profile.as_ref().is_some_and(|p|p.colorants().iter().all(Option::is_none)),|r|r.child(div().text_xs().text_color(rgb(0xfbbf24)).child(tr("No embedded ink names")))))).child(button("toggle-preview",if vw<1100.{"Open expanded gamut"}else if docked{"Hide preview"}else{"Show preview"}).on_click(cx.listener(move|this,_,_,cx|{if vw<1100.{this.preview_fullscreen=true;}else{this.preview_open=!this.preview_open;}if (this.preview_open||this.preview_fullscreen)&&this.preview.is_none(){this.refresh_gamut(cx);}cx.notify();}))))
