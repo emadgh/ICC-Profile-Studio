@@ -287,3 +287,8 @@ PR #35 supersedes the separately stacked #34 and includes all its gamut intent a
 - #29: clearer staged-update control and localized failure diagnostics; malformed release metadata/digest tests. Actual Windows update/download/install and failure acceptance pending.
 - #30: shared/separate four native rendering intents, same grid, cross-intent interpretation warning, five-language selectors. Source implemented; Windows acceptance pending.
 - #31/#32 advanced ICC construction/compatibility are separate engine workstreams; no claim of new ICC output or real channel reduction in this UI batch. #33 remains a release gate. Keep all issues open until acceptance evidence exists.
+
+## Beta.42 — acceptance hardening (single CI batch)
+- Beta.41 #35 merged after exact-head CI #109. Consolidated follow-up: dynamic status localization with original technical detail preserved (17 additional dictionary rows), explicit saved gamut intent preferences with backwards-compatible defaults, overlay intent labels, real per-phase gamut target/field batch progress and cancellable surface extraction, cross-thread cancellation tests and stricter numeric grammar/validation feedback.
+- #25/#26/#27/#28/#30 remain open pending Windows/IME/layout, full technical localization, interactive verification and external/write-job cancellation policy. #29 live updater acceptance and #33 real-profile/physical/Windows release acceptance remain outstanding. #31/#32 are separate advanced engine work; no changes to ICC output semantics or unsupported serialization in this batch.
+- CI only once on final PR head. Do not mark manual or physical acceptance from compilation alone.
