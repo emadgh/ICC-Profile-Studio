@@ -1,3 +1,4 @@
+mod icc_curve;
 pub mod advanced_lut;
 pub mod multichannel;
 pub mod rtl;
