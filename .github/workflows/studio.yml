@@ -1,29 +1,9 @@
 name: ICC Profile Studio Windows x64
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'src/**'
-      - 'Cargo.toml'
-      - 'Cargo.lock'
-      - 'STUDIO_VERSION'
-      - 'build.rs'
-      - 'assets/**'
-      - 'scripts/fetch-cie.ps1'
-      - 'CIE_DATA.md'
-      - '.github/workflows/studio.yml'
+  # Explicit CI request after a batch of commits; no build on each push/synchronize.
   pull_request:
     branches: [main]
-    paths:
-      - 'src/**'
-      - 'Cargo.toml'
-      - 'Cargo.lock'
-      - 'STUDIO_VERSION'
-      - 'build.rs'
-      - 'assets/**'
-      - 'scripts/fetch-cie.ps1'
-      - 'CIE_DATA.md'
-      - '.github/workflows/studio.yml'
+    types: [labeled]
   workflow_dispatch:
     inputs:
       publish_preview:
@@ -35,7 +15,12 @@ permissions:
   contents: read
 jobs:
   studio:
+    if: github.event_name == 'workflow_dispatch' || github.event.label.name == 'ci:run'
+    concurrency:
+      group: studio-windows-${{ github.head_ref || github.ref_name }}
+      cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
     runs-on: windows-latest
+    timeout-minutes: 30
     permissions:
       contents: write
     steps:
@@ -52,7 +37,6 @@ jobs:
           REQUIRE_CIE_DATA: '1'
         run: cargo test --lib --no-default-features --release --target x86_64-pc-windows-msvc
       - name: Build GPUI preview
-        if: ${{ !cancelled() && steps.toolchain.outcome == 'success' }}
         run: cargo build --release --bin icc-profile-studio --target x86_64-pc-windows-msvc
       - name: Package Studio preview
         shell: pwsh
@@ -80,4 +64,5 @@ jobs:
         with:
           name: ICC-Profile-Studio-GPUI-preview
           path: studio-dist/
+          retention-days: 7
           if-no-files-found: error
