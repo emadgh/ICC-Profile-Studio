@@ -299,7 +299,7 @@ impl Profile{
 }
 
 #[derive(Clone,Debug)]
-pub enum DynamicCorrection{Points(Vec<[f64;5]>),Regions{regions:[Selective;MAX_REGIONS],count:usize},Smooth{strength:f64,passes:usize}}
+pub enum DynamicCorrection{Points(Vec<[f64;5]>),Regions{regions:[Selective;MAX_REGIONS],count:usize},Smooth{strength:f64,passes:usize},Optimize{weights:Vec<f64>,tolerance:f64,caps:Vec<f64>}}
 // Flat interleaved storage. Each pass is a Jacobi update from the previous
 // lattice, with a convex combination of the six axial neighbors.
 fn smooth_dynamic(values:&mut Vec<f64>,g:usize,n:usize,strength:f64,passes:usize){
@@ -316,6 +316,43 @@ fn smooth_dynamic(values:&mut Vec<f64>,g:usize,n:usize,strength:f64,passes:usize
   std::mem::swap(values,&mut next);
  }
 }
+// Bounded cost descent per LUT node. A candidate may only replace an
+// already feasible separation if its quantized cost decreases and the
+// appearance remains within tolerance of the original, unmodified node.
+fn optimize_dynamic_node(base:&[f64],caps:&[f64],tac:f64,weights:&[f64],tol:f64,mut predict:impl FnMut(&[f64])->R<CIELab>)->R<Vec<f64>>{
+ let n=base.len();let target=predict(base)?;
+ let mut best:Vec<f64>=base.iter().map(|&v|(v.clamp(0.,1.)*65535.).floor()/65535.).collect();
+ if best.iter().zip(caps).any(|(&x,&c)|x>c+1e-10)||best.iter().sum::<f64>()>tac+1e-10{return Err("Source separation exceeds requested limits; rebuild before ink optimization".into())}
+ let de=predict(&best)?.cie2000_delta_e(&target,1.,1.,1.);
+ if !de.is_finite()||de>tol{return Err("Baseline quantization exceeds color tolerance".into())}
+ let cost=|v:&[f64]|v.iter().zip(weights).map(|(x,w)|x*w).sum::<f64>();
+ let mut best_cost=cost(&best);
+ // Sort once by relative cost; consider only three cheapest active
+ // replacements per channel, plus direct reduction. Bounded search,
+ // not a globally optimal solution. At most 8*n trials per step.
+ let mut order:Vec<usize>=(0..n).filter(|&i|caps[i]>0.).collect();order.sort_by(|&i,&j|weights[i].total_cmp(&weights[j]));
+ let mut trial=best.clone();
+ for step in [0.05,0.02,0.01]{
+  for _ in 0..2{
+   let mut changed=false;
+   for &i in order.iter().rev(){
+    if best[i]+1e-12<step{continue}
+    for dest in std::iter::once(None).chain(order.iter().copied().filter(|&j|j!=i&&weights[j]<weights[i]).take(3).map(Some)){
+     trial.copy_from_slice(&best);trial[i]-=step;
+     if let Some(j)=dest{trial[j]+=step;}
+     if trial.iter().zip(caps).any(|(&v,&c)|v<0.||v>c+1e-12)||trial.iter().sum::<f64>()>tac+1e-10{continue}
+     for v in &mut trial{*v=(*v*65535.+1e-8).floor()/65535.;}
+     let c=cost(&trial);if c+1e-9>=best_cost{continue}
+     let de=predict(&trial)?.cie2000_delta_e(&target,1.,1.,1.);
+     if !de.is_finite(){return Err("Invalid optimization Delta E".into())}
+     if de<=tol{best.copy_from_slice(&trial);best_cost=c;changed=true;}
+    }
+   }
+   if !changed{break}
+  }
+ }
+ Ok(best)
+}
 impl Profile{
  /// nCLR v4 Lab correction, with independent reverse intents and certified limits.
  /// No assumed black channel. Source forward LUTs stay byte-identical.
@@ -325,12 +362,16 @@ impl Profile{
   match &op{
    DynamicCorrection::Points(p)=>{if p.len()!=n{return Err("Point curve count must match channels".into())}for &row in p{validate_points([row;4])?;}},
    DynamicCorrection::Regions{regions,count}=>{if *count>MAX_REGIONS{return Err("Too many correction regions".into())}validate_regions(&regions[..*count])?;},
-   DynamicCorrection::Smooth{strength,passes}=>{if !strength.is_finite()||!(0.05..=0.5).contains(strength)||!(1..=5).contains(passes){return Err("Smoothing strength 5–50%, passes 1–5".into())}}
+   DynamicCorrection::Smooth{strength,passes}=>{if !strength.is_finite()||!(0.05..=0.5).contains(strength)||!(1..=5).contains(passes){return Err("Smoothing strength 5–50%, passes 1–5".into())}},
+   DynamicCorrection::Optimize{weights,tolerance,caps}=>{crate::optimizer::MultiSettings{caps:caps.clone(),tac:tac_percent,weights:weights.clone(),tolerance:*tolerance}.validate(n)?;}
   }
-  let caps=crate::print_space::bounds(self)?.channels;
+  let mut caps=crate::print_space::bounds(self)?.channels;
+  if let DynamicCorrection::Optimize{caps:requested,..}=&op{for (x,&c) in caps.iter_mut().zip(requested){*x=x.min(c/100.);}}
   let tac=tac_percent/100.;
   let native=lcms2::Profile::new_icc(&self.bytes()?).map_err(|e|e.to_string())?;
+  let forward=if matches!(&op,DynamicCorrection::Optimize{..}){let Tag::Pipeline(p)=native.read_tag(TagSignature::AToB1Tag)else{return Err("Ink optimization requires A2B1".into())};if p.input_channels() as usize!=n||p.output_channels()!=3{return Err("Unexpected A2B1 dimensions".into())}Some(p)}else{None};
   let mut out=self.clone();
+  let mut input=vec![0f32;n];
   for (key,sig) in [(b"B2A0",TagSignature::BToA0Tag),(b"B2A1",TagSignature::BToA1Tag),(b"B2A2",TagSignature::BToA2Tag)]{
    let raw=self.tags.get(key).ok_or("All three B2A intents are required")?;
    if !raw.starts_with(b"mBA "){return Err("Correction requires simple v4 mBA LUTs".into())}
@@ -344,6 +385,16 @@ impl Profile{
     let lab=match &op{DynamicCorrection::Regions{regions,count}=>corrected_regions(lab,&regions[..*count]),_=>lab};
     pipe.eval(&normalized(lab),&mut result);
     if result.iter().any(|v|!v.is_finite()||*v< -0.00002||*v>1.00002){return Err("Invalid native source separation".into())}
+    if let DynamicCorrection::Optimize{weights,tolerance,..}=&op{
+     let p=forward.as_ref().ok_or("Missing A2B1")?;
+     for (x,&v) in node.iter_mut().zip(&result){*x=f64::from(v).clamp(0.,1.);}
+     let best=optimize_dynamic_node(&node,&caps,tac,weights,*tolerance,|v|{
+      for (x,&y) in input.iter_mut().zip(v){*x=y as f32;}let mut lab=[0f32;3];p.eval(&input,&mut lab);
+      if lab.iter().any(|v|!v.is_finite()){return Err("Invalid forward Lab".into())}
+      Ok(CIELab{L:100.*lab[0] as f64,a:255.*lab[1] as f64-128.,b:255.*lab[2] as f64-128.})
+     })?;
+     values.extend_from_slice(&best);continue
+    }
     for (j,&v) in result.iter().enumerate(){
      let v=f64::from(v).clamp(0.,1.);
      let v=match &op{DynamicCorrection::Points(p)=>super::interp(&p[j],v),_=>v};
@@ -402,5 +453,24 @@ mod dynamic_smoothing_tests{
   assert!(after.channels.iter().zip(before.channels).all(|(&a,b)|a<=b+1e-10));
   assert!(p.bounded_correction_multi(DynamicCorrection::Smooth{strength:f64::NAN,passes:1},17,35.).is_err());
   assert!(p.bounded_correction_multi(DynamicCorrection::Smooth{strength:0.3,passes:0},17,35.).is_err());
+ }
+}
+
+#[cfg(test)]
+mod dynamic_optimizer_tests{
+ use super::*;
+ #[test]fn constant_color_prefers_lower_cost_and_keeps_zero_channel(){
+  let base=[0.5,0.3,0.2,0.1,0.4,0.];let caps=[1.,1.,1.,1.,1.,0.];let weights=[1.,2.,1.,1.,1.,1.];
+  let predict=|_:&[f64]|Ok(CIELab{L:50.,a:0.,b:0.});
+  let v=optimize_dynamic_node(&base,&caps,1.5,&weights,1.,predict).unwrap();
+  assert_eq!(v[5],0.);assert!(v.iter().sum::<f64>()<1.5);
+  assert!(optimize_dynamic_node(&base,&caps,0.1,&weights,1.,predict).is_err());
+ }
+ #[test]fn nclr_optimization_preserves_bounds_and_forward(){
+  let p=crate::print_space::fixture(6);
+  let q=p.bounded_correction_multi(DynamicCorrection::Optimize{weights:vec![1.;6],tolerance:2.,caps:vec![100.;6]},17,600.).unwrap();
+  assert_eq!(p.tags[b"A2B1"],q.tags[b"A2B1"]);
+  let a=crate::print_space::bounds(&p).unwrap();let b=crate::print_space::bounds(&q).unwrap();
+  assert_eq!(b.channels[5],0.);assert!(b.channels.iter().zip(a.channels).all(|(&x,y)|x<=y+1e-10));
  }
 }
