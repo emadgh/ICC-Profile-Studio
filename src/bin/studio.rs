@@ -972,19 +972,24 @@ impl Studio {
     v.status=match target_tools::export_cgats(c,&path,profile.cmyk()){Ok(())=>format!("Saved {}",path.display()),Err(e)=>e};cx.notify();
    }
   })));
-  if self.display_profile.as_ref().is_some_and(|p|p.cmyk()){
-   p=p.child(tr("CMYK TIFF uses 8 mm patches, 2 mm gaps, selected DPI and Rebuilder ink limits. Original physical size is unknown. Export is untagged; verify safe limits and disable RIP color conversion before printing."))
-    .child(format!("Current limits {:?} · TAC {:.0}% · {} DPI",self.caps,self.tac,self.chart_dpi))
-    .child(button("target-tiff-export",tr("Confirm limits and export page CMYK16 TIFF")).on_click(cx.listener(|v,_,_,cx|{
+  if let Some(profile)=&self.display_profile{
+   let n=c.patches.first().map(|p|p.inks.len()).unwrap_or(0);
+   let (caps,tac)=if profile.cmyk(){(self.caps.to_vec(),self.tac)}else{(self.multi_caps.clone(),self.multi_tac)};
+   p=p.child(tr("Separated TIFF: 8 mm patches, 2 mm gaps, selected DPI and Rebuilder ink limits. Original physical size is unknown. Check RIP channel mapping; no ICC conversion."))
+    .child(format!("{} channels · TAC {:.0}% · {} DPI",n,tac,self.chart_dpi));
+   for (j,cap) in caps.iter().enumerate(){p=p.child(div().flex().items_center().gap_2().child(swatch(self.ink_color(j),12.)).child(self.ink_name(j)).child(format!("{cap:.1}%")));}
+   if caps.len()!=n{p=p.child(tr("Configure ink limits for every channel before TIFF export."));}
+   else{p=p.child(button("target-tiff-export",tr("Confirm limits and export separated 16-bit TIFF")).on_click(cx.listener(|v,_,_,cx|{
      if v.busy{return}let (Some(c),Some(profile))=(&v.characterization,&v.display_profile)else{return};
      let Some(path)=rfd::FileDialog::new().add_filter("TIFF",&["tif"]).set_file_name("characterization_page.tif").save_file()else{return};
-     let (c,profile,page,dpi,caps,tac)=(c.clone(),profile.clone(),v.characterization_page,v.chart_dpi,v.caps,v.tac);
+     let (caps,tac)=if profile.cmyk(){(v.caps.to_vec(),v.tac)}else{(v.multi_caps.clone(),v.multi_tac)};
+     let (c,profile,page,dpi)=(c.clone(),profile.clone(),v.characterization_page,v.chart_dpi);
      v.busy=true;v.status="Exporting device recipes…".into();cx.notify();
      cx.spawn(async move|this,cx|{
       let result=cx.background_spawn(async move{target_tools::export_page_tiff(&c,&profile,page,&path,dpi,caps,tac).map(|_|path)}).await;
       let _=this.update(cx,|v,cx|{v.busy=false;v.status=result.map(|p|format!("Saved {}",p.display())).unwrap_or_else(|e|e);cx.notify();});
      }).detach();
-    })));
+    })));}
   }
   p.child(button("target-export","Export target CSV").on_click(cx.listener(|v,_,_,cx|{
    if v.busy{return}let Some(c)=&v.characterization else{return};
