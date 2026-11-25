@@ -164,7 +164,7 @@ mod tests{
  use super::*;
  use crate::{put16,put32,identity_curves};
  fn unequal()->Vec<u8>{
-  let mut t=b"mAB\0\0\0\0".to_vec();t.extend([4,3,0,0]);
+  let mut t=b"mAB \0\0\0\0".to_vec();t.extend([4,3,0,0]);
   let cl=80usize;let end=cl+20+2*3*2*2*3*2;
   for v in [32,0,0,cl as u32,end as u32]{put32(&mut t,v);}
   identity_curves(&mut t,3);t.extend([2,3,2,2]);t.extend([0;12]);t.extend([2,0,0,0]);
