@@ -80,3 +80,19 @@ Run 3D lattice audit in Profiling Lab. Check 27 nodes, 18 edges per axis for com
 
 ### beta.40 acceptance (pending)
 Verify per-ink grid controls, preset, product overflow and node/work budget, chart resets and stale reports, full-domain warning, no unsupported-corner fill, shared holdout coverage and model comparison, five languages. Synthetic ordinary tests; optional FOGRA55 reference assertions. Raw table size excludes ICC overhead. No ICC export or claim of CMM equivalence.
+
+## Current release checklist (2026-11-25; all unchecked until evidence is recorded)
+
+- [ ] #24 exact-head CI success after fix; previous #106 had 184 passed/4 ignored backend tests but failed GUI build.
+- [ ] #25 Persian/Arabic full UI layout, mixed-script/Latin paths and numeric fields, both DPI sizes; no reversed scientific axes or colorant order.
+- [ ] #26 All five languages, dynamic parameterized diagnostics and raw native details; no missing static strings in priority workflows.
+- [ ] #27 Sliders, +/- controls, direct numeric entries, keyboard and clamping; compare chart scales, legend/ink order, zero and missing data; busy guards.
+- [ ] #28 Progress reflects actual phases/counts or indeterminate; cancellation before/mid/after sampling, no stale reports or partial ICC output, controls recover. Custom rebuild publication race correctly reported.
+- [ ] #29 About opens from logo/name; top update action, startup nonblocking, available shortcut/prompt, offline/invalid checksum, verified download/explicit restart, title/taskbar/Task Manager/version.
+- [ ] #30 Gamut: single reference with each of four intents; compare same intent, toggle separate and choose different intents, turn off and both use reference; re-enable starts aligned; hidden candidate control without candidate. Verify matched targets, cache invalidation, 2D/3D/expanded panel, analysis page, busy guard, native errors and five locales. Relative default; session-local initially. No source changes; cross-intent caveat and native fallback displayed. Native synthetic test is not Windows UI acceptance.
+- [ ] #33 Licensed real-profile matrix and opt-in Rust FOGRA55; independent native comparison, RAM/time/gamut convergence, Windows 10/11 smoke tests, RIP mapping and print validation where relevant.
+- [ ] #33 Reviewed Cargo.lock, dependency/license/security review, Argyll provenance, portable ZIP/version/SHA256, update and RC verification.
+- [ ] #32 Advanced ICC compatibility remains conditional; document unsupported structures/channel-count conversion and DeviceLink constraints.
+- [ ] #31 New N-color profiling remains experimental; no serialization until full domain coverage, reverse continuity, media normalization, native CMM and independent physical tests satisfy approved gates.
+
+Evidence per check: build commit, input profile signature/version/channel count, operation/intent, settings, outcome, logs/screenshots or measured data and remaining limitations. Do not mark completion on CI alone when manual/physical acceptance is required. Track issues at https://github.com/emadgh/color-convert-rust/issues.
