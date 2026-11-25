@@ -14,7 +14,36 @@ Lean, vendor-independent GPUI application for CMYK and multichannel output ICCs 
 - Print DeviceLink generation; characterization chart, measured CSV comparison and measured TI3 profiling.
 - System profile picker next to disk selection in reference/comparison/gamut, local display preferences and updater.
 
-## Remaining work (priority order)
+## Active delivery plan — 2026-11-25 (supersedes historical priority lists)
+
+**Verified baseline:** beta.39 / PR #23 merged after Windows CI #105. Beta.40 / PR #24 failed CI #106 at the GUI format argument (184 backend tests passed, 4 ignored); fix committed and recheck requested. A separate stacked PR implements selectable gamut intents and documents the plan. Merge only after successful CI on the exact current head and predecessor integration. Existing preview history below is retained as historical evidence; older “CI pending” headings describe their state at the time, not today's state.
+
+**Release scope:** finish a reliable existing-print-ICC editor/analysis application first. Complete new measurement-based N-color ICC construction as a separate experimental workstream, not a prerequisite for an editing-only 1.0 if the owner accepts that scope. No image conversion, device communication, non-print profile editor or library/project manager.
+
+### P0 — repair and verify
+- [ ] [PR #24](https://github.com/emadgh/color-convert-rust/pull/24) build recheck, exact-head merge after CI; no stable release implied.
+
+### P1 — user-requested priorities and release acceptance
+- [ ] [#25](https://github.com/emadgh/color-convert-rust/issues/25) Full Persian/Arabic RTL: layout, bidi shaping, mixed-script labels, editable fields, focus order, DPI; retain scientific axis/channel ordering.
+- [ ] [#26](https://github.com/emadgh/color-convert-rust/issues/26) Complete five-language technical descriptions, structured localized diagnostics, preserve raw native error details.
+- [ ] [#27](https://github.com/emadgh/color-convert-rust/issues/27) Sliders, numeric inputs and chart usability, keyboard/focus, unit conversion, consistent axes and color provenance.
+- [ ] [#28](https://github.com/emadgh/color-convert-rust/issues/28) Common progress/cancel state for long jobs, cancellation checkpoints, stale-result prevention, no partial ICC publication.
+- [ ] [#29](https://github.com/emadgh/color-convert-rust/issues/29) About/updater, startup prompt, offline/checksum failures, Windows title and executable metadata.
+- [ ] [#30](https://github.com/emadgh/color-convert-rust/issues/30) Gamut shared/separate intents (source implemented on stacked branch; CI/manual acceptance pending). Default Relative Colorimetric, Perceptual/Saturation/Absolute choices. Independent Reference/Candidate selectors only in comparison. Same D50 target grid and quality, invalidate previous result on intent changes; label cross-intent comparisons. Choices session-local initially.
+- [ ] [#33](https://github.com/emadgh/color-convert-rust/issues/33) Real profiles 3/4/5/6/7/8/15 channels, Windows acceptance, benchmark, reproducible dependencies, licensing/checksums and RC packaging. Physical print QA requires operator measurements.
+
+### P2 — advanced engine and independent profiling
+- [ ] [#32](https://github.com/emadgh/color-convert-rust/issues/32) Real channel-count reduction (CMYK→CMY distinct from K=0), v2 optimization/black generation, complex LUTs and DeviceLink verification; fail explicitly on unsupported stages.
+- [ ] [#31](https://github.com/emadgh/color-convert-rust/issues/31) Gamut mapping, distinguish target missed vs unsupported, improve full-device-domain model, reverse lattice continuity and scalable forward CLUT, PCS/media white and rendering intents, validated A2B/B2A generation, native save/reopen and independent print QA. No new ICC output until coverage and verification gates pass.
+
+### Exit criteria
+- [ ] All P0/P1 release-blocking issues closed only with exact-head CI and documented manual acceptance where applicable.
+- [ ] No silent unsupported transformations, incorrect ink mapping or source overwrite; no claim of physical accuracy without print measurement.
+- [ ] Review remaining P2 limitations with owner and explicitly document excluded features before publishing stable editing-only version.
+- [ ] Release candidate installed and tested on Windows 10/11; reviewed dependency lockfile, license notices, checksum, updater, version/provenance validated.
+- [ ] Keep issue acceptance checklists synchronized with [RELEASE_QA.md](RELEASE_QA.md); update status after CI rather than marking code commits complete.
+
+## Historical remaining work (original priority order)
 
 1. Broaden supported printer LUT structures: sampled/parametric curves, mft1/mft2, mAB/mBA, varying CLUT axes and supported mpet elements. Reject unsupported transformations explicitly, preserve unknown tags safely. Test native interpolation and round-trip accuracy.
 2. Multichannel output profiles: dynamic channel count and names, 2–15 channels where supported by ICC and the underlying engine; generalize device sampling, bounds, TAC, curves, comparison, gamut, rebuilding and constrained correction in stages. Avoid treating arbitrary inks as CMYK or assuming a black channel.
@@ -242,3 +271,19 @@ Lean, vendor-independent GPUI application for CMYK and multichannel output ICCs 
 
 ## beta.40 — forward CLUT sampling diagnostics (CI pending)
 - Beta.39 merged after CI #105. Add bounded anisotropic grid, raw Lab16 size, grouped holdout, missing-node/corner rejection, common-subset comparison, UI per-ink resolution and coverage. Independent actual FOGRA55 Python fold 0: 3^7 grid covers 742/867 holdouts, mean DE00 1.296; 5^4×2^3 covers 743/867, mean 1.704. Different subsets, neither complete. No ICC serialization or PCS normalization. Next: explicit gamut mapping and full-domain support policy; validate native interpolation and PCS before experimental export.
+
+## Active UI hardening batch — after beta.40
+- Beta.40 PR #24 merged after CI #107 (fix for GUI format argument); #34 retargeted to main, CI #108 requested. Gamut intent source and documentation await exact-head CI and Windows acceptance.
+- #25 partial: align workspace text, sidebar, preview and picker in RTL; mirror picker header and status chrome without changing numerical sliders, axes, colorant order or orbit. Existing display-only shaping remains; full mixed-script wrapping, editable bidi and Windows DPI/focus acceptance remain open.
+- #26 partial: add 47 five-language dictionary entries covering common worker statuses and capability messages; localize display-only diagnostics, retain raw engine details, render stored statuses in current locale instead of translating at assignment. 594 dictionary keys, static scan of literal tr calls found no missing or duplicated keys. Arbitrary native strings remain raw under localized heading; structured diagnostic IDs and parameterized success messages still pending. No claims of full localization.
+- #27, #28, #29, #33 remain open; subsequent batches should prioritize shared job progress/cancellation and numeric controls, then updater/Windows acceptance. No new profiling research features in this hardening batch.
+
+## Beta.41 — consolidated UI stabilization (single CI batch)
+PR #35 supersedes the separately stacked #34 and includes all its gamut intent and roadmap changes. Beta.40 / #24 is merged (CI #107). CI #108 was already started on #34 before the owner requested consolidation; do not start additional per-feature runs. One explicit CI request for the final #35 head only; merge after exact-head success.
+- #25 partial: workspace/picker/status RTL alignment, numeric input accepts Persian/Arabic digits; full native bidi editing, wrapping and Windows focus/DPI verification remain.
+- #26 partial: 65 new five-language rows across diagnostic and progress/updater batches; 612 unique total keys, no missing literal tr calls by static scan. Arbitrary native details remain unchanged; dynamic success messages and comprehensive technical localization still open.
+- #27: scoped numeric slider identities, precise step controls for bare sliders, keyboard numeric entry via value click (Enter commit, Escape discard, Backspace/Delete), locale-aware parsing, finite/range checking and chart guards. Direct keyboard entry is not a full IME-capable text editor; manual focus, clipboard, chart and DPI checks remain.
+- #28: shared read-only analysis job identity, cooperative cancellation, actual phase counts or checkpoint count, guards against cancelled/stale completions. Includes gamut, comparison, gradients, recipe optimizer and all seven N-color audits. Native calls/mesh extraction may finish before cancellation is observed. Existing rebuild cancel remains separate. Other write jobs and external Argyll/update downloads are not cancellable by this token.
+- #29: clearer staged-update control and localized failure diagnostics; malformed release metadata/digest tests. Actual Windows update/download/install and failure acceptance pending.
+- #30: shared/separate four native rendering intents, same grid, cross-intent interpretation warning, five-language selectors. Source implemented; Windows acceptance pending.
+- #31/#32 advanced ICC construction/compatibility are separate engine workstreams; no claim of new ICC output or real channel reduction in this UI batch. #33 remains a release gate. Keep all issues open until acceptance evidence exists.

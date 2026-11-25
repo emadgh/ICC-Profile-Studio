@@ -80,3 +80,33 @@ Run 3D lattice audit in Profiling Lab. Check 27 nodes, 18 edges per axis for com
 
 ### beta.40 acceptance (pending)
 Verify per-ink grid controls, preset, product overflow and node/work budget, chart resets and stale reports, full-domain warning, no unsupported-corner fill, shared holdout coverage and model comparison, five languages. Synthetic ordinary tests; optional FOGRA55 reference assertions. Raw table size excludes ICC overhead. No ICC export or claim of CMM equivalence.
+
+## Current release checklist (2026-11-25; all unchecked until evidence is recorded)
+
+- [ ] #24 exact-head CI success after fix; previous #106 had 184 passed/4 ignored backend tests but failed GUI build.
+- [ ] #25 Persian/Arabic full UI layout, mixed-script/Latin paths and numeric fields, both DPI sizes; no reversed scientific axes or colorant order.
+- [ ] #26 All five languages, dynamic parameterized diagnostics and raw native details; no missing static strings in priority workflows.
+- [ ] #27 Sliders, +/- controls, direct numeric entries, keyboard and clamping; compare chart scales, legend/ink order, zero and missing data; busy guards.
+- [ ] #28 Progress reflects actual phases/counts or indeterminate; cancellation before/mid/after sampling, no stale reports or partial ICC output, controls recover. Custom rebuild publication race correctly reported.
+- [ ] #29 About opens from logo/name; top update action, startup nonblocking, available shortcut/prompt, offline/invalid checksum, verified download/explicit restart, title/taskbar/Task Manager/version.
+- [ ] #30 Gamut: single reference with each of four intents; compare same intent, toggle separate and choose different intents, turn off and both use reference; re-enable starts aligned; hidden candidate control without candidate. Verify matched targets, cache invalidation, 2D/3D/expanded panel, analysis page, busy guard, native errors and five locales. Relative default; session-local initially. No source changes; cross-intent caveat and native fallback displayed. Native synthetic test is not Windows UI acceptance.
+- [ ] #33 Licensed real-profile matrix and opt-in Rust FOGRA55; independent native comparison, RAM/time/gamut convergence, Windows 10/11 smoke tests, RIP mapping and print validation where relevant.
+- [ ] #33 Reviewed Cargo.lock, dependency/license/security review, Argyll provenance, portable ZIP/version/SHA256, update and RC verification.
+- [ ] #32 Advanced ICC compatibility remains conditional; document unsupported structures/channel-count conversion and DeviceLink constraints.
+- [ ] #31 New N-color profiling remains experimental; no serialization until full domain coverage, reverse continuity, media normalization, native CMM and independent physical tests satisfy approved gates.
+
+Evidence per check: build commit, input profile signature/version/channel count, operation/intent, settings, outcome, logs/screenshots or measured data and remaining limitations. Do not mark completion on CI alone when manual/physical acceptance is required. Track issues at https://github.com/emadgh/color-convert-rust/issues.
+
+### RTL and diagnostics hardening — partial, pending CI/manual QA
+- [ ] Switch en/fa/it/ar/ru during a job; exact known status updates in current language; unknown native errors preserve details and file paths, no translated value is sent to an engine or storage.
+- [ ] Verify right-aligned workspace, sidebar and preview, mirrored system picker/header and bottom status; compare mixed-script, numbers and paths with LTR mode. Axis orientation, slider direction, channel ordering and 3D orbit unchanged.
+- [ ] Test mixed-script wrapping, punctuation, editable input, focus and Windows DPI; GPUI display-only Arabic shaping is not full native bidi layout.
+- [ ] Inventory remaining dynamic success/status messages, technical descriptions and raw native diagnostics; replace with stable typed IDs/parameters in future batches. Static literal translation checks are not proof of complete UI translation.
+
+### Beta.41 consolidated CI and manual gates (pending)
+- [ ] One exact-head Windows CI for consolidated #35, including #34; previous CI #108 had already been launched before consolidation. No per-commit CI.
+- [ ] Numeric value click, type ASCII/Persian/Arabic digits, decimal, minus, Enter/Escape/Backspace/Delete; invalid/out-of-range values rejected, step snapping and endpoints, busy guard, focus changes/page switches. Manual keyboard/IME and clipboard acceptance outstanding.
+- [ ] Read-only jobs: cancel before/mid/after checkpoint, no stale/cancelled result publication, correct progress phase count, UI recovery. Verify gamut in expanded mode, comparison, gradient, optimizer and all N-color audit workers. Rebuild uses separate publication-safe control; other write/external jobs not covered.
+- [ ] Gamut shared/separate intent selectors, same target set, all four intents, 2D/3D/panel and expanded mode, caveat for cross-intent comparison, native errors.
+- [ ] RTL text alignment, picker/header and bottom status, mixed-script paths and labels; full native wrapping/IME/focus still requires manual work. Five languages and raw diagnostic details.
+- [ ] About/update state transitions, actual Windows offline/private feeds, checksum failure, verified download, explicit restart and title/taskbar metadata. No physical or stable-release approval inferred from CI.

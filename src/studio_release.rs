@@ -72,6 +72,15 @@ mod tests {
         assert!(select(&serde_json::to_vec(&rows).unwrap(),"0.9.0-beta.29.2").unwrap().is_none());
     }
     #[test] fn numeric_order_and_namespace(){assert!(version("0.9.0-beta.10")>version("0.9.0-beta.9"));assert!(version("0.9.0-beta.1.extra").is_none());assert!(version("0.9.0").is_none());}
+    #[test] fn rejects_malformed_feed_and_unverified_assets(){
+        assert!(select(b"not json","0.9.0-beta.40").is_err());
+        let mut r=release("studio-v0.9.0-beta.41",false,false);
+        r["assets"][0]["digest"]=json!("sha256:bad");
+        assert!(select(&serde_json::to_vec(&vec![r.clone()]).unwrap(),"0.9.0-beta.40").unwrap().is_none());
+        r["assets"][0]["digest"]=json!(format!("sha256:{}","a".repeat(64)));
+        let c=select(&serde_json::to_vec(&vec![r]).unwrap(),"0.9.0-beta.40").unwrap().unwrap();
+        assert!(c.asset_digest.is_some());assert!(c.checksum_url.is_none());
+    }
     #[test] fn rejects_bad_asset_url(){
         let mut r=release("studio-v0.9.0-beta.29",true,false);
         r["assets"][0]["browser_download_url"]=json!("https://example.com/ICC-Profile-Studio.exe");

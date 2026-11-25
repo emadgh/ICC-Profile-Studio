@@ -13,11 +13,15 @@ fn targets(grid:usize)->Vec<[f64;3]>{
  }}}
  out
 }
-pub fn sample(path:&Path,grid:usize)->Result<Cloud,String>{
+pub fn sample(path:&Path,grid:usize)->Result<Cloud,String>{sample_with_intent(path,grid,Intent::RelativeColorimetric)}
+/// The requested intent applies to both separation and appearance legs.
+/// Native LittleCMS may use standard fallback for missing intent tables.
+pub fn sample_with_intent(path:&Path,grid:usize,intent:Intent)->Result<Cloud,String>{
+ crate::analysis_job::check()?;
  if !(5..=33).contains(&grid){return Err("Grid must be 5..33".into())}
  if std::fs::metadata(path).map_err(|e|e.to_string())?.len()>128*1024*1024{return Err("ICC exceeds 128 MiB".into())}
  let p=Profile::new_icc(&std::fs::read(path).map_err(|e|e.to_string())?).map_err(|e|e.to_string())?;
- let native=crate::print_space::Roundtrip::new(&p,Intent::RelativeColorimetric)?;
+ let native=crate::print_space::Roundtrip::new(&p,intent)?;
  let white=CIEXYZ{X:0.9642,Y:1.,Z:0.8249};
  let values:Vec<[f64;3]>=targets(grid).into_iter().filter_map(|v|{
   let t=CIELab{L:v[0],a:v[1],b:v[2]}.to_xyz(&white);
@@ -25,7 +29,7 @@ pub fn sample(path:&Path,grid:usize)->Result<Cloud,String>{
   xyz.iter().all(|v|v.is_finite()&&*v>=0.&&*v<2.).then_some(xyz)
  }).collect();
  if values.is_empty(){return Err("No valid PCS targets".into())}
- let result=native.apply(&values)?;
+ crate::analysis_job::check()?;let result=native.apply(&values)?;
  let mut points=Vec::with_capacity(result.len());let mut errors=Vec::with_capacity(result.len());
  for (v,target) in result.into_iter().zip(&values){
   let l=CIEXYZ{X:v[0],Y:v[1],Z:v[2]}.to_lab(&white);
@@ -47,7 +51,7 @@ pub fn sample(path:&Path,grid:usize)->Result<Cloud,String>{
  lo[0]=lo[0].max(-5.);hi[0]=hi[0].min(105.);
  let n=if grid<=9{25usize}else if grid<=17{41}else{57};
  let mut field=vec![20.;n.pow(3)];let mut sample_xyz=Vec::new();let mut sample_indices=Vec::new();let mut target_lab=Vec::new();
- for x in 1..n-1{for y in 1..n-1{for z in 1..n-1{
+ for x in 1..n-1{crate::analysis_job::check()?;for y in 1..n-1{for z in 1..n-1{
   let v:[f32;3]=std::array::from_fn(|j|lo[j]+(hi[j]-lo[j])*[x,y,z][j] as f32/(n-1) as f32);
   if !(0. ..=100.).contains(&v[0]){continue}
   let l=CIELab{L:v[0] as f64,a:v[1] as f64,b:v[2] as f64};let t=l.to_xyz(&white);
@@ -62,8 +66,8 @@ pub fn sample(path:&Path,grid:usize)->Result<Cloud,String>{
    let e=l.cie2000_delta_e(&lab,1.,1.,1.);if e.is_finite()&&e>=0.{field[i]=e.min(20.);}
   }
  }
- let surface=crate::gamut_surface::extract(&field,n,lo,hi,crate::gamut_surface::TOLERANCE);
- Ok(Cloud{points,sampled:values.len(),errors,surface})
+ crate::analysis_job::check()?;let surface=crate::gamut_surface::extract(&field,n,lo,hi,crate::gamut_surface::TOLERANCE);
+ crate::analysis_job::check()?;Ok(Cloud{points,sampled:values.len(),errors,surface})
 }
 #[derive(Debug,Clone,Copy,PartialEq,Eq)]
 pub struct Coverage{pub total:usize,pub both:usize,pub lost:usize,pub gained:usize,pub neither:usize}
@@ -74,7 +78,13 @@ pub fn coverage(a:&Cloud,b:&Cloud,threshold:f64)->Option<Coverage>{
  Some(r)
 }
 pub fn overlay(reference:&Path,candidate:Option<&Path>,grid:usize)->Overlay{
- Overlay{reference:sample(reference,grid),candidate:candidate.map(|p|sample(p,grid))}
+ overlay_with_intents(reference,candidate,grid,Intent::RelativeColorimetric,Intent::RelativeColorimetric)
+}
+pub fn overlay_with_intents(reference:&Path,candidate:Option<&Path>,grid:usize,reference_intent:Intent,candidate_intent:Intent)->Overlay{
+ let _=crate::analysis_job::phase("Sampling profile gamut",if candidate.is_some(){2}else{1});
+ let reference=sample_with_intent(reference,grid,reference_intent);let _=crate::analysis_job::advance();
+ let candidate=candidate.map(|p|{let result=sample_with_intent(p,grid,candidate_intent);let _=crate::analysis_job::advance();result});
+ Overlay{reference,candidate}
 }
 /// Equal Lab scaling, orthographic projection. x=a*, y=b*, z=L*-50.
 pub fn project(lab:[f32;3],yaw:f32,pitch:f32)->[f32;3]{
@@ -91,6 +101,17 @@ pub fn project(lab:[f32;3],yaw:f32,pitch:f32)->[f32;3]{
  #[test]fn six_channel_gamut(){
   let d=tempfile::tempdir().unwrap();let p=d.path().join("six.icc");crate::print_space::fixture(6).save_new(&p).unwrap();
   let r=sample(&p,9).unwrap();assert!(r.sampled>0);assert!(!r.points.is_empty());assert!(r.errors.iter().all(|e|e.is_finite()));
+ }
+ #[test]fn requested_intents_use_same_target_grid(){
+  let d=tempfile::tempdir().unwrap();let p=d.path().join("six.icc");crate::print_space::fixture(6).save_new(&p).unwrap();
+  let relative=sample(&p,5).unwrap();
+  for intent in [Intent::Perceptual,Intent::RelativeColorimetric,Intent::Saturation,Intent::AbsoluteColorimetric]{
+   let result=overlay_with_intents(&p,Some(&p),5,Intent::RelativeColorimetric,intent);
+   let a=result.reference.unwrap();let b=result.candidate.unwrap().unwrap();
+   assert_eq!(a.errors,relative.errors);assert_eq!(a.sampled,b.sampled);
+   assert_eq!(b.errors,sample_with_intent(&p,5,intent).unwrap().errors);
+   assert!(coverage(&a,&b,2.).is_some());
+  }
  }
  #[test]fn rejects_rgb(){let d=tempfile::tempdir().unwrap();let p=d.path().join("rgb.icc");std::fs::write(&p,Profile::new_srgb().icc().unwrap()).unwrap();assert!(sample(&p,9).is_err());}
 }

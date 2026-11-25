@@ -57,7 +57,7 @@ pub(crate) fn simulate(profile:&Profile,samples:&[[u8;3]],intent:Intent)->Result
  let stride=f.channels*2;
  let mut device=vec![0u8;samples.len().checked_mul(stride).ok_or("Device buffer overflow")?];
  let mut values=vec![[0f64;3];samples.len()];
- to_device.transform_pixels(samples,&mut device);to_xyz.transform_pixels(&device,&mut values);
+ for (i,batch) in samples.chunks(4096).enumerate(){crate::analysis_job::checkpoint()?;let start=i*4096;let end=start+batch.len();let buf=&mut device[start*stride..end*stride];to_device.transform_pixels(batch,buf);to_xyz.transform_pixels(buf,&mut values[start..end]);}
  let white=CIEXYZ{X:0.9642,Y:1.,Z:0.8249};
  let lab:Vec<_>=values.into_iter().map(|p|CIEXYZ{X:p[0],Y:p[1],Z:p[2]}.to_lab(&white)).collect();
  if lab.iter().any(|p|!p.L.is_finite()||!p.a.is_finite()||!p.b.is_finite()){return Err("Non-finite PCS output".into())}
@@ -72,7 +72,8 @@ pub fn compare(reference:&Path,candidate:&Path,grid:usize,intent:Intent)->Result
   samples.push([r,g,b].map(|i|((i*255+(grid-1)/2)/(grid-1)) as u8));
  }}}
  let count=samples.len();for i in 0..33{samples.push([((i*255+16)/32) as u8;3]);}
- let (a,la)=simulate(&reference,&samples,intent)?;let (b,lb)=simulate(&candidate,&samples,intent)?;
+ crate::analysis_job::phase("Comparing profile predictions",2)?;
+ let (a,la)=simulate(&reference,&samples,intent)?;crate::analysis_job::advance()?;let (b,lb)=simulate(&candidate,&samples,intent)?;crate::analysis_job::advance()?;
  let mut distances:Vec<f64>=la.iter().zip(&lb).map(|(x,y)|x.cie2000_delta_e(y,1.,1.,1.)).collect();
  if distances.iter().any(|v|!v.is_finite()||*v<0.){return Err("Invalid Delta E result".into())}
  let neutral=(count..samples.len()).map(|i|NeutralSample{rgb:samples[i][0],reference_lab:[la[i].L,la[i].a,la[i].b],candidate_lab:[lb[i].L,lb[i].a,lb[i].b],delta_e:distances[i],reference_ink:a[i].clone(),candidate_ink:b[i].clone()}).collect();

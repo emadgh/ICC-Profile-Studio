@@ -66,7 +66,7 @@ fn grouped(chart:&Chart,channels:usize)->R<(String,Vec<Sample>)>{
  let mode=chart.patches[0].measurement.clone();
  if !matches!(mode.as_str(),"M0"|"M1"|"M2"|"M3"){return Err("Declare a common M0/M1/M2/M3 measurement condition".into())}
  let mut groups:BTreeMap<Vec<u32>,([f64;3],usize)>=BTreeMap::new();
- for p in &chart.patches{
+ for p in &chart.patches{crate::analysis_job::check()?;
   if p.measurement!=mode||p.measurement_basis!="Declared D50/2°"{return Err("N-color evaluation requires homogeneous declared D50/2° Lab".into())}
   let lab=p.measured_lab.ok_or("Missing supplied Lab data")?;
   if lab.iter().any(|v|!v.is_finite())||!(0.0..=100.).contains(&lab[0])||lab[1..].iter().any(|&v|!(-128.0..=127.0).contains(&v)){return Err("Lab outside supported PCS range".into())}
@@ -99,6 +99,7 @@ pub struct Validation{pub train:usize,pub test:usize,pub nearest:ErrorStats,pub 
 pub struct CrossValidation{pub channels:usize,pub input_rows:usize,pub unique_recipes:usize,pub duplicate_rows:usize,pub measurement:String,pub folds:Vec<Validation>,pub pooled:Validation,pub stress:Option<Validation>,pub active_counts:Vec<usize>,pub peak_tac_percent:f64}
 fn local_prediction(training:&[&Sample],target:&[u32])->R<([f64;3],[f64;3],[f64;3],f64)>{local_kernel(training,target,false)}
 fn local_kernel(training:&[&Sample],target:&[u32],tapered:bool)->R<([f64;3],[f64;3],[f64;3],f64)>{
+ crate::analysis_job::checkpoint()?;
  let count=LOCAL_K+if tapered{1}else{0};
  if training.len()<count{return Err("Insufficient neighbors for local model".into())}
  let mut best=[(u64::MAX,usize::MAX);LOCAL_K+1];
@@ -473,6 +474,7 @@ pub fn audit_lab_lattice(chart:&Chart,channels:usize,s:LatticeSettings)->R<Latti
  if estimate>LATTICE_WORK_LIMIT{return Err("Lattice exceeds conservative computation budget; reduce characterization size".into())}
  let training:Vec<_>=samples.iter().collect();
  let mut baseline=Vec::with_capacity(27);let mut seed_evaluations=0;
+ crate::analysis_job::phase("Solving lattice nodes",27)?;
  for i in 0..27{
   let target=lattice_target(&s,lattice_coord(i));
   match solve_samples(&samples,mode.clone(),channels,target,s.inverse.clone()){
@@ -480,15 +482,17 @@ pub fn audit_lab_lattice(chart:&Chart,channels:usize,s:LatticeSettings)->R<Latti
    Err(e) if e==NO_SUPPORTED_SEED=>baseline.push(None),
    Err(e)=>return Err(e),
   }
+  crate::analysis_job::advance()?;
  }
  let caps:Vec<_>=s.inverse.caps_percent.iter().map(|&x|units(x)).collect();let limit=units(s.inverse.tac_percent);
  let before=lattice_metrics(&baseline,&training,&s,&caps,limit)?;
  let mut points=baseline.clone();let initial_objective=lattice_obj(&points,s.lambda);
  let mut cache:BTreeMap<(usize,Vec<u32>),Option<Candidate>>=BTreeMap::new();
  if s.lambda>0.{
-  for sweep in 0..4{for visit in 0..27{
+  crate::analysis_job::phase("Refining lattice",108)?;
+  for sweep in 0..4{for visit in 0..27{crate::analysis_job::check()?;
    let i=if sweep%2==0{visit}else{26-visit};
-   let Some(base)=&baseline[i]else{continue};
+   let Some(base)=&baseline[i]else{crate::analysis_job::advance()?;continue};
    let target=lattice_target(&s,lattice_coord(i));
    for step in [5.,2.,1.,0.5].map(units){
     let Some(current)=&points[i]else{continue};let q=current.key.clone();
@@ -507,6 +511,7 @@ pub fn audit_lab_lattice(chart:&Chart,channels:usize,s:LatticeSettings)->R<Latti
     }
     points[i]=Some(best);
    }
+   crate::analysis_job::advance()?;
   }}
  }
  let objective=lattice_obj(&points,s.lambda);if objective>initial_objective+1e-8{return Err("Lattice objective increased".into())}
@@ -565,15 +570,18 @@ pub fn audit_forward_grid(chart:&Chart,grid:&[usize],holdout_fold:u32,max_distan
  let work=(plan.nodes+test.len()) as u64*train.len() as u64*grid.len() as u64;
  if work>FORWARD_WORK_LIMIT{return Err("Forward grid exceeds distance-work budget".into())}
  let mut table=Vec::with_capacity(plan.nodes);let mut supported_nodes=0;let mut max_node_quantization_de=0f64;
+ crate::analysis_job::phase("Sampling forward grid",plan.nodes)?;
  for i in 0..plan.nodes{
   let q=forward_node(i,grid);let (_,_,lab,d)=local_prediction(&train,&q)?;
+  crate::analysis_job::advance()?;
   if d>max_distance+1e-12{table.push(None);continue}
   let encoded=lab16(lab);max_node_quantization_de=max_node_quantization_de.max(de(lab,decode_lab16(encoded)));
   table.push(Some(encoded));supported_nodes+=1;
  }
  let mut direct=Vec::new();let mut interpolated=Vec::new();let mut common=Vec::new();let mut interpolation=Vec::new();
+ crate::analysis_job::phase("Evaluating holdout samples",test.len())?;
  for p in &test{
-  let (_,_,lab,d)=local_prediction(&train,&p.key)?;
+  let (_,_,lab,d)=local_prediction(&train,&p.key)?;crate::analysis_job::advance()?;
   if d>max_distance+1e-12{continue}
   let error=de(lab,p.lab);direct.push(error);
   if let Some(v)=forward_interpolate(grid,&table,&p.key){

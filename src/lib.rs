@@ -18,6 +18,7 @@ pub mod lab;
 pub mod profiling_target;
 pub mod characterization;
 pub mod ncolor_model;
+pub mod analysis_job;
 pub mod characterization_tools;
 mod characterization_cgats;
 mod spectral_colorimetry;

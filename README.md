@@ -103,3 +103,9 @@ Beta.38 adds experimental continuity-regularized inverse ramp comparison in Prof
 Beta.39 adds experimental 3×3×3 local Lab lattice audit with per-axis spans, independent and neighbor-regularized recipes, per-axis ink jumps, incomplete-node reporting, and cell-center model checks. No ICC is generated. See NCOLOR_MODEL_QA.md.
 
 Beta.40 adds an experimental forward CLUT audit in Profiling Lab / Patch explorer: independent per-ink grid sizes, checked raw Lab16 payload estimate, grouped fold-0 holdout, direct vs multilinear interpolation errors on common samples, and explicit missing-corner coverage. The 8,192-node diagnostic budget does not support 14–15 dimensions even at two points per axis. No ICC generated. See NCOLOR_MODEL_QA.md.
+
+## Active development tracker
+
+See [ROADMAP.md](ROADMAP.md), [RELEASE_QA.md](RELEASE_QA.md) and [GitHub Issues](https://github.com/emadgh/color-convert-rust/issues) for tracked P0/P1/P2 work. Priority is editing/analysis reliability, full Persian/Arabic RTL, complete diagnostics localization, controls, cancellable progress, updater and real Windows/profile acceptance. Measurement-based N-color ICC construction is an experimental workstream, not yet complete. Gamut intent controls (shared or separate Reference/Candidate) use requested native round-trip rendering intents and matched targets; cross-intent coverage is not physical gamut. CI/manual verification required.
+
+Beta.41 consolidates the UI stabilization work: shared/separate gamut rendering intents, partial RTL and localized diagnostics, direct numeric keyboard entry and cooperative read-only analysis cancellation with phase progress. Existing file-publication safety remains separate; manual Windows/RTL/updater and real-profile acceptance are pending. See active roadmap and release QA.

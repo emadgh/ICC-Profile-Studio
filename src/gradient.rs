@@ -31,18 +31,19 @@ fn metrics(steps:&[f64])->(f64,f64,f64,usize,usize,usize){
 }
 fn analyze(p:&Profile)->Result<Vec<Ramp>,String>{
  let mut report=Vec::new();
- for (name,values) in ramps(){
+ for (name,values) in ramps(){crate::analysis_job::check()?;
   let (inks,lab)=simulate(p,&values,Intent::RelativeColorimetric)?;
   let steps:Vec<_>=lab.windows(2).map(|v|v[0].cie2000_delta_e(&v[1],1.,1.,1.)).collect();
   if steps.iter().any(|v|!v.is_finite()||*v<0.){return Err("Invalid gradient Delta E".into())}
   let (max_step,p95,mean,worst_index,plateaus,spikes)=metrics(&steps);
   let max_ink_step=inks.windows(2).flat_map(|v|v[0].iter().zip(&v[1]).map(|(a,b)|(a-b).abs())).fold(0f64,f64::max);
   let ink_curves=(0..inks[0].len()).map(|j|inks.iter().map(|v|v[j]).collect()).collect();
-  report.push(Ramp{name,steps,light:lab.iter().map(|v|v.L).collect(),max_step,p95,mean,worst_index,plateaus,spikes,max_ink_step,ink_curves});
+  report.push(Ramp{name,steps,light:lab.iter().map(|v|v.L).collect(),max_step,p95,mean,worst_index,plateaus,spikes,max_ink_step,ink_curves});crate::analysis_job::advance()?;
  }
  Ok(report)
 }
 pub fn compare(reference:&Path,candidate:Option<&Path>)->Result<GradientReport,String>{
+ crate::analysis_job::phase("Analyzing gradient ramps",if candidate.is_some(){26}else{13})?;
  let (p,reference_channels)=open_output(reference)?;let reference=analyze(&p)?;
  let (candidate,candidate_channels)=if let Some(path)=candidate{let (p,channels)=open_output(path)?;(Some(analyze(&p)?),channels)}else{(None,vec![])};
  Ok(GradientReport{reference,candidate,reference_channels,candidate_channels})
