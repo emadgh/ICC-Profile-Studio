@@ -1072,8 +1072,31 @@ impl Studio {
     }else{white=white.child(details);}
     white=white.child(div().text_xs().child("Stored tag only. Swatch is an approximate sRGB rendering, not a calibrated or measured sample. A normalized D50 value does not prove the substrate is physically neutral."));
    }else{white=white.child("Not available: wtpt missing, unreadable or invalid. No substitute white is assumed.");}
-   panel=panel.child(white)
-    .child(div().text_xs().child(format!("{} ICC tags",r.tags.len())))
+   panel=panel.child(white);
+   if let Some(profile)=&self.display_profile{
+    let structures=color_convert_rust::advanced_lut::inspect(profile);
+    if !structures.is_empty(){
+     panel=panel.child(div().text_lg().child(tr("LUT structure")));
+     for (tag,result) in structures{
+      let mut card=div().flex().flex_col().gap_1().p_3().rounded_md().bg(rgb(0x282828));
+      match result{
+       Ok(l)=>{
+        let axes=l.axes.iter().map(|v|v.to_string()).collect::<Vec<_>>().join(" × ");
+        card=card.child(format!("{} · {} · {} → {} · {}-bit",l.tag,l.kind,l.inputs,l.outputs,l.precision_bits))
+         .child(format!("CLUT: {}",axes))
+         .child(format!("{}: {}  |  {}: {}  |  {}: {}",tr("Sampled curves"),l.sampled_curves,tr("Gamma curves"),l.gamma_curves,tr("Parametric curves"),l.parametric_curves))
+         .child(format!("Matrix: {} · M curves: {}",if l.matrix{"✓"}else{"—"},if l.m_curves{"✓"}else{"—"}))
+         .child(div().text_xs().child(tr("Structural decoding available; channel reorder still requires native validation.")));
+        if tag.starts_with('B'){card=card.child(div().text_xs().child(tr(if l.strict_sampled_bounds{"Sampled device curve bounds supported"}else{"Analytic output curve bounds not yet supported"})));}
+       },
+       Err(e)=>card=card.child(format!("{tag}: {e}")),
+      }
+      panel=panel.child(card);
+     }
+     panel=panel.child(div().text_xs().text_color(rgb(0xa1a1aa)).child(tr("Complex LUT inspection and channel reorder do not imply support in version conversion or curve editing.")));
+    }
+   }
+   panel=panel.child(div().text_xs().child(format!("{} ICC tags",r.tags.len())))
     .when(self.profile.is_some(),|p|p.child(button("save-rename","Save copy with new profile name").on_click(cx.listener(|v,_,_,cx|v.save_edit(2,cx)))));
   } else {panel=panel.child(tr("Open an ICC/ICM file or select an installed profile using System. Choose an editing or analysis tool from the sidebar."));}
   panel
@@ -1095,12 +1118,12 @@ impl Studio {
      Ok(b)=>{for (j,v) in b.channels.iter().enumerate(){panel=panel.child(format!("{}: {:.4}%",self.ink_name(j),100.*v));}panel=panel.child(format!("TAC upper bound: {:.4}% ({})",100.*b.tac,if b.exact_node_tac{"affine output curves; exact node maximum"}else{"conservative global envelope; may overestimate"}));},
      Err(e)=>panel=panel.child(format!("Not certifiable with supported LUT parser: {e}")),
     }
-    panel=panel.child("Multichannel inspection and gamut supported; four-channel editing tools remain restricted.");
+    panel=panel.child("Multichannel bounds are conservative; editing support depends on the LUT structure.");
    }
    if let Some(bounds)=&r.strict_bounds{
     panel=panel.child(div().text_lg().child(tr("Strict LUT bounds")));
     match bounds{
-     Ok(b)=>{panel=panel.child(format!("Channel ceilings: {:.4?}%",b.channels.map(|v|v*100.))).child(format!("TAC upper bound: {:.4}% ({})",b.tac*100.,if b.exact_node_tac{"affine output curves; exact node maximum"}else{"conservative per-cell envelope; may overestimate"}));},
+     Ok(b)=>{panel=panel.child(format!("Channel ceilings: {:.4?}%",b.channels.map(|v|v*100.))).child(format!("TAC upper bound: {:.4}% ({})",b.tac*100.,if b.exact_node_tac{"affine output curves; exact node maximum"}else{"conservative envelope; may overestimate"}));},
      Err(e)=>{panel=panel.child(format!("Not certifiable with supported LUT parser: {e}"));}
     }
    }
