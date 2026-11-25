@@ -119,9 +119,8 @@ fn plane_segment(t:[[f32;3];3],value:impl Fn([f32;3])->f32)->Option<[[f32;3];2]>
  }
  if n==2{Some([p[0],p[1]])}else{None}
 }
-fn quad_grid(mesh:&[[[f32;3];3]])->Vec<[[f32;3];2]>{
- let mut out=Vec::new();
- for light in (5..100).step_by(5){out.extend(mesh.iter().filter_map(|&t|slice_segment(t,light as f32)));}
+fn visit_quad_grid(mesh:&[[[f32;3];3]],mut visit:impl FnMut([[f32;3];2])->bool)->bool{
+ for light in (5..100).step_by(5){for segment in mesh.iter().filter_map(|&t|slice_segment(t,light as f32)){if !visit(segment){return false}}}
  for k in 0..24{
   let angle=k as f32*std::f32::consts::TAU/24.;let (s,c)=angle.sin_cos();
   for &t in mesh{
@@ -132,12 +131,19 @@ fn quad_grid(mesh:&[[[f32;3];3]])->Vec<[[f32;3];2]>{
      let f=ra/(ra-rb);let p=std::array::from_fn(|j|a[j]+(b[j]-a[j])*f);
      if ra<0.{a=p}else{b=p}
     }
-    out.push([a,b]);
+    if !visit([a,b]){return false}
    }
   }
  }
- out
+ true
 }
+// Cache only bounded geometry; over-budget meshes stream directly instead.
+const MAX_WIRE_SEGMENTS:usize=65_536;
+pub fn prepare_wire(c:&Cloud)->Option<Vec<[[f32;3];2]>>{
+ let mut out=Vec::new();let completed=visit_quad_grid(triangles(c),|segment|{if out.len()>=MAX_WIRE_SEGMENTS{return false}out.push(segment);true});
+ completed.then_some(out)
+}
+#[cfg(test)]fn quad_grid(mesh:&[[[f32;3];3]])->Vec<[[f32;3];2]>{let mut out=Vec::new();visit_quad_grid(mesh,|s|{out.push(s);true});out}
 fn boundary(l:&Layer,i:usize)->bool{
  if !l.depth[i].is_finite(){return false}
  let n=SIZE as usize;let x=i%n;let y=i/n;
@@ -204,7 +210,9 @@ fn grid3d(img:&mut RgbImage,p:&impl Fn([f32;3])->[f32;2],o:ViewOptions,a:f32,b:f
  label(img,p([0.,a,-b_back]),"a*");label(img,p([0.,-a_back,b]),"b*");
 }
 
-pub fn render(data:Option<&Overlay>,o:ViewOptions)->Rendered{
+pub fn render(data:Option<&Overlay>,o:ViewOptions)->Rendered{render_prepared(data,o,[None,None])}
+/// Prepared segments must belong to the corresponding current cloud revision.
+pub fn render_prepared(data:Option<&Overlay>,o:ViewOptions,wire_cache:[Option<&[[[f32;3];2]]>;2])->Rendered{
  let mut img=RgbImage::from_pixel(SIZE,SIZE,Rgb(BG));
  let clouds:[Option<&Cloud>;2]=[data.and_then(|d|d.reference.as_ref().ok()),data.and_then(|d|d.candidate.as_ref()).and_then(|d|d.as_ref().ok())];
  // Fit all points (not only visible ones) in a rotation-invariant frame.
@@ -285,7 +293,9 @@ pub fn render(data:Option<&Overlay>,o:ViewOptions)->Rendered{
     outline_only[i]=wire&&!solid;
    }else{
     if solid{for &t in mesh{layer.triangle(t.map(screen),t.map(color));}}
-    if wire{for [a,b] in quad_grid(mesh){layer.wire(screen(a),screen(b),color(a),color(b),solid);}}
+    if wire{let mut draw=|[a,b]|{layer.wire(screen(a),screen(b),color(a),color(b),solid);true};
+     if let Some(segments)=wire_cache[i]{for &segment in segments{draw(segment);}}else{visit_quad_grid(mesh,draw);}
+    }
    }
   }else{
    // Explicitly reported by UI as points fallback if no surface is found.
@@ -369,6 +379,11 @@ pub fn render(data:Option<&Overlay>,o:ViewOptions)->Rendered{
   let mut layer=Layer::new();
   layer.wire([10.,10.,0.],[20.,10.,0.],[200,100,50],[200,100,50],true);
   assert_eq!(layer.color[10*SIZE as usize+15],[136,68,34]);
+ }
+ #[test]fn prepared_and_streamed_wire_render_identically(){
+  let mut d=example();let c=d.reference.as_mut().unwrap();c.surface=Some(crate::gamut_surface::Surface{triangles:vec![[[10.,-10.,-10.],[90.,20.,-20.],[90.,0.,20.]]],resolution:25,volume:0.});
+  let wire=prepare_wire(c).unwrap();let o=ViewOptions{candidate:false,layout:CompareLayout::Shared,solid:true,wireframe:true,..Default::default()};
+  assert_eq!(render(Some(&d),o).image,render_prepared(Some(&d),o,[Some(&wire),None]).image);
  }
  #[test]fn quad_grid_uses_surface_sections(){
   let t=[[[10.,10.,0.],[90.,10.,10.],[90.,-10.,0.]]];
