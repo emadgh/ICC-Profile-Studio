@@ -99,3 +99,5 @@ Beta.36 extends N-color evaluation with a local linear ridge baseline (32 neighb
 Beta.37 adds experimental measurement-based N-color inverse recipe search and forward/adjacent inverse continuity diagnostics in Profiling Lab / Patch explorer. It uses quantized ink caps/TAC and a coverage heuristic, reports model-only tolerance, and compares hard/tapered ridge without replacing the existing inverse model. It does not create an ICC. See NCOLOR_MODEL_QA.md.
 
 Beta.38 adds experimental continuity-regularized inverse ramp comparison in Profiling Lab / Patch explorer. It penalizes neighboring ink differences while enforcing existing TAC/caps, coverage distance and per-point predicted color tolerance. Adjustable continuity weight, independent baseline vs refined ink bars, objective and error diagnostics. No ICC generation. See NCOLOR_MODEL_QA.md.
+
+Beta.39 adds experimental 3×3×3 local Lab lattice audit with per-axis spans, independent and neighbor-regularized recipes, per-axis ink jumps, incomplete-node reporting, and cell-center model checks. No ICC is generated. See NCOLOR_MODEL_QA.md.
