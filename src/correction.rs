@@ -299,7 +299,7 @@ impl Profile{
 }
 
 #[derive(Clone,Debug)]
-pub enum DynamicCorrection{Points(Vec<[f64;5]>),Regions{regions:[Selective;MAX_REGIONS],count:usize},Smooth{strength:f64,passes:usize},Optimize{weights:Vec<f64>,tolerance:f64,caps:Vec<f64>}}
+pub enum DynamicCorrection{Points(Vec<[f64;5]>),Regions{regions:[Selective;MAX_REGIONS],count:usize},Smooth{strength:f64,passes:usize},Optimize{weights:Vec<f64>,tolerance:f64,caps:Vec<f64>},Black{channel:usize,settings:BlackGeneration,caps:Vec<f64>}}
 // Flat interleaved storage. Each pass is a Jacobi update from the previous
 // lattice, with a convex combination of the six axial neighbors.
 fn smooth_dynamic(values:&mut Vec<f64>,g:usize,n:usize,strength:f64,passes:usize){
@@ -353,6 +353,50 @@ fn optimize_dynamic_node(base:&[f64],caps:&[f64],tac:f64,weights:&[f64],tol:f64,
  }
  Ok(best)
 }
+// User identifies the physical black ink. No channel-name heuristic and
+// no assumption that any three other inks are CMY. Search uses bounded
+// one-ink and distributed compensations against the native forward model.
+fn black_dynamic_node(base:&[f64],caps:&[f64],tac:f64,k:usize,s:BlackGeneration,mut predict:impl FnMut(&[f64])->R<CIELab>)->R<Vec<f64>>{
+ let n=base.len();let target=predict(base)?;
+ if ![target.L,target.a,target.b].iter().all(|v|v.is_finite()){return Err("Invalid baseline Lab".into())}
+ let mut best:Vec<f64>=base.iter().map(|&v|(v.clamp(0.,1.)*65535.+1e-8).floor()/65535.).collect();
+ if best.iter().zip(caps).any(|(&x,&c)|x>c+1e-10)||best.iter().sum::<f64>()>tac+1e-10{return Err("Source separation exceeds requested limits; rebuild before black generation".into())}
+ let de=predict(&best)?.cie2000_delta_e(&target,1.,1.,1.);
+ if !de.is_finite()||de>s.tolerance{return Err("Baseline quantization exceeds color tolerance".into())}
+ let desired=s.target(target,base[k],caps[k]);
+ let mut error=(best[k]-desired).abs();
+ let mut trial=best.clone();
+ let active:Vec<usize>=(0..n).filter(|&i|i!=k&&caps[i]>0.).collect();
+ // A candidate must improve black preference and satisfy the same
+ // baseline color constraint, never a moving color target.
+ for step in [0.10,0.05,0.02,0.01,0.005]{
+  for _ in 0..2{
+   let delta=(desired-best[k]).clamp(-step,step);
+   if delta.abs()<1./65535.{break}
+   let mut accepted=false;
+   for mode in 0..(1+active.len()+3){
+    trial.copy_from_slice(&best);trial[k]+=delta;
+    if mode>0&&mode<=active.len(){trial[active[mode-1]]-=delta;}
+    else if mode>active.len()&&!active.is_empty(){
+     // Distribute replacement over currently available non-black ink.
+     let ratio=[0.5,1.,2.][mode-active.len()-1];
+     let room=|i:usize|if delta>0.{best[i]}else{(caps[i]-best[i]).max(0.)};
+     let total=active.iter().map(|&i|room(i)).sum::<f64>();
+     if total<=0.{continue}
+     for &i in &active{trial[i]-=delta*ratio*room(i)/total;}
+    }
+    if trial.iter().zip(caps).any(|(&v,&c)|v<0.||v>c+1e-12)||trial.iter().sum::<f64>()>tac+1e-10{continue}
+    for v in &mut trial{*v=(*v*65535.+1e-8).floor()/65535.;}
+    let e=(trial[k]-desired).abs();if e+1e-9>=error{continue}
+    let de=predict(&trial)?.cie2000_delta_e(&target,1.,1.,1.);
+    if !de.is_finite(){return Err("Invalid black-generation Delta E".into())}
+    if de<=s.tolerance{best.copy_from_slice(&trial);error=e;accepted=true;break}
+   }
+   if !accepted{break}
+  }
+ }
+ Ok(best)
+}
 impl Profile{
  /// nCLR v4 Lab correction, with independent reverse intents and certified limits.
  /// No assumed black channel. Source forward LUTs stay byte-identical.
@@ -363,13 +407,15 @@ impl Profile{
    DynamicCorrection::Points(p)=>{if p.len()!=n{return Err("Point curve count must match channels".into())}for &row in p{validate_points([row;4])?;}},
    DynamicCorrection::Regions{regions,count}=>{if *count>MAX_REGIONS{return Err("Too many correction regions".into())}validate_regions(&regions[..*count])?;},
    DynamicCorrection::Smooth{strength,passes}=>{if !strength.is_finite()||!(0.05..=0.5).contains(strength)||!(1..=5).contains(passes){return Err("Smoothing strength 5–50%, passes 1–5".into())}},
-   DynamicCorrection::Optimize{weights,tolerance,caps}=>{crate::optimizer::MultiSettings{caps:caps.clone(),tac:tac_percent,weights:weights.clone(),tolerance:*tolerance}.validate(n)?;}
+   DynamicCorrection::Optimize{weights,tolerance,caps}=>{crate::optimizer::MultiSettings{caps:caps.clone(),tac:tac_percent,weights:weights.clone(),tolerance:*tolerance}.validate(n)?;},
+   DynamicCorrection::Black{channel,settings,caps}=>{settings.check()?;if *channel>=n||caps.len()!=n||caps.iter().any(|v|!v.is_finite()||!(0.0..=100.).contains(v)){return Err("Invalid physical black channel or ink caps".into())}}
   }
   let mut caps=crate::print_space::bounds(self)?.channels;
-  if let DynamicCorrection::Optimize{caps:requested,..}=&op{for (x,&c) in caps.iter_mut().zip(requested){*x=x.min(c/100.);}}
+  if let DynamicCorrection::Optimize{caps:requested,..}|DynamicCorrection::Black{caps:requested,..}=&op{for (x,&c) in caps.iter_mut().zip(requested){*x=x.min(c/100.);}}
+  if let DynamicCorrection::Black{channel,..}=&op{if caps[*channel]==0.{return Err("Selected physical black channel is closed; rebuild or select an active physical black ink".into())}}
   let tac=tac_percent/100.;
   let native=lcms2::Profile::new_icc(&self.bytes()?).map_err(|e|e.to_string())?;
-  let forward=if matches!(&op,DynamicCorrection::Optimize{..}){let Tag::Pipeline(p)=native.read_tag(TagSignature::AToB1Tag)else{return Err("Ink optimization requires A2B1".into())};if p.input_channels() as usize!=n||p.output_channels()!=3{return Err("Unexpected A2B1 dimensions".into())}Some(p)}else{None};
+  let forward=if matches!(&op,DynamicCorrection::Optimize{..}|DynamicCorrection::Black{..}){let Tag::Pipeline(p)=native.read_tag(TagSignature::AToB1Tag)else{return Err("Ink optimization requires A2B1".into())};if p.input_channels() as usize!=n||p.output_channels()!=3{return Err("Unexpected A2B1 dimensions".into())}Some(p)}else{None};
   let mut out=self.clone();
   let mut input=vec![0f32;n];
   for (key,sig) in [(b"B2A0",TagSignature::BToA0Tag),(b"B2A1",TagSignature::BToA1Tag),(b"B2A2",TagSignature::BToA2Tag)]{
@@ -385,6 +431,16 @@ impl Profile{
     let lab=match &op{DynamicCorrection::Regions{regions,count}=>corrected_regions(lab,&regions[..*count]),_=>lab};
     pipe.eval(&normalized(lab),&mut result);
     if result.iter().any(|v|!v.is_finite()||*v< -0.00002||*v>1.00002){return Err("Invalid native source separation".into())}
+    if let DynamicCorrection::Black{channel,settings,..}=&op{
+     let p=forward.as_ref().ok_or("Missing A2B1")?;
+     for (x,&v) in node.iter_mut().zip(&result){*x=f64::from(v).clamp(0.,1.);}
+     let best=black_dynamic_node(&node,&caps,tac,*channel,*settings,|v|{
+      for (x,&y) in input.iter_mut().zip(v){*x=y as f32;}let mut lab=[0f32;3];p.eval(&input,&mut lab);
+      if lab.iter().any(|v|!v.is_finite()){return Err("Invalid forward Lab".into())}
+      Ok(CIELab{L:100.*lab[0] as f64,a:255.*lab[1] as f64-128.,b:255.*lab[2] as f64-128.})
+     })?;
+     values.extend_from_slice(&best);continue
+    }
     if let DynamicCorrection::Optimize{weights,tolerance,..}=&op{
      let p=forward.as_ref().ok_or("Missing A2B1")?;
      for (x,&v) in node.iter_mut().zip(&result){*x=f64::from(v).clamp(0.,1.);}
@@ -472,5 +528,29 @@ mod dynamic_optimizer_tests{
   assert_eq!(p.tags[b"A2B1"],q.tags[b"A2B1"]);
   let a=crate::print_space::bounds(&p).unwrap();let b=crate::print_space::bounds(&q).unwrap();
   assert_eq!(b.channels[5],0.);assert!(b.channels.iter().zip(a.channels).all(|(&x,y)|x<=y+1e-10));
+ }
+}
+
+#[cfg(test)]
+mod dynamic_black_tests{
+ use super::*;
+ #[test]fn selected_index_is_used_and_other_closed_ink_stays_zero(){
+  let b=[0.2,0.1,0.0,0.2,0.1,0.];let caps=[1.,1.,1.,1.,1.,0.];
+  let s=BlackGeneration{start:0.,maximum:1.,strength:1.,..Default::default()};
+  let v=black_dynamic_node(&b,&caps,2.,2,s,|_|Ok(CIELab{L:20.,a:0.,b:0.})).unwrap();
+  assert!(v[2]>0.);assert_eq!(v[5],0.);assert!(v.iter().sum::<f64>()<=2.);
+ }
+ #[test]fn excessive_color_change_is_rejected(){
+  let b=[0.2,0.1,0.,0.2,0.1,0.];let caps=[1.,1.,1.,1.,1.,0.];
+  let s=BlackGeneration{start:0.,maximum:1.,strength:1.,tolerance:0.1,..Default::default()};
+  let v=black_dynamic_node(&b,&caps,2.,2,s,|x|Ok(CIELab{L:20.,a:x[2]*127.,b:0.})).unwrap();
+  assert_eq!(v[2],0.);
+ }
+ #[test]fn profile_requires_explicit_valid_open_channel(){
+  let p=crate::print_space::fixture(6);
+  for channel in [5,6]{assert!(p.bounded_correction_multi(DynamicCorrection::Black{channel,settings:BlackGeneration::default(),caps:vec![100.;6]},17,600.).is_err());}
+  let q=p.bounded_correction_multi(DynamicCorrection::Black{channel:1,settings:BlackGeneration::default(),caps:vec![100.;6]},17,600.).unwrap();
+  for k in [b"A2B0",b"A2B1",b"A2B2"]{assert_eq!(p.tags[k],q.tags[k]);}
+  assert_eq!(crate::print_space::bounds(&q).unwrap().channels[5],0.);
  }
 }
