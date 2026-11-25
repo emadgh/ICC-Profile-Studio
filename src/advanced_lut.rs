@@ -200,6 +200,26 @@ mod tests{
   // A changed interpolation ordering can affect predictions; the save
   // path must still reject a mapping that exceeds its native tolerance.
  }
+ #[test]fn analytic_reverse_bounds_and_gamma_preserve_pcs_bytes(){
+  let mut p=crate::print_space::fixture(6);
+  for key in [b"B2A0",b"B2A1",b"B2A2"]{
+   let mut t=p.tags[key].clone();let l=Layout::parse(&t).unwrap();let start=l.a.unwrap().ranges[0].start;
+   t.truncate(start);
+   for _ in 0..6{t.extend(b"para\0\0\0\0");put16(&mut t,0);put16(&mut t,0);put32(&mut t,2*65536);}
+   p.tags.insert(*key,t);
+  }
+  let old=crate::print_space::bounds(&p).unwrap();assert_eq!(old.channels[5],0.);assert!(!old.exact_node_tac);
+  let q=p.tone_gamma_multi(&[1.,2.,1.,1.,1.,2.]).unwrap();
+  assert_eq!(crate::print_space::bounds(&q).unwrap().channels[5],0.);
+  for k in [b"A2B0",b"A2B1",b"A2B2"]{assert_eq!(p.tags[k],q.tags[k]);}
+  for key in [b"B2A0",b"B2A1",b"B2A2"]{
+   let a=Layout::parse(&p.tags[key]).unwrap();let b=Layout::parse(&q.tags[key]).unwrap();
+   assert_eq!(&p.tags[key][a.clut.clone()],&q.tags[key][b.clut.clone()]);
+   let a=a.a.unwrap();let b=b.a.unwrap();
+   assert_eq!(&p.tags[key][a.ranges[0].clone()],&q.tags[key][b.ranges[0].clone()]);
+   assert!(q.tags[key][b.ranges[1].clone()].starts_with(b"curv"));
+  }
+ }
  #[test]fn reject_overlapping_or_truncated_stages(){
   let t=unequal();let mut v=t.clone();v[28..32].copy_from_slice(&32u32.to_be_bytes());assert!(Layout::parse(&v).is_err());
   assert!(Layout::parse(&t[..t.len()-1]).is_err());
