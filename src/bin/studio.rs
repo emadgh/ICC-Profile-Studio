@@ -850,18 +850,24 @@ impl Studio {
   if caps.len()!=self.gamma.len(){return div().child(tr("Open a supported printer profile first."))}
   let mut p=div().flex().flex_col().gap_3().child(heading("Ink / Cost Optimizer","Find a bounded device recipe for a D50 Lab target."))
    .child("Uses the reference A2B prediction. Relative ink weights are cost proxies, not actual mass or currency. Search is approximate and can fail to find a feasible recipe.");
+  p=p.child(div().text_lg().child(tr("Target Lab")).child(div().ml_2().child(swatch(lab_swatch(self.recipe_target),30.))));
   for (i,(name,lo,hi)) in [("L*",0.,100.),("a*",-128.,127.),("b*",-128.,127.)].into_iter().enumerate(){
    p=p.child(div().flex().items_center().gap_2().child(format!("{name}: {:.1}",self.recipe_target[i]))
     .child(button(("recipe-target-minus",i),"−1").on_click(cx.listener(move|v,_,_,cx|{if !v.busy{v.recipe_target[i]=(v.recipe_target[i]-1.).max(lo);v.recipe_result=None;cx.notify();}})))
     .child(self.numeric_slider(("recipe-target-slider",i),self.recipe_target[i],lo,hi,0.1,move|v,x|{v.recipe_target[i]=x;v.recipe_result=None;},cx)).child(button(("recipe-target-plus",i),"+1").on_click(cx.listener(move|v,_,_,cx|{if !v.busy{v.recipe_target[i]=(v.recipe_target[i]+1.).min(hi);v.recipe_result=None;cx.notify();}}))));
   }
+  p=p.child(div().text_lg().child(tr("Ink weights and limits")));
+  let mut weights=div().flex().flex_col().gap_2();
   for j in 0..self.gamma.len(){
-   p=p.child(div().flex().items_center().gap_2().child(format!("{} · {:.2}",self.ink_name(j),self.recipe_settings.weights[j]))
+   weights=weights.child(div().flex().flex_col().gap_1().p_2().rounded_md().bg(rgb(0x282828)).child(div().flex().items_center().gap_2().child(swatch(self.ink_color(j),16.)).child(div().flex_1().child(self.ink_name(j))).child(format!("{:.2} · cap {:.0}%",self.recipe_settings.weights[j],caps[j]))).child(bar(caps[j]/100.,self.ink_color(j),6.)).child(div().flex().items_center().gap_2()
     .child(button(("weight-minus",j),"−0.25").on_click(cx.listener(move|v,_,_,cx|{if !v.busy{v.recipe_settings.weights[j]=(v.recipe_settings.weights[j]-0.25).max(0.01);v.recipe_result=None;cx.notify();}})))
-    .child(self.numeric_slider(("weight-slider",j),self.recipe_settings.weights[j],0.01,100.,0.01,move|v,x|{v.recipe_settings.weights[j]=x;v.recipe_result=None;},cx)).child(button(("weight-plus",j),"+0.25").on_click(cx.listener(move|v,_,_,cx|{if !v.busy{v.recipe_settings.weights[j]=(v.recipe_settings.weights[j]+0.25).min(100.);v.recipe_result=None;cx.notify();}}))));
+    .child(self.numeric_slider(("weight-slider",j),self.recipe_settings.weights[j],0.01,100.,0.01,move|v,x|{v.recipe_settings.weights[j]=x;v.recipe_result=None;},cx)).child(button(("weight-plus",j),"+0.25").on_click(cx.listener(move|v,_,_,cx|{if !v.busy{v.recipe_settings.weights[j]=(v.recipe_settings.weights[j]+0.25).min(100.);v.recipe_result=None;cx.notify();}})))));
   }
-  p=p.child(format!("{}: {:?} / {:.0}%",tr("Rebuilder channel limits and TAC"),caps,tac))
-   .child(div().flex().gap_1().items_center().child(tr("ΔE00 tolerance")).children([1usize,2,3,5].map(|n|button(("recipe-tolerance",n),if self.recipe_settings.tolerance==n as f64{format!("{n} ✓")}else{n.to_string()}).on_click(cx.listener(move|v,_,_,cx|{if !v.busy{v.recipe_settings.tolerance=n as f64;v.recipe_result=None;cx.notify();}})))))
+  p=p.child(weights).child(format!("{}: {:.0}%",tr("Total ink limit"),tac))
+   .child(div().flex().items_center().gap_2().child(format!("{}: {:.1}",tr("ΔE00 tolerance"),self.recipe_settings.tolerance))
+    .child(button("recipe-tolerance-minus","−0.1").on_click(cx.listener(|v,_,_,cx|{if !v.busy{v.recipe_settings.tolerance=((v.recipe_settings.tolerance*10.).round()-1.).max(1.)/10.;v.recipe_result=None;cx.notify();}})))
+    .child(self.numeric_slider(("recipe-tolerance-slider",0),self.recipe_settings.tolerance,0.1,5.,0.1,|v,x|{v.recipe_settings.tolerance=x;v.recipe_result=None;},cx))
+    .child(button("recipe-tolerance-plus","+0.1").on_click(cx.listener(|v,_,_,cx|{if !v.busy{v.recipe_settings.tolerance=((v.recipe_settings.tolerance*10.).round()+1.).min(50.)/10.;v.recipe_result=None;cx.notify();}}))))
    .child(button("solve-recipe","Find ink recipes").on_click(cx.listener(|v,_,_,cx|{
     if v.busy{return}let Some(p)=v.source.clone()else{return};let target=v.recipe_target;let mut s=v.recipe_settings.clone();let dynamic=v.display_profile.as_ref().is_some_and(|p|!p.cmyk());s.caps=if dynamic{v.multi_caps.clone()}else{v.caps.to_vec()};s.tac=if dynamic{v.multi_tac}else{v.tac};
     v.busy=true;v.recipe_result=None;v.status="Searching feasible ink recipes…".into();cx.notify();
@@ -874,14 +880,16 @@ impl Studio {
    p=p.child(format!("{}: {:.1?} · {}: {}",tr("Target Lab"),r.target,tr("Validation samples"),r.evaluated)).child(format!("{}: {:.2?} / {:.1}%",tr("Effective channel limits and TAC"),r.settings.caps,r.settings.tac));
    if r.settings.tac!=tac||r.settings.caps.iter().zip(&caps).any(|(a,b)|a>b){p=p.child(div().text_xs().text_color(rgb(0xfbbf24)).child(tr("Rebuilder limits changed; run recipe search again.")));}
    if let Some(c)=&r.cheapest{let savings=if r.baseline.cost>0.{100.*(1.-c.cost/r.baseline.cost)}else{0.};p=p.child(div().p_3().rounded_md().bg(rgb(0x282828)).child(format!("{}: {:+.2}% · TAC {:.1}% → {:.1}%",tr("Relative cost reduction"),savings,r.baseline.tac,c.tac)));}
+   let mut recipes=div().flex().gap_2().w_full();
    for (label,recipe) in [("Original separation",Some(&r.baseline)),("Closest feasible",Some(&r.closest)),("Lowest cost found within tolerance",r.cheapest.as_ref())]{
-    let mut card=div().p_3().rounded_md().bg(rgb(0x282828)).flex().flex_col().gap_1().child(tr(label));
+    let mut card=div().flex_1().min_w(px(0.)).p_2().rounded_md().bg(rgb(0x282828)).flex().flex_col().gap_1().child(div().text_sm().child(tr(label)));
     if let Some(v)=recipe{
-     card=card.child(format!("Lab {:.2?} · ΔE00 {:.3} · TAC {:.2}% · {} {:.2}",v.lab,v.delta_e,v.tac,tr("Relative cost"),v.cost)) .when(!v.feasible,|p|p.child(div().text_xs().text_color(rgb(0xfbbf24)).child(tr("Original separation exceeds requested limits.")))).child(swatch(lab_swatch(v.lab),40.))
-      .children((0..v.ink.len()).map(|j|div().flex().items_center().gap_2().child(div().w(px(90.)).child(self.ink_name(j))).child(div().flex_1().child(bar(v.ink[j]/100.,self.ink_color(j),10.))).child(format!("{:.1}%",v.ink[j]))));
+     card=card.child(format!("Lab {:.2?}",v.lab)).child(format!("ΔE00 {:.3} · TAC {:.2}%",v.delta_e,v.tac)).child(format!("{} {:.2}",tr("Relative cost"),v.cost)) .when(!v.feasible,|p|p.child(div().text_xs().text_color(rgb(0xfbbf24)).child(tr("Original separation exceeds requested limits.")))).child(swatch(lab_swatch(v.lab),40.))
+      .children((0..v.ink.len()).map(|j|div().flex().flex_col().gap_1().child(div().flex().justify_between().child(self.ink_name(j)).child(format!("{:.1}%",v.ink[j]))).child(bar(v.ink[j]/100.,self.ink_color(j),10.))));
     }else{card=card.child(tr("No solution found within tolerance"));}
-    p=p.child(card);
+    recipes=recipes.child(card);
    }
+   p=p.child(recipes);
   }
   if !self.display_profile.as_ref().is_some_and(|p|p.version_major()==4&&p.pcs()=="Lab "&&(p.cmyk()||color_convert_rust::multichannel::channel_count(p).is_ok())){return p.child(tr("Whole-profile optimization requires a compatible ICC v4 Lab profile."))}
   p.child(div().text_lg().child(tr("Whole-profile ink optimization (ICC v4 / mBA)")))
