@@ -159,9 +159,9 @@ impl Studio {
   // For previously bare sliders provide a precise single-step pair.
   let bare=matches!(id.0,"link-tolerance"|"target-min"|"target-max"|"target-tac"|"target-yaw"|"target-pitch");
   let mut control=div().flex().items_center().gap_1().flex_shrink_0();
-  if bare{control=control.child(seg(("precise-minus",match id.0{"link-tolerance"=>0,"target-min"=>1,"target-max"=>2,"target-tac"=>3,"target-yaw"=>4,_=>5}),"−",false).on_click(cx.listener(move|v,_,_,cx|{if !v.busy{set(v,scale.adjust(value,-1));cx.notify();}})));}
+  if bare{control=control.child(seg(("precise-minus",match id.0{"link-tolerance"=>0usize,"target-min"=>1,"target-max"=>2,"target-tac"=>3,"target-yaw"=>4,_=>5}),"−",false).on_click(cx.listener(move|v,_,_,cx|{if !v.busy{set(v,scale.adjust(value,-1));cx.notify();}})));}
   control=control.child(track);
-  if bare{control=control.child(seg(("precise-plus",match id.0{"link-tolerance"=>0,"target-min"=>1,"target-max"=>2,"target-tac"=>3,"target-yaw"=>4,_=>5}),"+",false).on_click(cx.listener(move|v,_,_,cx|{if !v.busy{set(v,scale.adjust(value,1));cx.notify();}})));}
+  if bare{control=control.child(seg(("precise-plus",match id.0{"link-tolerance"=>0usize,"target-min"=>1,"target-max"=>2,"target-tac"=>3,"target-yaw"=>4,_=>5}),"+",false).on_click(cx.listener(move|v,_,_,cx|{if !v.busy{set(v,scale.adjust(value,1));cx.notify();}})));}
   control
  }
  fn toggle_system_picker(&mut self,target:Picker,cx:&mut Context<Self>){
@@ -974,7 +974,7 @@ impl Studio {
      .child(seg("target-cloud-icc","ICC",self.characterization_view.candidate).on_click(cx.listener(|v,_,_,cx|{v.characterization_view.candidate=!v.characterization_view.candidate;cx.notify();}))))
     .child(gamut_view::plot(Some(&overlay),self.characterization_revision,self.characterization_view,&mut self.characterization_cache.borrow_mut(),420.));
   }
-  p=p.child(button("target-cgats-export",tr("Export measured CGATS")).on_click(cx.listener(|v,_,_,cx|{
+  p=p.child(button("target-cgats-export",tr("Export target CGATS")).on_click(cx.listener(|v,_,_,cx|{
    if v.busy{return}let (Some(c),Some(profile))=(&v.characterization,&v.display_profile)else{return};
    if let Some(path)=rfd::FileDialog::new().add_filter("CGATS",&["cgats"]).set_file_name("characterization.cgats").save_file(){
     v.status=match target_tools::export_cgats(c,&path,profile.cmyk()){Ok(())=>format!("Saved {}",path.display()),Err(e)=>e};cx.notify();
