@@ -174,6 +174,7 @@ pub fn cross_validate(chart:&Chart,channels:usize)->R<CrossValidation>{
 // Experimental inverse search. All recipes are integer percentage-point
 // quanta (0.0001 pp); limits are floored before search, not rounded upward.
 const INVERSE_BUDGET:usize=1200;
+const NO_SUPPORTED_SEED:&str="No supported feasible seed; adjust limits or obtain more characterization data";
 #[derive(Clone,Debug)]
 pub struct InverseSettings{
  pub caps_percent:Vec<f64>,pub tac_percent:f64,pub tolerance:f64,pub max_recipe_distance:f64,
@@ -250,7 +251,7 @@ fn solve_samples(samples:&[Sample],measurement:String,n:usize,target:[f64;3],set
  seeds.sort();seeds.dedup();
  let mut starts=Vec::new();for q in seeds{if let Some(c)=search.score(q)?{starts.push(c);}}
  starts.sort_by(|a,b|if better(a,b){std::cmp::Ordering::Less}else if better(b,a){std::cmp::Ordering::Greater}else{std::cmp::Ordering::Equal});
- let mut best=starts.first().cloned().ok_or("No supported feasible seed; adjust limits or obtain more characterization data")?;
+ let mut best=starts.first().cloned().ok_or(NO_SUPPORTED_SEED)?;
  let initial_delta_e=best.error;
  // Bounded deterministic multi-start pattern search. Each sweep evaluates
  // single-axis moves and transfers from the largest other active ink.
@@ -476,7 +477,7 @@ pub fn audit_lab_lattice(chart:&Chart,channels:usize,s:LatticeSettings)->R<Latti
   let target=lattice_target(&s,lattice_coord(i));
   match solve_samples(&samples,mode.clone(),channels,target,s.inverse.clone()){
    Ok(r)=>{seed_evaluations+=r.evaluations;baseline.push(Some(Candidate{key:key(&r.inks_percent,channels)?,lab:r.predicted_lab,error:r.delta_e,distance:r.nearest_recipe_distance}));}
-   Err(e) if e=="No supported feasible seed; adjust limits or obtain more characterization data"=>baseline.push(None),
+   Err(e) if e==NO_SUPPORTED_SEED=>baseline.push(None),
    Err(e)=>return Err(e),
   }
  }
@@ -650,6 +651,11 @@ pub fn audit_continuity(chart:&Chart,channels:usize)->R<ContinuityAudit>{
   println!("{ramp:#?}");assert_eq!(ramp.points.len(),5);
   for p in &ramp.points{assert_eq!(p.inks_percent[3],0.);assert!(p.tac_percent<=300.0000001);assert!(p.delta_e<=p.initial_delta_e);}
   assert_eq!(ramp.adjacent_max_channel_pp.len(),4);assert_eq!(ramp.within_tolerance_count,5);
+  let lattice=audit_lab_lattice(&c,7,LatticeSettings{center:[50.,0.,0.],half_span:[1.;3],inverse:ramp.settings.clone(),lambda:0.02}).unwrap();
+  assert_eq!(lattice.refined.supported_nodes,27);assert_eq!(lattice.refined.within_tolerance,27);assert_eq!(lattice.refined.complete_cells,8);assert_eq!(lattice.refined.supported_centers,8);assert_eq!(lattice.refined.centers_within_tolerance,8);
+  println!("lattice baseline {:?} / refined {:?}",lattice.baseline,lattice.refined);
+  assert!(lattice.objective<lattice.initial_objective);assert!(lattice.refined.axis_max_jump_pp.iter().all(|v|v.is_some_and(|x|x<3.)));
+  assert!((lattice.refined.center_error.as_ref().unwrap().mean-0.2071886).abs()<0.05);
   let smooth=regularize_inverse_ramp(&c,7,[50.,0.,0.],ramp.settings.clone(),0.02).unwrap();println!("{smooth:#?}");
   assert_eq!(smooth.within_tolerance_count,5);assert!(smooth.max_channel_jump_pp<=2.);assert!(smooth.objective<smooth.initial_objective);
   for p in &smooth.points{assert_eq!(p.inks_percent[3],0.);assert!(p.tac_percent<=300.0000001);}
