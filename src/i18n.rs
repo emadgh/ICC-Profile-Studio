@@ -174,7 +174,7 @@ const ROWS:&[[&str;5]]=&[
 ["After","بعد","Dopo","بعد","После"],
 ["Lightness L*","روشنایی L*","Luminosità L*","الإضاءة L*","Светлота L*"],
 ["Gradient step ΔE00","اختلاف رنگ گام گرادیان","Passo gradiente ΔE00","خطوة التدرج ΔE00","Шаг градиента ΔE00"],
-["LittleCMS is linked statically. Official ArgyllCMS tools are installed by the portable backend when required.","موتور LittleCMS به صورت استاتیک متصل است. ابزارهای ArgyllCMS در صورت نیاز نصب می‌شوند.","LittleCMS è collegato staticamente. ArgyllCMS viene installato quando necessario.","يتم ربط LittleCMS ثابتًا وتثبيت ArgyllCMS عند الحاجة.","LittleCMS связан статически. ArgyllCMS устанавливается при необходимости."]
+["LittleCMS is linked statically. Official ArgyllCMS tools are installed by the portable backend when required.","موتور LittleCMS به صورت استاتیک متصل است. ابزارهای ArgyllCMS در صورت نیاز نصب می‌شوند.","LittleCMS è collegato staticamente. ArgyllCMS viene installato quando necessario.","يتم ربط LittleCMS ثابتًا وتثبيت ArgyllCMS عند الحاجة.","LittleCMS связан статически. ArgyllCMS устанавливается при необходимости."],
 ["Channels","کانال‌ها","Canali","القنوات","Каналы"],
 ["No embedded ink names","نام جوهر در پروفایل ثبت نشده است","Nessun nome inchiostro incorporato","لا توجد أسماء حبر مضمنة","Нет встроенных названий красок"],
 ["Cyan","فیروزه‌ای","Ciano","سماوي","Голубой"],
