@@ -93,3 +93,5 @@ Beta.33 adds active-channel-only Custom rebuilding, cooperative cancellation bef
 Beta.34 extends bounded multipoint curves, selective color correction and LUT smoothing to compatible ICC v2 Lab LUT16 (mft2) output profiles. It retains the source version, independent reverse intents, A2B and channel identity; v2 black generation/whole-profile optimization, LUT8 and alternate pipelines remain unsupported. See MULTICHANNEL_QA.md for the FOGRA55 diagnostic and opt-in Rust test.
 
 Beta.35 introduces an experimental N-color forward-model evaluation in Profiling Lab / Patch explorer: compare nearest-neighbor and eight-neighbor inverse-distance Device→Lab predictions on held-out recipe groups. It does not build or export ICC profiles. Use declared, homogeneous D50/2° Lab measurements with explicit M0–M3; predicted ICC and derived spectral Lab are excluded. See NCOLOR_MODEL_QA.md.
+
+Beta.36 extends N-color evaluation with a local linear ridge baseline (32 neighbors), pooled five-fold grouped validation, active-ink coverage, and optional >=5-active-ink stress holdout. Not an ICC generator. See NCOLOR_MODEL_QA.md.
