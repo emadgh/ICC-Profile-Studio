@@ -97,11 +97,14 @@ const RIDGE:f64=0.002;
 pub struct Validation{pub train:usize,pub test:usize,pub nearest:ErrorStats,pub idw:ErrorStats,pub local:ErrorStats,pub nearest_distance:ErrorStats}
 #[derive(Clone,Debug)]
 pub struct CrossValidation{pub channels:usize,pub input_rows:usize,pub unique_recipes:usize,pub duplicate_rows:usize,pub measurement:String,pub folds:Vec<Validation>,pub pooled:Validation,pub stress:Option<Validation>,pub active_counts:Vec<usize>,pub peak_tac_percent:f64}
-fn local_prediction(training:&[&Sample],target:&[u32])->R<([f64;3],[f64;3],[f64;3],f64)>{
- let mut best=[(u64::MAX,usize::MAX);LOCAL_K];
+fn local_prediction(training:&[&Sample],target:&[u32])->R<([f64;3],[f64;3],[f64;3],f64)>{local_kernel(training,target,false)}
+fn local_kernel(training:&[&Sample],target:&[u32],tapered:bool)->R<([f64;3],[f64;3],[f64;3],f64)>{
+ let count=LOCAL_K+usize::from(tapered);
+ if training.len()<count{return Err("Insufficient neighbors for local model".into())}
+ let mut best=[(u64::MAX,usize::MAX);LOCAL_K+1];
  for (i,s) in training.iter().enumerate(){
   let pair=(distance(&s.key,target),i);
-  if pair<best[LOCAL_K-1]{let j=best.partition_point(|&v|v<=pair);best.copy_within(j..LOCAL_K-1,j+1);best[j]=pair;}
+  if pair<best[count-1]{let j=best[..count].partition_point(|&v|v<=pair);best.copy_within(j..count-1,j+1);best[j]=pair;}
  }
  let (d,i)=best[0];let nearest=training[i].lab;
  if d==0{return Ok((nearest,nearest,nearest,0.))}
@@ -110,11 +113,14 @@ fn local_prediction(training:&[&Sample],target:&[u32])->R<([f64;3],[f64;3],[f64;
  for v in &mut idw{*v/=total;}
  let dim=target.len()+1;
  let unit=SCALE*100.;let unit2=unit*unit;
- let wsum=best.iter().map(|&(d,_)|1./(d as f64/unit2+0.01)).sum::<f64>();
+ let radius=if tapered{best[LOCAL_K].0 as f64}else{1.};
+ let weight=|d:u64|{let w=1./(d as f64/unit2+0.01);if tapered{w*(1.-d as f64/radius).clamp(0.,1.).powi(2)}else{w}};
+ let wsum=best[..LOCAL_K].iter().map(|&(d,_)|weight(d)).sum::<f64>();
+ if !wsum.is_finite()||wsum<=0.{return Err("Degenerate local kernel; no supported weighted neighborhood".into())}
  // Augmented normal equations [X'WX | X'Wy], max 16 predictors.
  let mut a=[[0f64;19];16];
- for &(d,i) in &best{
-  let s=training[i];let w=(1./(d as f64/unit2+0.01))/wsum;
+ for &(d,i) in &best[..LOCAL_K]{
+  let s=training[i];let w=weight(d)/wsum;
   let mut x=[0.;16];x[0]=1.;
   for j in 1..dim{x[j]=(f64::from(s.key[j-1])-f64::from(target[j-1]))/unit;}
   for j in 0..dim{for k in 0..dim{a[j][k]+=w*x[j]*x[k];}for k in 0..3{a[j][dim+k]+=w*x[j]*s.lab[k];}}
@@ -128,7 +134,15 @@ fn local_prediction(training:&[&Sample],target:&[u32])->R<([f64;3],[f64;3],[f64;
   let row=a[j];
   for i in 0..dim{if i!=j{let factor=a[i][j];for k in j..dim+3{a[i][k]-=factor*row[k];}}}
  }
- let local=[a[0][dim].clamp(0.,100.),a[0][dim+1].clamp(-128.,127.),a[0][dim+2].clamp(-128.,127.)];
+ let mut local=[a[0][dim],a[0][dim+1],a[0][dim+2]];
+ if tapered{
+  // Compact anchor blend fades to zero at nearest-recipe ties; no abrupt
+  // substitution at exact recipe coordinates. Radius at most 2 pp.
+  let radius=0.02f64.min((best[1].0 as f64).sqrt()/unit);
+  let alpha=(1.-(d as f64).sqrt()/unit/radius).clamp(0.,1.).powi(2);
+  for j in 0..3{local[j]=(1.-alpha)*local[j]+alpha*nearest[j];}
+ }
+ for (v,(lo,hi)) in local.iter_mut().zip([(0.,100.),(-128.,127.),(-128.,127.)]){*v=v.clamp(lo,hi);}
  if local.iter().any(|v|!v.is_finite()){return Err("Invalid regression Lab".into())}
  Ok((nearest,idw,local,(d as f64).sqrt()/unit))
 }
@@ -283,6 +297,57 @@ fn solve_samples(samples:&[Sample],measurement:String,n:usize,target:[f64;3],set
   nearest_recipe_distance:best.distance,exact_recipe:best.distance==0.,measurement,training_recipes:samples.len(),
   evaluations:search.evaluations,settings,sensitivity_max_de,sensitivity_supported:supported,sensitivity_unsupported:unsupported})
 }
+/// An audit of sampled jumps near exact reference recipes and held-out
+/// errors. Tapered model is a candidate only; the inverse solver still uses
+/// the beta.36 hard-neighborhood ridge. Distances are not uncertainty bounds.
+#[derive(Clone,Debug)]
+pub struct ModelPair{pub count:usize,pub hard:ErrorStats,pub tapered:ErrorStats}
+#[derive(Clone,Debug)]
+pub struct Perturbation{pub step_percent:f64,pub samples:ModelPair}
+#[derive(Clone,Debug)]
+pub struct ContinuityAudit{pub channels:usize,pub anchors:usize,pub perturbations:Vec<Perturbation>,pub pooled:ModelPair,pub stress:Option<ModelPair>}
+fn model_pair(hard:Vec<f64>,tapered:Vec<f64>)->R<ModelPair>{
+ if hard.len()!=tapered.len(){return Err("Mismatched audit samples".into())}
+ Ok(ModelPair{count:hard.len(),hard:stats(hard)?,tapered:stats(tapered)?})
+}
+fn audit_holdout(train:&[&Sample],test:&[&Sample],hard:&mut Vec<f64>,tapered:&mut Vec<f64>)->R<()>{
+ if train.len()<LOCAL_K+1||test.len()<2{return Err("Continuity audit needs 33 training and 2 holdout recipes".into())}
+ for p in test{
+  let (_,_,a,_)=local_kernel(train,&p.key,false)?;
+  let (_,_,b,_)=local_kernel(train,&p.key,true)?;
+  hard.push(de(p.lab,a));tapered.push(de(p.lab,b));
+ }Ok(())
+}
+pub fn audit_continuity(chart:&Chart,channels:usize)->R<ContinuityAudit>{
+ let (_,samples)=grouped(chart,channels)?;
+ if samples.len()<LOCAL_K+1{return Err("Insufficient unique recipes for continuity audit".into())}
+ let training:Vec<_>=samples.iter().collect();
+ let anchors=samples.len().min(128);
+ let mut perturbations=Vec::new();
+ for step in [0.01,0.1,0.5]{
+  let mut hard=Vec::new();let mut tapered=Vec::new();
+  for i in 0..anchors{
+   let p=&samples[i*(samples.len()-1)/(anchors-1)];
+   for j in 0..channels{for sign in [-1i64,1]{
+    let mut q=p.key.clone();let v=i64::from(q[j])+sign*i64::from(units(step));
+    if !(0..=i64::from(units(100.))).contains(&v){continue}
+    q[j]=v as u32;
+    let (_,_,a,_)=local_kernel(&training,&q,false)?;
+    let (_,_,b,_)=local_kernel(&training,&q,true)?;
+    hard.push(de(p.lab,a));tapered.push(de(p.lab,b));
+   }}
+  }
+  perturbations.push(Perturbation{step_percent:step,samples:model_pair(hard,tapered)?});
+ }
+ let mut hard=Vec::new();let mut tapered=Vec::new();
+ for f in 0..5{let (test,train):(Vec<_>,Vec<_>)=samples.iter().partition(|p|fold(&p.key)==f);audit_holdout(&train,&test,&mut hard,&mut tapered)?;}
+ let pooled=model_pair(hard,tapered)?;
+ let (test,train):(Vec<_>,Vec<_>)=samples.iter().partition(|p|active(p)>=5);
+ let stress=if train.len()>=LOCAL_K+1&&test.len()>=2{
+  let mut a=Vec::new();let mut b=Vec::new();audit_holdout(&train,&test,&mut a,&mut b)?;Some(model_pair(a,b)?)
+ }else{None};
+ Ok(ContinuityAudit{channels,anchors,perturbations,pooled,stress})
+}
 #[cfg(test)]mod tests{
  use super::*;
  #[test]fn recipe_groups_prevent_leakage_and_predictions_are_ignored(){
@@ -316,6 +381,16 @@ fn solve_samples(samples:&[Sample],measurement:String,n:usize,target:[f64;3],set
   let s=InverseSettings{caps_percent:vec![0.;2],tac_percent:0.,tolerance:2.,max_recipe_distance:0.1};
   assert!(solve_samples(&samples,"M1".into(),2,[50.,0.,0.],s).is_err());
  }
+ #[test]fn tapered_model_preserves_anchor_and_reduces_small_jump(){
+  let samples=(0..=10).flat_map(|i|(0..=10).map(move|j|Sample{key:vec![units(i as f64*10.),units(j as f64*10.)],lab:[90.-i as f64*4.,j as f64*5.+if i==5&&j==5{4.}else{0.},0.]})).collect::<Vec<_>>();
+  let train:Vec<_>=samples.iter().collect();let p=&samples[60];
+  assert_eq!(local_kernel(&train,&p.key,true).unwrap().2,p.lab);
+  let mut q=p.key.clone();q[0]+=units(0.01);
+  let a=de(p.lab,local_kernel(&train,&q,false).unwrap().2);
+  let b=de(p.lab,local_kernel(&train,&q,true).unwrap().2);
+  assert!(b<a&&b<0.1,"{a} / {b}");
+  assert!(local_kernel(&train[..32],&q,true).is_err());
+ }
  #[test]fn known_exact_and_tie_order(){
   let training=(0..8).map(|i|Sample{key:vec![i*100,0],lab:[i as f64,0.,0.]}).collect::<Vec<_>>();
   let (a,b,d)=estimate(&training,&[100,0]);assert_eq!(a,b);assert_eq!(a,[1.,0.,0.]);assert_eq!(d,0.);
@@ -329,6 +404,12 @@ fn solve_samples(samples:&[Sample],measurement:String,n:usize,target:[f64;3],set
   let c=crate::characterization_cgats::read_with_names(&text,7,false,Some(&names)).unwrap();
   let r=evaluate(&c,7,0).unwrap();println!("{r:#?}");
   assert_eq!(r.input_rows,4884);assert_eq!(r.unique_recipes,4272);assert_eq!(r.training_recipes,3405);assert_eq!(r.holdout_recipes,867);
+  let audit=audit_continuity(&c,7).unwrap();println!("{audit:#?}");
+  assert_eq!(audit.anchors,128);assert_eq!(audit.perturbations[0].samples.count,1237);
+  assert!((audit.perturbations[0].samples.hard.max-1.35925).abs()<0.01);
+  assert!((audit.perturbations[0].samples.tapered.max-0.01081).abs()<0.01);
+  assert!((audit.pooled.tapered.mean-1.08499).abs()<0.01);
+  assert!((audit.stress.as_ref().unwrap().tapered.p95-9.38617).abs()<0.01);
   let cv=cross_validate(&c,7).unwrap();println!("{cv:#?}");assert_eq!(cv.pooled.test,4272);assert_eq!(cv.stress.as_ref().unwrap().test,413);assert_eq!(cv.active_counts,vec![1,119,308,1406,2025,339,73,1]);assert!((cv.pooled.local.mean-1.2086).abs()<0.01);assert!((cv.stress.unwrap().local.mean-3.4681).abs()<0.01);
  }
 }
