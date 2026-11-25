@@ -511,6 +511,22 @@ const ROWS:&[[&str;5]]=&[
 ["Continuity objective","تابع هدف پیوستگی","Obiettivo di continuità","دالة هدف الاستمرارية","Целевая функция непрерывности"],
 ["Refinement evaluations","ارزیابی‌های اصلاح","Valutazioni di affinamento","تقييمات التحسين","Оценки уточнения"],
 ["Lower objective does not guarantee lower maximum jump or global LUT continuity. No ICC is generated.","کاهش تابع هدف، کاهش بیشینه جهش یا پیوستگی کلی LUT را تضمین نمی‌کند. ICC تولید نمی‌شود.","Un obiettivo minore non garantisce un salto massimo minore o continuità globale LUT. Nessun ICC generato.","انخفاض الهدف لا يضمن انخفاض القفزة القصوى أو استمرارية LUT الكلية. لا يتم إنشاء ICC.","Снижение целевой функции не гарантирует уменьшение максимального скачка или глобальную непрерывность LUT. ICC не создаётся."],
+["Experimental 3D Lab lattice","شبکه سه‌بعدی آزمایشی Lab","Reticolo Lab 3D sperimentale","شبكة Lab ثلاثية الأبعاد تجريبية","Экспериментальная трёхмерная решётка Lab"],
+["27 local Lab nodes and eight cell centers. Uses current target, ink limits and continuity weight. No ICC is generated.","۲۷ گره محلی Lab و هشت مرکز سلول، با هدف، محدودیت مرکب و وزن پیوستگی فعلی. ICC تولید نمی‌شود.","27 nodi Lab locali e otto centri cella. Usa obiettivo, limiti inchiostro e peso di continuità correnti. Nessun ICC generato.","٢٧ عقدة Lab محلية وثمانية مراكز خلايا. تستخدم الهدف وحدود الحبر ووزن الاستمرارية الحالية. لا يتم إنشاء ICC.","27 локальных узлов Lab и восемь центров ячеек. Текущая цель, ограничения красок и вес непрерывности. ICC не создаётся."],
+["Audit 3D Lab lattice","ممیزی شبکه سه‌بعدی Lab","Verifica reticolo Lab 3D","دقق شبكة Lab ثلاثية الأبعاد","Проверить трёхмерную решётку Lab"],
+["Auditing 3D Lab lattice…","در حال ممیزی شبکه Lab…","Verifica reticolo Lab 3D…","جارٍ تدقيق شبكة Lab…","Проверка решётки Lab…"],
+["3D lattice audit completed","ممیزی شبکه سه‌بعدی تکمیل شد","Verifica reticolo 3D completata","اكتمل تدقيق الشبكة ثلاثية الأبعاد","Проверка трёхмерной решётки завершена"],
+["Supported lattice nodes","گره‌های دارای پشتیبانی مدل","Nodi del reticolo supportati","عقد الشبكة المدعومة","Поддерживаемые узлы решётки"],
+["Seed evaluations","ارزیابی‌های جست‌وجوی موفق اولیه","Valutazioni delle ricerche iniziali riuscite","تقييمات البحث الأولي الناجح","Оценки успешных начальных поисков"],
+["Independent lattice","شبکه با حل مستقل","Reticolo indipendente","الشبكة المستقلة","Независимая решётка"],
+["Regularized lattice","شبکه منظم‌شده","Reticolo regolarizzato","الشبكة المنتظمة","Регуляризованная решётка"],
+["Complete cells","سلول‌های کامل","Celle complete","الخلايا المكتملة","Полные ячейки"],
+["Supported cell centers","مرکز سلول‌های دارای پشتیبانی","Centri cella supportati","مراكز الخلايا المدعومة","Поддерживаемые центры ячеек"],
+["Interpolated centers","مراکز درون‌یابی‌شده","Centri interpolati","المراكز المستوفاة","Интерполированные центры"],
+["Supported edges","یال‌های دارای پشتیبانی","Lati supportati","الحواف المدعومة","Поддерживаемые рёбра"],
+["Lightness slice","برش روشنایی","Sezione luminosità","شريحة الإضاءة","Срез светлоты"],
+["Unsupported node","گره فاقد پشتیبانی","Nodo non supportato","عقدة غير مدعومة","Неподдерживаемый узел"],
+["Missing nodes are never filled with zero ink. Cell-center sampling does not verify every interpolated point or global gamut coverage.","گره‌های فاقد پشتیبانی با مرکب صفر جایگزین نمی‌شوند. نمونه‌برداری مرکز سلول، تمام نقاط درون‌یابی‌شده یا پوشش کل گاموت را تأیید نمی‌کند.","I nodi mancanti non vengono riempiti con inchiostro zero. I centri campionati non verificano tutti i punti interpolati o il gamut globale.","لا تُملأ العقد المفقودة بحبر صفري. عينات مراكز الخلايا لا تتحقق من كل النقاط المستوفاة أو تغطية النطاق الكلية.","Отсутствующие узлы не заполняются нулевой краской. Выборка центров не проверяет все интерполированные точки или полный охват."],
 ];
 #[cfg(test)]mod tests{use super::*;#[test]fn five_languages_and_fallback(){for l in Language::ALL{set_active(l);assert!(!tr("Settings").is_empty());assert_eq!(tr("A2B1"),"A2B1");}set_active(Language::Fa);assert_eq!(tr("Settings"),crate::rtl::visual("تنظیمات"));assert!(Language::Ar.rtl());}}
 
