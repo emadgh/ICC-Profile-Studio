@@ -56,23 +56,29 @@ pub fn bounds(p:&crate::Profile)->R<Bounds>{
  let n=format(&p.header[16..20])?.channels;
  let mut b=Bounds{channels:vec![0.;n],tac:0.,exact_node_tac:true};
  for k in [b"B2A0",b"B2A1",b"B2A2"]{
-  let l=crate::Lut::parse(p.tags.get(k).ok_or("Missing B2A intent")?)?;
-  if l.inputs!=3||l.outputs!=n{return Err("Unexpected output LUT dimensions".into())}
+  let t=p.tags.get(k).ok_or("Missing B2A intent")?;
+  let (clut,out_curves)=if t.starts_with(b"mBA "){
+   crate::advanced_lut::reverse_envelope(t,n)?
+  }else{
+   let l=crate::Lut::parse(t)?;
+   if l.inputs!=3||l.outputs!=n{return Err("Unexpected output LUT dimensions".into())}
+   (l.clut,l.out_curves)
+  };
   for j in 0..n{
    let (mut lo,mut hi)=(1f64,0f64);
-   for v in l.clut.chunks_exact(n){lo=lo.min(v[j]);hi=hi.max(v[j]);}
-   b.channels[j]=b.channels[j].max(crate::validation::interval_peak(&l.out_curves[j],lo,hi));
+   for v in clut.chunks_exact(n){lo=lo.min(v[j]);hi=hi.max(v[j]);}
+   b.channels[j]=b.channels[j].max(crate::validation::interval_peak(&out_curves[j],lo,hi));
   }
-  if l.out_curves.iter().all(|v|v.len()==2){
-   let t=l.clut.chunks_exact(n).map(|v|(0..n).map(|j|crate::interp(&l.out_curves[j],v[j])).sum::<f64>()).fold(0.,f64::max);
+  if out_curves.iter().all(|v|v.len()==2){
+   let t=clut.chunks_exact(n).map(|v|(0..n).map(|j|crate::interp(&out_curves[j],v[j])).sum::<f64>()).fold(0.,f64::max);
    b.tac=b.tac.max(t);
   }else{
    b.exact_node_tac=false;
    // A valid global bound, potentially more conservative than per-cell
    // bounds. Do not call it a sampled or attainable maximum.
    let t=(0..n).map(|j|{
-    let (mut lo,mut hi)=(1f64,0f64);for v in l.clut.chunks_exact(n){lo=lo.min(v[j]);hi=hi.max(v[j]);}
-    crate::validation::interval_peak(&l.out_curves[j],lo,hi)
+    let (mut lo,mut hi)=(1f64,0f64);for v in clut.chunks_exact(n){lo=lo.min(v[j]);hi=hi.max(v[j]);}
+    crate::validation::interval_peak(&out_curves[j],lo,hi)
    }).sum::<f64>();b.tac=b.tac.max(t);
   }
  }
