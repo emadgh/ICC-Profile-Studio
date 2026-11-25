@@ -449,7 +449,7 @@ impl Studio {
   grid
  }
  fn curves_page(&self,cx:&mut Context<Self>)->Div{
-  let mut p=div().flex().flex_col().gap_3().child(heading("Tone Curves","Drag curve handles or use numeric steps. Curves represent corrections, not measured ink response."));
+  let mut p=div().flex().flex_col().gap_3().child(heading("Tone Curves","Drag curve handles or use numeric steps. Curves represent corrections, not measured ink response.")).child(div().text_xs().child(tr("ICC v4 gamma edits preserve PCS stages and CLUT data; modified curves are sampled with a 0.5 percentage point error ceiling. Invalid or too-steep curves are refused.")));
   if self.gamma.is_empty(){return p.child(tr("Open a supported printer profile first."))}
   p=p.child(self.curve_cards(false,cx))
    .child(tr("Gamma modifies output separations; A2B stays unchanged. Recheck TAC and channel limits."))
@@ -1087,7 +1087,13 @@ impl Studio {
          .child(format!("{}: {}  |  {}: {}  |  {}: {}",tr("Sampled curves"),l.sampled_curves,tr("Gamma curves"),l.gamma_curves,tr("Parametric curves"),l.parametric_curves))
          .child(format!("Matrix: {} · M curves: {}",if l.matrix{"✓"}else{"—"},if l.m_curves{"✓"}else{"—"}))
          .child(div().text_xs().child(tr("Structural decoding available; channel reorder still requires native validation.")));
-        if tag.starts_with('B'){card=card.child(div().text_xs().child(tr(if l.strict_sampled_bounds{"Sampled device curve bounds supported"}else{"Analytic output curve bounds not yet supported"})));}
+        if tag.starts_with('B'){card=card.child(div().text_xs().child(tr(if l.strict_sampled_bounds{"Analytic device curve bounds supported"}else{"Device curve bounds cannot be certified"})));}
+        for (j,result) in &l.device_curves{
+         match result{
+          Ok(c)=>{card=card.child(div().flex().items_center().gap_2().child(swatch(self.ink_color(*j),12.)).child(div().w(px(100.)).child(self.ink_name(*j))).child(format!("{} · {:.2}%–{:.2}%",c.kind,100.*c.minimum,100.*c.maximum)).child(div().text_xs().text_color(rgb(if c.monotonic{0xa7f3d0}else{0xfbbf24})).child(tr(if c.monotonic{"Nondecreasing"}else{"Non-monotonic"}))));},
+          Err(e)=>{card=card.child(div().text_xs().text_color(rgb(0xfbbf24)).child(format!("CH {}: {}",j+1,e)));},
+         }
+        }
        },
        Err(e)=>card=card.child(format!("{tag}: {e}")),
       }
