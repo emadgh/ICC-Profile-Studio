@@ -112,7 +112,8 @@ impl Studio {
  fn persist_name_mode(&mut self){if let Err(e)=preferences::location().and_then(|p|{let mut current=preferences::load(&p)?;current.embedded_names=self.embedded_names;preferences::save(&p,&current)}){self.status=format!("Name preference not saved: {e}");}}
  fn ink_names(&self)->Vec<String>{self.display_profile.as_ref().map(|p|if self.embedded_names{p.channels()}else{p.standard_channels()}).unwrap_or_default()}
  fn ink_name(&self,i:usize)->String{self.ink_names().get(i).cloned().map(|n|if self.embedded_names{color_convert_rust::rtl::visual(&n)}else{tr(&n)}).unwrap_or_else(||format!("CH {}",i+1))}
- fn ink_color(&self,i:usize)->u32{visible_ink(self.display_profile.as_ref().map(|p|if self.embedded_names&&!(p.version_major()==4&&p.colorants().get(i).is_some_and(Option::is_some)){self.predicted_inks.get(i).copied().unwrap_or_else(||p.channel_swatch(i,true))}else{p.channel_swatch(i,self.embedded_names)}).unwrap_or(0x858585))}
+ fn ink_color(&self,i:usize)->u32{visible_ink(self.display_profile.as_ref().map(|p|capabilities::channel_display(p,i,&self.predicted_inks,self.embedded_names).0).unwrap_or(0x858585))}
+ fn ink_provenance(&self,i:usize)->String{self.display_profile.as_ref().map(|p|tr(capabilities::channel_display(p,i,&self.predicted_inks,self.embedded_names).1.label())).unwrap_or_default()}
  fn page_reason(&self,page:Page)->Option<&str>{let c=self.capability.as_ref()?;let t=match page{Page::Rebuilder=>Tool::Rebuild,Page::Reorder=>Tool::Reorder,Page::Correction|Page::Smoothing|Page::Black=>Tool::Correction,Page::Comparison|Page::Gamut|Page::Gradient=>Tool::Analysis,Page::Version=>Tool::Version,Page::DeviceLink=>Tool::DeviceLink,_=>return None};c.reason(t)}
 
  fn numeric_slider(&self,id:(&'static str,usize),value:f64,lo:f64,hi:f64,step:f64,set:impl Fn(&mut Self,f64)+Copy+'static,cx:&mut Context<Self>)->impl IntoElement{
@@ -488,6 +489,7 @@ impl Studio {
  }
  fn refresh_gamut(&mut self,cx:&mut Context<Self>){
   if self.busy{return}let Some(reference)=self.source.clone()else{return};
+  if let Some(reason)=self.capability.as_ref().and_then(|c|c.reason(Tool::Analysis)){self.preview=None;self.status=reason.to_owned();cx.notify();return}
   let candidate=self.candidate.clone();let grid=33;
   self.preview=None;self.busy=true;self.status="Sampling effective Lab gamut with LittleCMS…".into();cx.notify();
   cx.spawn(async move |this,cx|{
@@ -833,7 +835,8 @@ impl Studio {
    .child(button("optimize-profile","Generate ink-optimized ICC").on_click(cx.listener(|v,_,_,cx|v.save_edit(5,cx))));
   }
 
-  p=p.child(div().text_xs().text_color(rgb(0xa1a1aa)).child(tr("Uses the reference A2B prediction. Relative ink weights are cost proxies, not actual mass or currency. Search is approximate and can fail to find a feasible recipe.")));
+  if let Some(reason)=self.capability.as_ref().and_then(|c|c.reason(Tool::Recipe)){return p.child(div().text_color(rgb(0xfbbf24)).child(reason.to_owned()));}
+   p=p.child(div().text_xs().text_color(rgb(0xa1a1aa)).child(tr("Uses the reference A2B prediction. Relative ink weights are cost proxies, not actual mass or currency. Search is approximate and can fail to find a feasible recipe.")));
   let mut target=div().flex().flex_col().gap_2().p_3().rounded_md().bg(rgb(0x282828)).child(div().flex().items_center().gap_3().child(swatch(lab_swatch(self.recipe_target),64.)).child(div().flex().flex_col().gap_1().child(div().text_lg().child(tr("Target Lab"))).child(format!("{:.1?}",self.recipe_target)).child(div().text_xs().text_color(rgb(0xa1a1aa)).child(tr("Approximate screen color")))));
   for (i,(name,lo,hi)) in [("L*",0.,100.),("a*",-128.,127.),("b*",-128.,127.)].into_iter().enumerate(){
    target=target.child(div().flex().flex_wrap().items_center().gap_1().child(format!("{name}: {:.1}",self.recipe_target[i]))
@@ -1271,9 +1274,9 @@ impl Studio {
     .child(format!("Class: {}  |  {:.2} MiB",r.device_class,r.size as f64/1048576.))
     .child(format!("{}: {}",tr("Estimated total ink"),r.tac.map(|v|format!("{v:.1}%")).unwrap_or("Not available".into())))
     .child(format!("{} {}: {}",r.channel_names.len(),tr("Channels"),(0..r.channel_names.len()).map(|i|self.ink_name(i)).collect::<Vec<_>>().join(" · ")))
-    .child(div().flex().flex_wrap().gap_2().children((0..r.channel_names.len()).map(|j|div().flex().items_center().gap_1().child(swatch(self.ink_color(j),16.)).child(div().text_xs().child(self.ink_name(j))))))
+    .child(div().flex().flex_wrap().gap_2().children((0..r.channel_names.len()).map(|j|div().flex().items_center().gap_1().child(swatch(self.ink_color(j),16.)).child(div().flex().flex_col().child(div().text_xs().child(self.ink_name(j))).child(div().text_xs().text_color(rgb(0xa1a1aa)).child(self.ink_provenance(j)))))))
     ;
-   if let Some(c)=&self.capability{panel=panel.child(div().text_lg().child("Profile capabilities (preflight)"));for (tool,result) in &c.tools{panel=panel.child(div().flex().flex_col().gap_1().p_2().rounded_md().bg(rgb(0x282828)).child(format!("{} · {}",if result.is_ok(){"✓"}else{"⊘"},tr(tool.label()))).when(result.is_err(),|r|r.child(div().text_xs().text_color(rgb(0xfbbf24)).child(result.as_ref().err().cloned().unwrap_or_default()))));}panel=panel.child(div().text_xs().child("Eligibility is structural/native preflight; final output validation is still required. Embedded names are not inferred; swatches may be single-ink predictions."));}
+   if let Some(c)=&self.capability{panel=panel.child(div().text_lg().child(tr("Profile capabilities (preflight)")));for (tool,result) in &c.tools{panel=panel.child(div().flex().flex_col().gap_1().p_2().rounded_md().bg(rgb(0x282828)).child(format!("{} · {}",if result.is_ok(){"✓"}else{"⊘"},tr(tool.label()))).when(result.is_err(),|r|r.child(div().text_xs().text_color(rgb(0xfbbf24)).child(result.as_ref().err().cloned().unwrap_or_default()))));}panel=panel.child(div().text_xs().child(tr("Eligibility is structural/native preflight; final output validation is still required. Embedded names are not inferred; swatches may be single-ink predictions.")));}
    let mut white=div().flex().flex_col().gap_2().p_3().rounded_md().bg(rgb(0x282828))
     .child(div().text_lg().child(if r.is_output{tr("Paper / Substrate Color")}else{tr("Media White Point")}))
     .child(div().text_xs().text_color(rgb(0xa1a1aa)).child(tr("ICC mediaWhitePointTag (wtpt), D50 PCS; not the header illuminant.")));
@@ -1444,7 +1447,7 @@ impl Render for Studio {
     }
    }
   }
-  let content=if let Some(reason)=self.page_reason(self.page){div().flex().flex_col().gap_3().child(div().text_lg().child("Tool unavailable for this ICC")).child(div().text_color(rgb(0xfbbf24)).child(reason.to_owned())).child("Open a compatible profile or inspect its LUT structure.")}else{match self.page{
+  let content=if let Some(reason)=self.page_reason(self.page){div().flex().flex_col().gap_3().child(div().text_lg().child(tr("Tool unavailable for this ICC"))).child(div().text_color(rgb(0xfbbf24)).child(reason.to_owned())).child(tr("Open a compatible profile or inspect its LUT structure."))}else{match self.page{
    Page::Inspector=>self.inspector(cx),
    Page::Validator=>self.validator(),
    Page::Rebuilder=>self.rebuilder(cx),
