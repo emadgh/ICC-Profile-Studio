@@ -713,7 +713,7 @@ impl Studio {
   let corrected=color_convert_rust::correction::corrected_regions(source,&self.regions[..self.region_count]);
   let mut visual=div().flex().flex_col().gap_2().p_3().rounded_md().bg(rgb(0x282828))
    .child(div().text_lg().child(tr("Live Lab target preview")))
-   .child(div().flex().gap_2().children([(source,"Before"),(corrected,"After")].map(|(lab,label)|div().flex_1().min_w(px(0.)).flex().flex_col().gap_1().child(div().w_full().h(px(64.)).rounded_md().bg(rgb(lab_swatch(lab)))).child(tr(label)).child(div().text_xs().child(format!("L*a*b* {:.1?}",lab)))));
+   .child(div().flex().gap_2().children([(source,"Before"),(corrected,"After")].map(|(lab,label)|div().flex_1().min_w(px(0.)).flex().flex_col().gap_1().child(div().w_full().h(px(64.)).rounded_md().bg(rgb(lab_swatch(lab)))).child(tr(label)).child(div().text_xs().child(format!("L*a*b* {:.1?}",lab))))));
   for after in [false,true]{
    visual=visual.child(div().text_xs().child(tr(if after{"After"}else{"Before"}))).child(div().flex().h(px(20.)).rounded_md().overflow_hidden().children((0..36).map(|i|{
     let angle=(i as f64*10.).to_radians();let lab=[65.,45.*angle.cos(),45.*angle.sin()];
@@ -1126,7 +1126,7 @@ impl Studio {
   cx.spawn(async move|this,cx|{
    loop{
     cx.background_executor().timer(Duration::from_millis(150)).await;
-    let state=this.update(cx,|v,cx|{let status=v.updater.status();if let UpdateStatus::Available(info)=&status{if v.notified_version.as_deref()!=Some(info.version.as_str()){v.notified_version=Some(info.version.clone());v.update_notice=Some(info.version.clone());}}cx.notify();matches!(status,UpdateStatus::Checking|UpdateStatus::Downloading{..})});
+    let state=this.update(cx,|v,cx|{let status=v.updater.status();if let UpdateStatus::Available(info)=&status{if v.notified_version.as_deref()!=Some(info.version.as_str()){v.notified_version=Some(info.version.clone());v.update_notice=Some(info.version.clone());}}else if !matches!(status,UpdateStatus::Checking){v.update_notice=None;}cx.notify();matches!(status,UpdateStatus::Checking|UpdateStatus::Downloading{..})});
     if !matches!(state,Ok(true)){break}
    }
   }).detach();
@@ -1499,7 +1499,7 @@ fn main(){
  #[cfg(windows)] unsafe{let id:Vec<u16>="ir.emadghasemi.ICCProfileStudio".encode_utf16().chain(Some(0)).collect();let _=windows_sys::Win32::UI::Shell::SetCurrentProcessExplicitAppUserModelID(id.as_ptr());}
  Application::new().run(|cx:&mut App|{
   let bounds=Bounds::centered(None,size(px(1440.),px(880.)),cx);
-  cx.open_window(WindowOptions{window_bounds:Some(WindowBounds::Windowed(bounds)),titlebar:Some(TitlebarOptions{title:Some("ICC Profile Studio".into()),appears_transparent:false,..Default::default()}),..Default::default()},|window,cx|{window.set_window_title("ICC Profile Studio");window.set_app_id("ir.emadghasemi.ICCProfileStudio");cx.new(|_|Studio::startup())}).expect("Open Studio window");
+  cx.open_window(WindowOptions{window_bounds:Some(WindowBounds::Windowed(bounds)),titlebar:Some(TitlebarOptions{title:Some("ICC Profile Studio".into()),appears_transparent:false,..Default::default()}),..Default::default()},|window,cx|{window.set_window_title("ICC Profile Studio");cx.new(|_|Studio::startup())}).expect("Open Studio window");
   cx.activate(true);
  });
 }
