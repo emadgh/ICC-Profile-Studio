@@ -99,6 +99,7 @@ impl Profile{
  pub fn reorder_channels(&self,order:[usize;4])->R<Self>{self.reorder_channels_multi(&order)}
  pub fn reorder_channels_multi(&self,order:&[usize])->R<Self>{
   let n=editable_channel_count(self)?;if !valid_order(order,n){return Err("Mapping must be a permutation of all device channels".into())}
+  if self.space()=="CMY "&&order.iter().copied().ne(0..n){return Err("Native CMY has fixed cyan/magenta/yellow order; use an explicitly characterized generic 3CLR profile for arbitrary inks".into())}
   supported_tags(self)?;
   let mut out=self.clone();let mut forward=0;let mut reverse=0;
   for key in [b"A2B0",b"A2B1",b"A2B2",b"B2A0",b"B2A1",b"B2A2"]{
