@@ -14,6 +14,8 @@ pub mod reports;
 pub mod optimizer;
 pub mod lab;
 pub mod characterization;
+mod characterization_cgats;
+mod spectral_colorimetry;
 pub mod device_link;
 mod chart_tiff;
 pub mod correction;
