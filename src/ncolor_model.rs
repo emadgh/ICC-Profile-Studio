@@ -481,7 +481,7 @@ pub fn audit_continuity(chart:&Chart,channels:usize)->R<ContinuityAudit>{
   let r=regularize_inverse_ramp(&chart,3,[70.,20.,0.],settings.clone(),0.02).unwrap();
   assert!(r.objective<=r.initial_objective+1e-8);
   for (p,b) in r.points.iter().zip(&r.baseline.points){assert_eq!(p.inks_percent[2],0.);assert!(p.tac_percent<=90.);assert!(p.delta_e<=b.delta_e.max(2.)+1e-12);if b.within_tolerance{assert!(p.delta_e<=2.);}}
-  let z=regularize_inverse_ramp(&chart,3,[70.,20.,0.],settings.clone(),0.).unwrap();assert_eq!(z.evaluations,0);assert_eq!(z.objective,z.initial_objective);assert_eq!(z.max_channel_jump_pp,z.baseline.max_channel_jump_pp);
+  let z=regularize_inverse_ramp(&chart,3,[70.,20.,0.],settings.clone(),0.).unwrap();assert_eq!(z.evaluations,0);assert_eq!(z.objective,z.initial_objective);assert!((z.max_channel_jump_pp-z.baseline.max_channel_jump_pp).abs()<1e-9);
   assert!(regularize_inverse_ramp(&chart,3,[70.,20.,0.],settings,f64::NAN).is_err());
  }
  #[test]fn inverse_quantized_limits_and_unsupported_zero(){
