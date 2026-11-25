@@ -1,7 +1,7 @@
 param([Parameter(Mandatory=$true)][string]$Archive,[Parameter(Mandatory=$true)][string]$Version)
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.IO.Compression.FileSystem
-$required = @('ICC-Profile-Studio.exe','ICC-Profile-Studio.exe.sha256','README.md','ROADMAP.md','PROFILE_WORKFLOW.md','CIE_DATA.md','STUDIO_VERSION','RELEASE_QA.md','BUILD_INFO.json')
+$required = @('ICC-Profile-Studio.exe','ICC-Profile-Studio.exe.sha256','README.md','ROADMAP.md','PROFILE_WORKFLOW.md','CIE_DATA.md','STUDIO_VERSION','RELEASE_QA.md','BUILD_INFO.json','Cargo.lock')
 $zip = [IO.Compression.ZipFile]::OpenRead((Resolve-Path $Archive).Path)
 try {
   $names = @($zip.Entries | ForEach-Object FullName)
@@ -14,6 +14,10 @@ try {
   if ((Read-EntryText 'STUDIO_VERSION').Trim() -cne $Version) { throw 'Archive version mismatch' }
   $info = Read-EntryText 'BUILD_INFO.json' | ConvertFrom-Json
   if ($info.version -cne $Version -or $info.target -cne 'x86_64-pc-windows-msvc' -or $info.source_commit -notmatch '^[0-9a-f]{40}$' -or $info.lock_sha256 -notmatch '^[0-9a-f]{64}$') { throw 'Invalid build provenance' }
+  $lockStream = $zip.GetEntry('Cargo.lock').Open()
+  $lockSha = [Security.Cryptography.SHA256]::Create()
+  try { $actualLock = [Convert]::ToHexString($lockSha.ComputeHash($lockStream)).ToLowerInvariant() } finally { $lockStream.Dispose(); $lockSha.Dispose() }
+  if ($actualLock -cne $info.lock_sha256) { throw 'Packaged Cargo.lock checksum mismatch' }
   $hashLine = (Read-EntryText 'ICC-Profile-Studio.exe.sha256').Trim()
   if ($hashLine -notmatch '^([0-9a-f]{64})  ICC-Profile-Studio\.exe$') { throw 'Invalid checksum format' }
   $expected = $Matches[1]

@@ -156,6 +156,14 @@ pub fn import_cgats(p:&Profile,path:&Path)->R<Chart>{
  let mut c=crate::characterization_cgats::read(&s,n,p.cmyk())?;
  predict(p,&mut c)?;prepare_measurements(&mut c);Ok(c)
 }
+/// Prefer the actual embedded target; a failed or absent target falls back
+/// to an explicitly model-predicted virtual chart. Preserve the diagnostic.
+pub fn automatic_chart(p:&Profile)->R<(Chart,Option<String>)>{
+ match extract(p){
+  Ok(c)=>Ok((c,None)),
+  Err(e)=>virtual_chart(p).map(|c|(c,Some(e.clone()))).map_err(|v|format!("{e}; virtual target: {v}")),
+ }
+}
 pub fn virtual_chart(p:&Profile)->R<Chart>{
  let n=crate::print_space::format(&p.header[16..20])?.channels;
  let mut rows=vec![vec![0.;n]];
@@ -180,6 +188,16 @@ pub fn export_csv(c:&Chart,path:&Path)->R<()>{
 #[cfg(test)]
 mod tests{
  use super::*;
+ #[test]fn automatic_target_prefers_embedded_and_labels_fallback(){
+  let mut p=crate::synthetic_cmyk_v4(true);
+  let (c,notice)=automatic_chart(&p).unwrap();
+  assert!(notice.is_some());assert!(c.source.contains("not measured"));
+  assert!(!c.patches.is_empty());assert!(c.patches.iter().all(|v|v.measured_lab.is_none()));
+  let mut tag=b"text\0\0\0\0".to_vec();
+  tag.extend(b"CTI3\nILLUMINANT D50\nOBSERVER 2\nBEGIN_DATA_FORMAT\nSAMPLE_ID CMYK_C CMYK_M CMYK_Y CMYK_K LAB_L LAB_A LAB_B\nEND_DATA_FORMAT\nBEGIN_DATA\np1 0 0 0 0 90 0 0\nEND_DATA\n\0");
+  p.tags.insert(*b"targ",tag);
+  let (c,notice)=automatic_chart(&p).unwrap();assert!(notice.is_none());assert_eq!(c.patches.len(),1);assert_eq!(c.patches[0].measured_lab,Some([90.,0.,0.]));
+ }
  #[test]fn embedded_cxf_pairs_by_location_not_record_order(){
   let xml=r#"<CxF><Object ObjectType="M0_Measurement"><ReflectanceSpectrum StartWL="380" ColorSpecification="m">0.1 0.2</ReflectanceSpectrum><Tag Name="Page" Value="2"/><Tag Name="Row" Value="3"/><Tag Name="Column" Value="4"/><Tag Name="SampleID" Value="7"/></Object><Object ObjectType="Target"><ColorCMYK><Cyan>20</Cyan><Magenta>0</Magenta><Yellow>50</Yellow><Black>0</Black></ColorCMYK><Tag Name="Page" Value="2"/><Tag Name="Row" Value="3"/><Tag Name="Column" Value="4"/><Tag Name="SampleID" Value="7"/></Object><ColorSpecification Id="m"><WavelengthRange Increment="10"/></ColorSpecification></CxF>"#;
   let mut raw=b"ZXML\0\0\0\0\0\0\0\x01".to_vec();

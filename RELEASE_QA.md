@@ -34,3 +34,9 @@ prerelease only after successful tests, compilation and archive verification.
 Regular CI uploads one ZIP instead of duplicating the EXE. Release assets
 retain the standalone EXE and checksum. No stable release or automatic beta
 update is implied by CI success.
+
+## beta.28.1 workflow regression checks (pending)
+- Open Profiling Lab with embedded target, then a profile without one; verify automatic color grid and clear measured/predicted provenance. Change reference while the automatic task is pending; reject stale result. Check all tabs, advanced filters and explicit exports.
+- Change reference from each active page via both file dialog and installed profiles; verify navigation is retained, prior data invalidated, and Comparison candidate retained.
+- Compare same and different channel counts with overlay and side-by-side modes, identical curves, shared axes and missing channels. Switch optimizer tabs; verify weights/tolerance are shared and three results aligned.
+- CI generates Cargo.lock only if absent and embeds it for audit; pin the reviewed lockfile in the repository before claiming reproducible dependencies.
