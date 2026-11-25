@@ -45,11 +45,11 @@ fn seg(id:impl Into<ElementId>,label:impl Into<SharedString>,active:bool)->State
  div().id(id).px_2().py_1().text_xs().rounded_md().bg(rgb(if active{0xb95b26}else{0x333333})).text_color(rgb(0xf1f1f1)).cursor_pointer().hover(|s|s.bg(rgb(0x4a4a4a))).child(tr(label.as_ref()))
 }
 fn heading(title:&str,sub:&str)->Div{div().flex().flex_col().gap_1().when(i18n::is_rtl(),|p|p.text_right()).child(div().text_2xl().child(tr(title))).child(div().text_sm().text_color(rgb(0xa1a1aa)).child(tr(sub)))}
-fn visible_ink(color:u32)->u32{if color==0||((color>>16)&255)<32&&((color>>8)&255)<32&&(color&255)<32{0x505050}else{color}}
+fn visible_ink(color:u32)->u32{if color==0||((color>>16)&255)<32&&((color>>8)&255)<32&&(color&255)<32{0x262626}else{color}}
 fn swatch(color:u32,height:f32)->Div{div().h(px(height)).min_w(px(height)).rounded_md().border_1().border_color(rgb(0x777777)).bg(rgb(color))}
 fn bar(value:f64,color:u32,height:f32)->Div{
  div().w_full().h(px(height)).rounded_md().bg(rgb(0x171717)).overflow_hidden()
-  .child(div().w(relative(value.clamp(0.,1.) as f32)).h_full().bg(rgb(color)))
+  .child(div().w(relative(value.clamp(0.,1.) as f32)).h_full().bg(rgb(color)).when(value>0.&&color==0x262626,|p|p.border_1().border_color(rgb(0x696969))))
 }
 fn ink_budget_dynamic(caps:&[f64],tac:f64)->Div{
  let max=caps.len() as f64*100.;let sum=caps.iter().sum::<f64>();let effective=sum.min(tac);
@@ -134,7 +134,7 @@ impl Studio {
    .on_mouse_up(MouseButton::Left,cx.listener(|v,_,_,_|{v.slider_drag=None;})).on_mouse_up_out(MouseButton::Left,cx.listener(|v,_,_,_|{v.slider_drag=None;}));
   // Existing callers with coarse +/- buttons retain those controls.
   // For previously bare sliders provide a precise single-step pair.
-  let bare=matches!(id.0,"link-tolerance"|"target-min"|"target-max"|"target-tac"|"target-yaw"|"target-pitch");
+  let bare=matches!(id.0,"target-min"|"target-max"|"target-tac"|"target-yaw"|"target-pitch");
   let mut control=div().flex().items_center().gap_1().flex_shrink_0();
   if bare{control=control.child(seg(("precise-minus",match id.0{"link-tolerance"=>0usize,"target-min"=>1,"target-max"=>2,"target-tac"=>3,"target-yaw"=>4,_=>5}),"−",false).on_click(cx.listener(move|v,_,_,cx|{if !v.busy{set(v,scale.adjust(value,-1));cx.notify();}})));}
   control=control.child(track);
@@ -197,7 +197,7 @@ impl Studio {
  fn load_reference(&mut self,path:PathBuf,cx:&mut Context<Self>){
   if self.busy{return}
   self.picker=None;
-  let retained_candidate=if self.page==Page::Comparison{self.candidate.clone()}else{None};
+  let retained_candidate=if matches!(self.page,Page::Comparison|Page::DeviceLink|Page::Gradient){self.candidate.clone()}else{None};
   self.lab_epoch=self.lab_epoch.wrapping_add(1);self.lab_loading=false;self.lab_attempted=false;self.lab_error=None;self.measured=[None,None];self.measurement_result=None;self.link_report=None;
   self.source=Some(path.clone());self.characterization=None;self.characterization_patch=None;self.characterization_fit=None;self.characterization_measured=false;self.characterization_heat=false;self.spectral_illuminant=Illuminant::D50;self.spectral_observer=Observer::Two;self.characterization_filter=target_tools::Filter::default();self.characterization_cloud=false;self.characterization_revision=self.characterization_revision.wrapping_add(1);self.characterization_page=1;self.version_report=None;self.version_allow_omit=false;self.version_relative_only=false;self.black=BlackGeneration::default();self.black_channel=None;self.curve_points=IDENTITY_POINTS.to_vec();self.recipe_result=None;self.recipe_settings.weights.clear();self.regions=[Selective::default();MAX_REGIONS];self.region_count=1;self.region_selected=0;self.correction_grid=33;self.correction_tac=400.;self.smoothing=0.20;self.smoothing_passes=1;self.preview=None;self.candidate=retained_candidate;self.gradient=None;self.gradient_detail=None;self.gradient_error=None;self.gamma.clear();self.order.clear();self.curve_drag=None;self.curve_channel=0;self.comparison=None;self.compare_error=None;self.report=None;self.profile=None;self.display_profile=None;self.multi_caps.clear();self.multi_tac=0.;self.error=None;
   match inspection::inspect(&path){Ok(r)=>self.report=Some(r),Err(e)=>self.error=Some(e)}
@@ -409,10 +409,10 @@ impl Studio {
      .child(div().flex().justify_between().text_xs().text_color(rgb(0xa1a1aa)).child("0%").child(tr("Input →")).child("100%"));
     if point_mode{
      for j in 1..4{card=card.child(div().flex().flex_wrap().gap_1().items_center().text_xs().child(format!("{}% → {:.0}%",j*25,self.curve_points[i][j]*100.))
-      .child(seg(("point-minus",i*5+j),"−",false).on_click(cx.listener(move|v,_,_,cx|{if !v.busy{let p=&mut v.curve_points[i];p[j]=(p[j]-0.05).max(p[j-1]);cx.notify();}})))
-      .child(self.numeric_slider(("point-slider",i*5+j),self.curve_points[i][j],self.curve_points[i][j-1],self.curve_points[i][j+1],0.01,move|v,x|v.curve_points[i][j]=x,cx)).child(seg(("point-plus",i*5+j),"+",false).on_click(cx.listener(move|v,_,_,cx|{if !v.busy{let p=&mut v.curve_points[i];p[j]=(p[j]+0.05).min(p[j+1]);cx.notify();}}))));}
+      .child(seg(("point-minus",i*5+j),"−",false).on_click(cx.listener(move|v,_,_,cx|{if !v.busy{let p=&mut v.curve_points[i];p[j]=(p[j]-0.01).max(p[j-1]);cx.notify();}})))
+      .child(self.numeric_slider(("point-slider",i*5+j),self.curve_points[i][j],self.curve_points[i][j-1],self.curve_points[i][j+1],0.01,move|v,x|v.curve_points[i][j]=x,cx)).child(seg(("point-plus",i*5+j),"+",false).on_click(cx.listener(move|v,_,_,cx|{if !v.busy{let p=&mut v.curve_points[i];p[j]=(p[j]+0.01).min(p[j+1]);cx.notify();}}))));}
     }else{
-     card=card.child(div().flex().flex_wrap().items_center().gap_1().child(seg(("gamma-minus",i),"−",false).on_click(cx.listener(move|v,_,_,cx|{if !v.busy{v.gamma[i]=(v.gamma[i]-0.1).max(0.25);cx.notify();}}))).child(format!("γ {:.2}",self.gamma[i])).child(self.numeric_slider(("gamma-slider",i),self.gamma[i],0.25,4.,0.01,move|v,x|v.gamma[i]=x,cx)).child(seg(("gamma-plus",i),"+",false).on_click(cx.listener(move|v,_,_,cx|{if !v.busy{v.gamma[i]=(v.gamma[i]+0.1).min(4.);cx.notify();}}))))
+     card=card.child(div().flex().flex_wrap().items_center().gap_1().child(seg(("gamma-minus",i),"−",false).on_click(cx.listener(move|v,_,_,cx|{if !v.busy{v.gamma[i]=(v.gamma[i]-0.01).max(0.25);cx.notify();}}))).child(format!("γ {:.2}",self.gamma[i])).child(self.numeric_slider(("gamma-slider",i),self.gamma[i],0.25,4.,0.01,move|v,x|v.gamma[i]=x,cx)).child(seg(("gamma-plus",i),"+",false).on_click(cx.listener(move|v,_,_,cx|{if !v.busy{v.gamma[i]=(v.gamma[i]+0.01).min(4.);cx.notify();}}))))
       .child(div().text_xs().child(format!("25/50/75% → {:.0}/{:.0}/{:.0}%",100.*0.25_f64.powf(self.gamma[i]),100.*0.5_f64.powf(self.gamma[i]),100.*0.75_f64.powf(self.gamma[i]))));
     }
     grid=grid.child(card);
@@ -465,8 +465,8 @@ impl Studio {
   for (i,(label,value)) in [("Max forward ΔE00",self.version_de),("Max channel Δ (percentage points)",self.version_ink)].into_iter().enumerate(){
    let change=move|v:&mut Self,d:f64|{let x=if i==0{&mut v.version_de}else{&mut v.version_ink};*x=(*x+d).clamp(0.05,2.);};
    p=p.child(div().flex().items_center().gap_2().child(div().w(px(220.)).child(tr(label)))
-    .child(seg(("version-minus",i),"−",false).on_click(cx.listener(move|v,_,_,cx|{if !v.busy{change(v,-0.05);cx.notify();}}))).child(format!("{value:.2}"))
-    .child(self.numeric_slider(("version-slider",i),value,0.05,2.,0.01,move|v,x|if i==0{v.version_de=x}else{v.version_ink=x},cx)).child(seg(("version-plus",i),"+",false).on_click(cx.listener(move|v,_,_,cx|{if !v.busy{change(v,0.05);cx.notify();}}))));
+    .child(seg(("version-minus",i),"−",false).on_click(cx.listener(move|v,_,_,cx|{if !v.busy{change(v,-0.01);cx.notify();}}))).child(format!("{value:.2}"))
+    .child(self.numeric_slider(("version-slider",i),value,0.05,2.,0.01,move|v,x|if i==0{v.version_de=x}else{v.version_ink=x},cx)).child(seg(("version-plus",i),"+",false).on_click(cx.listener(move|v,_,_,cx|{if !v.busy{change(v,0.01);cx.notify();}}))));
   }
   p=p.child(div().flex().gap_1().flex_wrap()
     .child(seg("version-all","Require all intents",!self.version_relative_only).on_click(cx.listener(|v,_,_,cx|{if !v.busy{v.version_relative_only=false;v.version_report=None;cx.notify();}})))
@@ -553,10 +553,10 @@ impl Studio {
    .child(div().text_xs().text_color(rgb(0xa1a1aa)).child(name))
    .when(!o.three_d,|p|p.child(div().flex().gap_1().items_center().flex_wrap()
     .child(seg("slice-toggle",if o.slice{"Slice"}else{"All L*"},o.slice).on_click(cx.listener(|v,_,_,cx|{v.preview_options.slice=!v.preview_options.slice;cx.notify();})))
-    .when(o.slice,|p|p.child(seg("slice-down","−",false).on_click(cx.listener(|v,_,_,cx|{v.preview_options.light=(v.preview_options.light-5.).max(0.);cx.notify();}))).child(format!("L* {:.0}",o.light)).child(self.numeric_slider(("slice-slider",0),o.light as f64,0.,100.,1.,|v,x|v.preview_options.light=x as f32,cx)).child(seg("slice-up","+",false).on_click(cx.listener(|v,_,_,cx|{v.preview_options.light=(v.preview_options.light+5.).min(100.);cx.notify();}))))
+    .when(o.slice,|p|p.child(seg("slice-down","−",false).on_click(cx.listener(|v,_,_,cx|{v.preview_options.light=(v.preview_options.light-1.).max(0.);cx.notify();}))).child(format!("L* {:.0}",o.light)).child(self.numeric_slider(("slice-slider",0),o.light as f64,0.,100.,1.,|v,x|v.preview_options.light=x as f32,cx)).child(seg("slice-up","+",false).on_click(cx.listener(|v,_,_,cx|{v.preview_options.light=(v.preview_options.light+1.).min(100.);cx.notify();}))))
     .child(div().text_xs().child(format!("Fill {}%",o.opacity_2d)))
-    .child(seg("opacity-down","−",false).on_click(cx.listener(|v,_,_,cx|{v.preview_options.opacity_2d=v.preview_options.opacity_2d.saturating_sub(10);cx.notify();})))
-    .child(self.numeric_slider(("opacity-slider",0),o.opacity_2d as f64,0.,100.,1.,|v,x|v.preview_options.opacity_2d=x as _,cx)).child(seg("opacity-up","+",false).on_click(cx.listener(|v,_,_,cx|{v.preview_options.opacity_2d=(v.preview_options.opacity_2d+10).min(100);cx.notify();})))))
+    .child(seg("opacity-down","−",false).on_click(cx.listener(|v,_,_,cx|{v.preview_options.opacity_2d=v.preview_options.opacity_2d.saturating_sub(1);cx.notify();})))
+    .child(self.numeric_slider(("opacity-slider",0),o.opacity_2d as f64,0.,100.,1.,|v,x|v.preview_options.opacity_2d=x as _,cx)).child(seg("opacity-up","+",false).on_click(cx.listener(|v,_,_,cx|{v.preview_options.opacity_2d=(v.preview_options.opacity_2d+1).min(100);cx.notify();})))))
  }
  fn preview_panel(&self,width:f32,display:f32,full:bool,cx:&mut Context<Self>)->Div{
   let panel=div().flex().flex_col().w(px(width)).flex_shrink_0().h_full().min_h(px(0.)).overflow_hidden().bg(rgb(0x101010))
@@ -583,7 +583,7 @@ impl Studio {
     .child(seg("refresh-gamut",if self.busy{"Working…"}else{"Refresh"},false).on_click(cx.listener(|v,_,_,cx|v.refresh_gamut(cx)))))
    
    .child(div().text_xs().text_color(rgb(0xa1a1aa)).child(tr("High quality surface")))
-   .child(div().flex().flex_wrap().gap_1().items_center().child(seg("zoom-out","−",false).on_click(cx.listener(|v,_,_,cx|{v.preview_options.zoom=(v.preview_options.zoom/1.2).max(0.5);cx.notify();}))).child(format!("{:.0}%",100.*o.zoom)).child(self.numeric_slider(("zoom-slider",0),o.zoom as f64,0.5,3.,0.01,|v,x|v.preview_options.zoom=x as f32,cx)).child(seg("zoom-in","+",false).on_click(cx.listener(|v,_,_,cx|{v.preview_options.zoom=(v.preview_options.zoom*1.2).min(3.);cx.notify();}))).child(seg("reset-view","Reset",false).on_click(cx.listener(|v,_,_,cx|{v.preview_options=ViewOptions::default();cx.notify();}))))
+   .child(div().flex().flex_wrap().gap_1().items_center().child(seg("zoom-out","−",false).on_click(cx.listener(|v,_,_,cx|{v.preview_options.zoom=(v.preview_options.zoom-0.01).max(0.5);cx.notify();}))).child(format!("{:.0}%",100.*o.zoom)).child(self.numeric_slider(("zoom-slider",0),o.zoom as f64,0.5,3.,0.01,|v,x|v.preview_options.zoom=x as f32,cx)).child(seg("zoom-in","+",false).on_click(cx.listener(|v,_,_,cx|{v.preview_options.zoom=(v.preview_options.zoom+0.01).min(3.);cx.notify();}))).child(seg("reset-view","Reset",false).on_click(cx.listener(|v,_,_,cx|{v.preview_options=ViewOptions::default();cx.notify();}))))
    .child(seg("advanced-gamut",if self.gamut_advanced{"Advanced ▴"}else{"Advanced ▾"},self.gamut_advanced).on_click(cx.listener(|v,_,_,cx|{v.gamut_advanced=!v.gamut_advanced;cx.notify();})));
   if let Some(d)=&self.preview{
    if let Err(e)=&d.reference{p=p.child(format!("Reference: {e}"));}
@@ -698,8 +698,8 @@ impl Studio {
   let mut p=div().flex().flex_col().gap_2().p_3().rounded_md().bg(rgb(0x282828)).child(div().text_lg().child(tr("Output settings")))
    .child(div().flex().flex_wrap().items_center().gap_1().child(tr("CLUT grid")).children([17usize,33,49,65].into_iter().filter(|&g|!dynamic||g<=33).map(|g|button(("edit-grid",g),if self.correction_grid==g{format!("{g} ✓")}else{g.to_string()}).on_click(cx.listener(move|this,_,_,cx|{if !this.busy{this.correction_grid=g;cx.notify();}})))))
    .child(div().flex().flex_wrap().items_center().gap_2().child(format!("{}: {:.0}%",tr("TAC ceiling"),self.correction_tac))
-    .child(button("edit-tac-minus","−5").on_click(cx.listener(|this,_,_,cx|{if !this.busy{this.correction_tac=(this.correction_tac-5.).max(0.);cx.notify();}})))
-    .child(self.numeric_slider(("edit-tac-slider",0),self.correction_tac,0.,maximum,1.,|v,x|v.correction_tac=x,cx)).child(button("edit-tac-plus","+5").on_click(cx.listener(move|this,_,_,cx|{if !this.busy{this.correction_tac=(this.correction_tac+5.).min(maximum);cx.notify();}}))));
+    .child(button("edit-tac-minus","−1").on_click(cx.listener(|this,_,_,cx|{if !this.busy{this.correction_tac=(this.correction_tac-1.).max(0.);cx.notify();}})))
+    .child(self.numeric_slider(("edit-tac-slider",0),self.correction_tac,0.,maximum,1.,|v,x|v.correction_tac=x,cx)).child(button("edit-tac-plus","+1").on_click(cx.listener(move|this,_,_,cx|{if !this.busy{this.correction_tac=(this.correction_tac+1.).min(maximum);cx.notify();}}))));
   if let Some(v)=source_bound{p=p.child(button("edit-tac-bound",format!("{} ({v:.2}%)",tr("Use source TAC upper bound"))).on_click(cx.listener(move|this,_,_,cx|{if !this.busy{this.correction_tac=v.clamp(0.,maximum);cx.notify();}})));}
   if let Some(v)=estimate{p=p.child(button("edit-tac-reference",format!("Use reference B2A1 node estimate ({v:.0}%)")).on_click(cx.listener(move|this,_,_,cx|{if !this.busy{this.correction_tac=v;cx.notify();}})));}
   p.child(tr("Select a safe explicit TAC. Source channel maxima are enforced automatically. A2B is preserved."))
@@ -733,7 +733,7 @@ impl Studio {
    .when(self.region_count<MAX_REGIONS,|p|p.child(seg("add-region","+ Region",false).on_click(cx.listener(|v,_,_,cx|{if !v.busy&&v.region_count<MAX_REGIONS{v.regions[v.region_count]=Selective{center:(v.regions[v.region_selected].center+60.).rem_euclid(360.),..Default::default()};v.region_selected=v.region_count;v.region_count+=1;cx.notify();}}))))
    .when(self.region_count>1,|p|p.child(seg("remove-region","Remove",false).on_click(cx.listener(|v,_,_,cx|{if !v.busy&&v.region_count>1{let i=v.region_selected;v.regions.copy_within(i+1..v.region_count,i);v.region_count-=1;v.regions[v.region_count]=Selective::default();v.region_selected=i.min(v.region_count-1);cx.notify();}})))));
   p=p.child(div().flex().gap_1().flex_wrap().children([("Red",40.,0xc34c4c),("Yellow",90.,0xdbbb35),("Green",135.,0x47a86a),("Cyan",200.,0x2fa6b8),("Blue",270.,0x547cda),("Magenta",320.,0xb865b5)].into_iter().enumerate().map(|(i,(name,hue,color))|seg(("hue-preset",i),name,false).bg(rgb(color)).on_click(cx.listener(move|v,_,_,cx|{if !v.busy{v.regions[v.region_selected].center=hue;cx.notify();}})))));
-  for (i,(name,value,lo,hi,step,unit)) in [("Hue center",r.center,0.,360.,5.,"°"),("Hue half-width",r.width,10.,180.,5.,"°"),("Lightness",r.light,-30.,30.,1.," L*"),("Chroma",r.chroma_percent,-80.,80.,5.,"%"),("Hue shift",r.hue_shift,-60.,60.,5.,"°")].into_iter().enumerate(){
+  for (i,(name,value,lo,hi,step,unit)) in [("Hue center",r.center,0.,360.,1.,"°"),("Hue half-width",r.width,10.,180.,1.,"°"),("Lightness",r.light,-30.,30.,1.," L*"),("Chroma",r.chroma_percent,-80.,80.,1.,"%"),("Hue shift",r.hue_shift,-60.,60.,1.,"°")].into_iter().enumerate(){
    let change=move|v:&mut Self,delta:f64|{let r=&mut v.regions[v.region_selected];let f=match i{0=>&mut r.center,1=>&mut r.width,2=>&mut r.light,3=>&mut r.chroma_percent,_=>&mut r.hue_shift};*f=(*f+delta).clamp(lo,hi);};
    p=p.child(div().flex().flex_wrap().items_center().gap_2().p_2().rounded_md().bg(rgb(0x282828)).child(div().w(px(120.)).child(tr(name)))
     .child(seg(("correction-minus",i),"−",false).on_click(cx.listener(move|v,_,_,cx|{if !v.busy{change(v,-step);cx.notify();}})))
@@ -754,8 +754,8 @@ impl Studio {
   let Some(profile)=&self.display_profile else{return p.child(tr("Open a compatible ICC v4 Lab printer profile."))};
   if profile.version_major()!=4||profile.pcs()!="Lab "||(!profile.cmyk()&&color_convert_rust::multichannel::channel_count(profile).is_err()){return p.child(tr("Bounded correction requires compatible ICC v4 Lab profiles."))}
   p=p.child(div().flex().items_center().gap_2().child(format!("{}: {:.0}%",tr("Strength"),self.smoothing*100.))
-   .child(button("smooth-minus","−5").on_click(cx.listener(|this,_,_,cx|{if !this.busy{this.smoothing=(this.smoothing-0.05).max(0.05);cx.notify();}})))
-   .child(self.numeric_slider(("smooth-slider",0),self.smoothing,0.05,0.5,0.01,|v,x|v.smoothing=x,cx)).child(button("smooth-plus","+5").on_click(cx.listener(|this,_,_,cx|{if !this.busy{this.smoothing=(this.smoothing+0.05).min(0.5);cx.notify();}}))))
+   .child(button("smooth-minus","−1").on_click(cx.listener(|this,_,_,cx|{if !this.busy{this.smoothing=(this.smoothing-0.01).max(0.05);cx.notify();}})))
+   .child(self.numeric_slider(("smooth-slider",0),self.smoothing,0.05,0.5,0.01,|v,x|v.smoothing=x,cx)).child(button("smooth-plus","+1").on_click(cx.listener(|this,_,_,cx|{if !this.busy{this.smoothing=(this.smoothing+0.01).min(0.5);cx.notify();}}))))
    .child(div().flex().gap_1().items_center().child(tr("Passes")).children([1usize,2,3,4,5].map(|n|button(("smooth-pass",n),if n==self.smoothing_passes{format!("{n} ✓")}else{n.to_string()}).on_click(cx.listener(move|this,_,_,cx|{if !this.busy{this.smoothing_passes=n;cx.notify();}})))));
   p.child(self.correction_options(cx))
    .child(tr("Lattice boundaries are not averaged; initial resampling and ink constraints can still change them. Use Gradient Analyzer and Profile Comparison after saving to check the trade-off between smoothness and color accuracy."))
@@ -779,9 +779,9 @@ impl Studio {
    .children([0usize,2,3,4,5,7,9,13,17,25,33].into_iter().map(|g|seg(("link-grid",g),if g==0{"Automatic".to_owned()}else{g.to_string()},self.link_grid==g).on_click(cx.listener(move|v,_,_,cx|{if !v.busy{v.link_grid=g;cx.notify();}})))))
    .child(tr("Automatic selects the largest supported grid within a 2,000,000-value CLUT budget. High input-channel counts may require a coarse grid."));
   p=p.child(div().flex().flex_wrap().items_center().gap_2().child(format!("{}: {:.1} pp",tr("Maximum channel deviation"),self.link_tolerance))
-   .child(seg("link-tol-minus","−",false).on_click(cx.listener(|v,_,_,cx|{if !v.busy{v.link_tolerance=(v.link_tolerance-0.5).max(0.1);cx.notify();}})))
+   .child(seg("link-tol-minus","−",false).on_click(cx.listener(|v,_,_,cx|{if !v.busy{v.link_tolerance=Scale{low:0.1,high:10.,step:0.1}.adjust(v.link_tolerance,-1);cx.notify();}})))
    .child(self.numeric_slider(("link-tolerance",0),self.link_tolerance,0.1,10.,0.1,|v,x|v.link_tolerance=x,cx))
-   .child(seg("link-tol-plus","+",false).on_click(cx.listener(|v,_,_,cx|{if !v.busy{v.link_tolerance=(v.link_tolerance+0.5).min(10.);cx.notify();}}))))
+   .child(seg("link-tol-plus","+",false).on_click(cx.listener(|v,_,_,cx|{if !v.busy{v.link_tolerance=Scale{low:0.1,high:10.,step:0.1}.adjust(v.link_tolerance,1);cx.notify();}}))))
    .child(tr("The selected intent is baked into the link. No special black preservation, BPC, or certified physical ink-limit guarantee. Excessive sampled channel error prevents saving."));
   p=p.child(button("save-link",if self.busy{"Working…"}else{"Generate DeviceLink"}).on_click(cx.listener(|v,_,_,cx|{
     if v.busy{return}let (Some(a),Some(b))=(v.source.clone(),v.candidate.clone())else{v.status="Select two printer profiles.".into();cx.notify();return};
@@ -824,8 +824,8 @@ impl Studio {
   }
   for j in 0..self.gamma.len(){
    weights=weights.child(div().flex().flex_col().gap_1().child(div().flex().items_center().gap_2().child(swatch(self.ink_color(j),14.)).child(div().flex_1().child(self.ink_name(j))).child(div().text_xs().child(format!("{} {:.1}% · {} {:.2}",tr("Ink ceiling"),caps[j],tr("Relative weight"),self.recipe_settings.weights[j])))).child(bar(caps[j]/100.,self.ink_color(j),6.)).when(self.recipe_weights_open,|row|row.child(div().flex().flex_wrap().items_center().gap_1()
-    .child(button(("weight-minus",j),"−0.25").on_click(cx.listener(move|v,_,_,cx|{if !v.busy{v.recipe_settings.weights[j]=(v.recipe_settings.weights[j]-0.25).max(0.01);v.recipe_result=None;cx.notify();}})))
-    .child(self.numeric_slider(("weight-slider",j),self.recipe_settings.weights[j],0.01,100.,0.01,move|v,x|{v.recipe_settings.weights[j]=x;v.recipe_result=None;},cx)).child(button(("weight-plus",j),"+0.25").on_click(cx.listener(move|v,_,_,cx|{if !v.busy{v.recipe_settings.weights[j]=(v.recipe_settings.weights[j]+0.25).min(100.);v.recipe_result=None;cx.notify();}}))))));
+    .child(button(("weight-minus",j),"−0.01").on_click(cx.listener(move|v,_,_,cx|{if !v.busy{v.recipe_settings.weights[j]=(v.recipe_settings.weights[j]-0.01).max(0.01);v.recipe_result=None;cx.notify();}})))
+    .child(self.numeric_slider(("weight-slider",j),self.recipe_settings.weights[j],0.01,100.,0.01,move|v,x|{v.recipe_settings.weights[j]=x;v.recipe_result=None;},cx)).child(button(("weight-plus",j),"+0.01").on_click(cx.listener(move|v,_,_,cx|{if !v.busy{v.recipe_settings.weights[j]=(v.recipe_settings.weights[j]+0.01).min(100.);v.recipe_result=None;cx.notify();}}))))));
   }
   weights.child(ink_budget_dynamic(caps,tac)).child(div().flex().flex_wrap().items_center().gap_2().child(format!("{}: {:.1}",tr("ΔE00 tolerance"),self.recipe_settings.tolerance))
    .child(button("recipe-tolerance-minus","−0.1").on_click(cx.listener(|v,_,_,cx|{if !v.busy{v.recipe_settings.tolerance=((v.recipe_settings.tolerance*10.).round()-1.).max(1.)/10.;v.recipe_result=None;cx.notify();}})))
@@ -852,8 +852,8 @@ impl Studio {
   let mut target=div().flex().flex_col().gap_2().p_3().rounded_md().bg(rgb(0x282828)).child(div().flex().items_center().gap_3().child(swatch(lab_swatch(self.recipe_target),64.)).child(div().flex().flex_col().gap_1().child(div().text_lg().child(tr("Target Lab"))).child(format!("{:.1?}",self.recipe_target)).child(div().text_xs().text_color(rgb(0xa1a1aa)).child(tr("Approximate screen color")))));
   for (i,(name,lo,hi)) in [("L*",0.,100.),("a*",-128.,127.),("b*",-128.,127.)].into_iter().enumerate(){
    target=target.child(div().flex().flex_wrap().items_center().gap_1().child(format!("{name}: {:.1}",self.recipe_target[i]))
-    .child(button(("recipe-target-minus",i),"−1").on_click(cx.listener(move|v,_,_,cx|{if !v.busy{v.recipe_target[i]=(v.recipe_target[i]-1.).max(lo);v.recipe_result=None;cx.notify();}})))
-    .child(self.numeric_slider(("recipe-target-slider",i),self.recipe_target[i],lo,hi,0.1,move|v,x|{v.recipe_target[i]=x;v.recipe_result=None;},cx)).child(button(("recipe-target-plus",i),"+1").on_click(cx.listener(move|v,_,_,cx|{if !v.busy{v.recipe_target[i]=(v.recipe_target[i]+1.).min(hi);v.recipe_result=None;cx.notify();}}))));
+    .child(button(("recipe-target-minus",i),"−0.1").on_click(cx.listener(move|v,_,_,cx|{if !v.busy{v.recipe_target[i]=(v.recipe_target[i]-0.1).max(lo);v.recipe_result=None;cx.notify();}})))
+    .child(self.numeric_slider(("recipe-target-slider",i),self.recipe_target[i],lo,hi,0.1,move|v,x|{v.recipe_target[i]=x;v.recipe_result=None;},cx)).child(button(("recipe-target-plus",i),"+0.1").on_click(cx.listener(move|v,_,_,cx|{if !v.busy{v.recipe_target[i]=(v.recipe_target[i]+0.1).min(hi);v.recipe_result=None;cx.notify();}}))));
   }
   p=p.child(target).child(self.optimizer_constraints(&caps,tac,cx))
    .child(button("solve-recipe",if self.busy{"Working…"}else{"Find ink recipes"}).bg(rgb(0xc65f24)).on_click(cx.listener(|v,_,_,cx|{
@@ -1205,12 +1205,12 @@ impl Studio {
    .child(div().flex().gap_2().child(button("gcr-mode",if !s.ucr{"GCR ✓"}else{"GCR"}).on_click(cx.listener(|v,_,_,cx|{if !v.busy{v.black.ucr=false;cx.notify();}})))
     .child(button("ucr-mode",if s.ucr{"UCR ✓"}else{"UCR"}).on_click(cx.listener(|v,_,_,cx|{if !v.busy{v.black.ucr=true;cx.notify();}}))));
   let mut controls=div().flex().flex_col().gap_2().p_3().rounded_md().bg(rgb(0x282828)).child(div().text_lg().child(tr("Black curve controls")));
-  for (i,(name,value,step,lo,hi)) in [("Black start (darkness)",s.start,0.05,0.,0.95),("K target maximum",s.maximum,0.05,0.,1.),("Curve gamma",s.gamma,0.1,0.25,4.),("Preference strength",s.strength,0.05,0.,1.),("ΔE00 node tolerance",s.tolerance,0.1,0.1,5.)].into_iter().enumerate(){
+  for (i,(name,value,step,lo,hi)) in [("Black start (darkness)",s.start,0.01,0.,0.95),("K target maximum",s.maximum,0.01,0.,1.),("Curve gamma",s.gamma,0.01,0.25,4.),("Preference strength",s.strength,0.01,0.,1.),("ΔE00 node tolerance",s.tolerance,0.1,0.1,5.)].into_iter().enumerate(){
    let label=if i==0||i==1||i==3{format!("{}: {:.0}%",tr(name),value*100.)}else{format!("{}: {value:.2}",tr(name))};
    let change=move|v:&mut Self,delta:f64|{let field=match i{0=>&mut v.black.start,1=>&mut v.black.maximum,2=>&mut v.black.gamma,3=>&mut v.black.strength,_=>&mut v.black.tolerance};*field=(*field+delta).clamp(lo,hi);};
    controls=controls.child(div().flex().flex_wrap().items_center().gap_2().child(div().w(px(165.)).child(label))
     .child(button(("black-minus",i),"−").on_click(cx.listener(move|v,_,_,cx|{if !v.busy{change(v,-step);cx.notify();}})))
-    .child(self.numeric_slider(("black-slider",i),value,lo,hi,if i==2||i==4{0.01}else{0.01},move|v,x|{*match i{0=>&mut v.black.start,1=>&mut v.black.maximum,2=>&mut v.black.gamma,3=>&mut v.black.strength,_=>&mut v.black.tolerance}=x;},cx)).child(button(("black-plus",i),"+").on_click(cx.listener(move|v,_,_,cx|{if !v.busy{change(v,step);cx.notify();}}))));
+    .child(self.numeric_slider(("black-slider",i),value,lo,hi,if i==4{0.1}else{0.01},move|v,x|{*match i{0=>&mut v.black.start,1=>&mut v.black.maximum,2=>&mut v.black.gamma,3=>&mut v.black.strength,_=>&mut v.black.tolerance}=x;},cx)).child(button(("black-plus",i),"+").on_click(cx.listener(move|v,_,_,cx|{if !v.busy{change(v,step);cx.notify();}}))));
   }
   let effective_max=self.black_channel.and_then(|k|caps.get(k)).map(|c|s.maximum.min(*c/100.)).unwrap_or(0.);
   let samples:Vec<f64>=(0..=256).map(|i|s.maximum*((i as f64/256.-s.start)/(1.-s.start)).clamp(0.,1.).powf(s.gamma)).collect();
