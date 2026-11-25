@@ -24,5 +24,12 @@ fn main() {
     resource.set_icon(path.to_str().unwrap());
     resource.set("FileDescription","ICC Profile Studio");
     resource.set("ProductName","ICC Profile Studio");
+    resource.set("InternalName","ICC Profile Studio");
+    resource.set("OriginalFilename","ICC-Profile-Studio.exe");
+    resource.set("CompanyName","emadghasemi.ir");
+    let version=include_str!("STUDIO_VERSION").trim();
+    println!("cargo:rerun-if-changed=STUDIO_VERSION");
+    resource.set("ProductVersion",version);
+    resource.set("FileVersion",version);
     resource.compile().expect("Embed Windows application icon");
 }
