@@ -447,6 +447,10 @@ impl Profile{
   let mut out=self.clone();
   let mut input=vec![0f32;n];
   for (key,sig) in [(b"B2A0",TagSignature::BToA0Tag),(b"B2A1",TagSignature::BToA1Tag),(b"B2A2",TagSignature::BToA2Tag)]{
+   // Legacy predictive edits reserve half the requested color-error budget
+   // for interpolation. When 33 is requested, retain an original 17-point
+   // intent grid instead of unnecessarily resampling it to 33.
+   let grid=if legacy&&predictive&&grid==33&&self.tags.get(key).and_then(|raw|raw.get(10))==Some(&17){17}else{grid};
    // Encoding checked by correction_kind.
    // The source reverse envelope was certified by print_space::bounds; native evaluation supports complex PCS stages.
    let Tag::Pipeline(pipe)=native.read_tag(sig)else{return Err("LittleCMS could not decode B2A".into())};
@@ -460,7 +464,8 @@ impl Profile{
     if let DynamicCorrection::Black{channel,settings,..}=&op{
      let p=forward.as_ref().ok_or("Missing A2B1")?;
      for (x,&v) in node.iter_mut().zip(&result){*x=f64::from(v).clamp(0.,1.);}
-     let best=black_dynamic_node(&node,&caps,tac,*channel,*settings,|v|{
+     let mut node_settings=*settings;if legacy{node_settings.tolerance*=0.5;}
+     let best=black_dynamic_node(&node,&caps,tac,*channel,node_settings,|v|{
       for (x,&y) in input.iter_mut().zip(v){*x=y as f32;}let mut lab=[0f32;3];p.eval(&input,&mut lab);
       decode_forward_lab(lab,legacy)
      })?;
@@ -469,7 +474,8 @@ impl Profile{
     if let DynamicCorrection::Optimize{weights,tolerance,..}=&op{
      let p=forward.as_ref().ok_or("Missing A2B1")?;
      for (x,&v) in node.iter_mut().zip(&result){*x=f64::from(v).clamp(0.,1.);}
-     let best=optimize_dynamic_node(&node,&caps,tac,weights,*tolerance,|v|{
+     let node_tolerance=if legacy{*tolerance*0.5}else{*tolerance};
+     let best=optimize_dynamic_node(&node,&caps,tac,weights,node_tolerance,|v|{
       for (x,&y) in input.iter_mut().zip(v){*x=y as f32;}let mut lab=[0f32;3];p.eval(&input,&mut lab);
       decode_forward_lab(lab,legacy)
      })?;
@@ -517,7 +523,7 @@ fn verify_legacy_prediction(original:&lcms2::Profile,out:&Profile,tolerance:f64)
   let (_,b)=crate::comparison::simulate(&edited,&samples,intent)?;
   let mut peak=0f64;
   for (x,y) in a.iter().zip(&b){let d=x.cie2000_delta_e(y,1.,1.,1.);if !d.is_finite()||d<0.{return Err("Invalid legacy sampled Delta E".into())}peak=peak.max(d);}
-  if peak>tolerance+1e-9{return Err(format!("Legacy sampled color tolerance exceeded ({intent:?}): {peak:.4} > {tolerance:.4}; try grid 33 or a less aggressive setting"))}
+  if peak>tolerance+1e-9{return Err(format!("Legacy sampled color tolerance exceeded ({intent:?}): {peak:.4} > {tolerance:.4}; try grid 33, lower black strength, or review the selected tolerance"))}
  }
  Ok(())
 }
@@ -551,6 +557,21 @@ mod dynamic_tests{
   for j in 0..3{assert!((actual[j]-want[j]).abs()<1e-6);}
   assert_eq!(correction_input([1.,0.5,0.5],true,&[r]),[1.,0.5,0.5]);
   assert_eq!(correction_input(raw,true,&[]),raw.map(|v|v as f32));
+ }
+ #[test]#[ignore="Requires locally supplied FOGRA55 ICC"]
+ fn fogra55_legacy_predictive_real_profile(){
+  let path=std::path::PathBuf::from(std::env::var_os("ICC_FOGRA55_PATH").expect("Set ICC_FOGRA55_PATH"));
+  let source=std::fs::read(&path).unwrap();let p=Profile::read(&path).unwrap();
+  assert_eq!(p.version_major(),2);assert_eq!(p.space(),"7CLR");
+  let dir=tempfile::tempdir().unwrap();let dest=dir.path().join("legacy-optimized.icc");
+  let result=crate::editing::edit_file(&path,&dest,crate::editing::Edit::CorrectionMulti(DynamicCorrection::Optimize{weights:vec![1.;7],tolerance:2.,caps:vec![100.;7]},33,400.)).unwrap();
+  println!("{result}");let q=Profile::read(&dest).unwrap();
+  for k in [b"A2B0",b"A2B1",b"A2B2"]{assert_eq!(p.tags[k],q.tags[k]);}
+  assert_eq!([q.tags[b"B2A0"][10],q.tags[b"B2A1"][10],q.tags[b"B2A2"][10]],[33,33,17]);
+  assert_eq!(std::fs::read(&path).unwrap(),source);
+  for i in [lcms2::Intent::Perceptual,lcms2::Intent::RelativeColorimetric,lcms2::Intent::Saturation,lcms2::Intent::AbsoluteColorimetric]{
+   let r=crate::comparison::compare(&path,&dest,9,i).unwrap();println!("{i:?}: max {:.4}, mean TAC {:.2} -> {:.2}",r.max_de,r.reference.mean_tac,r.candidate.mean_tac);
+  }
  }
  #[test]#[ignore="Requires locally supplied FOGRA55 ICC"]
  fn fogra55_legacy_correction_real_profile(){
