@@ -110,3 +110,9 @@ Evidence per check: build commit, input profile signature/version/channel count,
 - [ ] Gamut shared/separate intent selectors, same target set, all four intents, 2D/3D/panel and expanded mode, caveat for cross-intent comparison, native errors.
 - [ ] RTL text alignment, picker/header and bottom status, mixed-script paths and labels; full native wrapping/IME/focus still requires manual work. Five languages and raw diagnostic details.
 - [ ] About/update state transitions, actual Windows offline/private feeds, checksum failure, verified download, explicit restart and title/taskbar metadata. No physical or stable-release approval inferred from CI.
+
+### Beta.42 acceptance (pending)
+- [ ] All prior Beta.41 checks; verify localized dynamic status headings and unchanged exact details/path, switch languages, invalid numeric entry and locale separators (reject exponents and percent syntax).
+- [ ] Gamut progress counts completed native batches and completed mesh slices, phases reset independently; cancel during mesh extraction or after final checkpoint without publishing result. Test both profiles and expanded view; native transform batch may finish before cancellation.
+- [ ] Explicitly save/load preferences with shared/separate intents, legacy settings default Relative, invalid intent code rejected, no device-specific job state persisted. Verify overlay labels and matching target grid.
+- [ ] Windows interactive keyboard/IME, mixed-script wrapping, actual updater and real-profile/print validation remain manual. No stable release or physical QA claims.

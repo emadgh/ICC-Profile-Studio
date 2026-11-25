@@ -22,8 +22,24 @@ pub fn diagnostic(raw:&str)->String{
 }
 /// Translate known status messages at render time, not at assignment.
 pub fn status(raw:&str)->String{
+ if ACTIVE.with(Cell::get)==Language::En{return raw.to_owned()}
  if ROWS.iter().any(|r|r[0]==raw){return tr(raw)}
- if raw.split_once(": ").is_some_and(|(p,_)|matches!(p,"Error"|"Open failed"|"Version conversion refused"|"Name preference not saved"|"Language preference not saved")){return diagnostic(raw)}
+ // Keep runtime details on their own line so native paths, percentages,
+ // Lab values and error messages are not reordered by the RTL shaper.
+ const PREFIXES:&[(&str,&str)]=&[
+  ("Error: ","Error"),("Open failed: ","Open failed"),("Version conversion refused: ","Version conversion refused"),
+  ("Name preference not saved: ","Name preference not saved"),("Language preference not saved: ","Language preference not saved"),
+  ("Preferences not loaded: ","Preferences not loaded; safe defaults active"),
+  ("Reference gamut failed: ","Reference gamut failed"),("Gamut ready: ","Gamut ready"),
+  ("Saved edited ICC: ","Saved edited ICC"),("Saved DeviceLink: ","Saved DeviceLink"),
+  ("Saved ICC v","Saved converted ICC"),("Saved: ","Saved profile"),("Saved ","Saved profile"),
+  ("Chart: ","Chart exported"),("Compared ","Profile comparison completed"),
+ ];
+ for &(prefix,key) in PREFIXES{
+  if raw.starts_with(prefix){return format!("{}\n{}",tr(key),raw)}
+ }
+ if raw.ends_with(" candidate recipes evaluated"){return format!("{}\n{}",tr("Recipe search completed"),raw)}
+ // A raw engine capability reason may also be a known diagnostic.
  raw.to_owned()
 }
 const ROWS:&[[&str;5]]=&[
@@ -639,6 +655,23 @@ const ROWS:&[[&str;5]]=&[
 ["Studio releases inaccessible (private repository or missing release access). Open GitHub Releases while signed in.","نسخه‌های Studio در دسترس نیستند (مخزن خصوصی یا دسترسی ناکافی). پس از ورود، Releases را باز کنید.","Release Studio non accessibili (repository privato o accesso mancante). Aprire GitHub Releases dopo l'accesso.","إصدارات Studio غير متاحة (مستودع خاص أو نقص الصلاحية). افتح GitHub Releases بعد تسجيل الدخول.","Релизы Studio недоступны (закрытый репозиторий или нет доступа). Откройте GitHub Releases после входа."],
 ["Release response read failed.","خواندن پاسخ نسخه ناموفق بود.","Lettura risposta release non riuscita.","فشلت قراءة استجابة الإصدار.","Не удалось прочитать ответ релиза."],
 ["Release metadata exceeds limit.","فراداده نسخه بیش از حد مجاز است.","Metadati release oltre il limite.","تجاوزت بيانات الإصدار الحد.","Метаданные релиза превышают предел."],
+["Preferences not loaded; safe defaults active","تنظیمات بارگذاری نشد؛ پیش‌فرض‌های ایمن فعال‌اند","Preferenze non caricate; valori predefiniti sicuri attivi","لم تُحمّل التفضيلات؛ الإعدادات الآمنة فعالة","Настройки не загружены; активны безопасные значения"],
+["Reference gamut failed","محاسبه گاموت مرجع ناموفق بود","Calcolo gamut riferimento non riuscito","فشل حساب نطاق المرجع","Не удалось вычислить охват эталона"],
+["Gamut ready","گاموت آماده است","Gamut pronto","النطاق اللوني جاهز","Цветовой охват готов"],
+["Saved edited ICC","ICC ویرایش‌شده ذخیره شد","ICC modificato salvato","تم حفظ ICC المعدّل","Изменённый ICC сохранён"],
+["Saved DeviceLink","DeviceLink ذخیره شد","DeviceLink salvato","تم حفظ DeviceLink","DeviceLink сохранён"],
+["Saved converted ICC","ICC تبدیل‌شده ذخیره شد","ICC convertito salvato","تم حفظ ICC المحوّل","Преобразованный ICC сохранён"],
+["Saved profile","پروفایل ذخیره شد","Profilo salvato","تم حفظ الملف","Профиль сохранён"],
+["Chart exported","چارت خروجی گرفته شد","Chart esportato","تم تصدير المخطط","Тестовая карта экспортирована"],
+["Profile comparison completed","مقایسه پروفایل تکمیل شد","Confronto profili completato","اكتملت مقارنة الملفات","Сравнение профилей завершено"],
+["Recipe search completed","جست‌وجوی ترکیب مرکب تکمیل شد","Ricerca ricette completata","اكتمل البحث عن وصفة الحبر","Поиск рецепта красок завершён"],
+["Preparing Lab targets","آماده‌سازی اهداف Lab","Preparazione target Lab","إعداد أهداف Lab","Подготовка целей Lab"],
+["Sampling Lab targets","نمونه‌برداری اهداف Lab","Campionamento target Lab","أخذ عينات أهداف Lab","Выборка целей Lab"],
+["Sampling tolerance field","نمونه‌برداری میدان تلرانس","Campionamento campo tolleranza","أخذ عينات مجال السماحية","Выборка поля допуска"],
+["Extracting gamut surface","استخراج سطح گاموت","Estrazione superficie gamut","استخراج سطح النطاق","Построение поверхности охвата"],
+["Retry download","تلاش مجدد برای دانلود","Riprova download","إعادة محاولة التنزيل","Повторить загрузку"],
+["Numeric entry: Enter applies; Escape cancels.","ورود عدد: Enter برای اعمال و Escape برای لغو.","Immissione numerica: Invio applica, Esc annulla.","إدخال رقم: Enter للتطبيق وEscape للإلغاء.","Ввод числа: Enter применяет, Escape отменяет."],
+["Invalid numeric value or outside allowed range.","عدد نامعتبر یا خارج از محدوده مجاز است.","Valore numerico non valido o fuori intervallo.","قيمة رقمية غير صالحة أو خارج النطاق.","Недопустимое число или значение вне диапазона."],
 ];
 #[cfg(test)]mod tests{use super::*;#[test]fn five_languages_and_fallback(){for l in Language::ALL{set_active(l);assert!(!tr("Settings").is_empty());assert_eq!(tr("A2B1"),"A2B1");}set_active(Language::Fa);assert_eq!(tr("Settings"),crate::rtl::visual("تنظیمات"));assert!(Language::Ar.rtl());}}
 
@@ -672,5 +705,13 @@ mod coverage_tests {
   let raw="Error: C:\\ICC\\profile.icc: LCMS A2B1";
   for lang in Language::ALL{set_active(lang);let shown=diagnostic(raw);if lang==Language::En{assert_eq!(shown,raw)}else{assert!(shown.ends_with("C:\\ICC\\profile.icc: LCMS A2B1"));assert_ne!(shown,raw);assert!(diagnostic("Missing B2A0").ends_with("\nMissing B2A0"));}assert!(!status("Starting multichannel rebuild…").is_empty());}
   set_active(Language::En);assert_eq!(diagnostic("Unknown native error"),"Unknown native error");
+ }
+}
+
+#[cfg(test)]mod dynamic_status_tests{
+ use super::*;
+ #[test]fn dynamic_status_keeps_exact_details_in_all_languages(){
+  let messages=["Saved edited ICC: C:\\ICC\\new.icc","Compared 729 sRGB samples and 33 neutrals.","Gamut ready: 123 reference points, 456 candidate points","42 candidate recipes evaluated","Error: native A2B1"];
+  for lang in Language::ALL{set_active(lang);for raw in messages{let shown=status(raw);if lang==Language::En{assert_eq!(shown,raw)}else{assert!(shown.ends_with(raw));assert_ne!(shown,raw);}}}
  }
 }

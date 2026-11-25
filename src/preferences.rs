@@ -8,13 +8,14 @@ type R<T>=Result<T,String>;
 pub struct Preferences {
  pub schema:u32,pub preview_open:bool,pub three_d:bool,pub wireframe:bool,pub solid:bool,pub profile_colors:bool,pub language:crate::i18n::Language,pub embedded_names:bool,pub preview_width:f32,pub opacity_2d:u8,pub layout:crate::gamut_raster::CompareLayout,pub floor_contour:bool,
  pub gamut_grid:usize,pub compare_grid:usize,pub chart_dpi:u32,
+ pub gamut_reference_intent:u8,pub gamut_candidate_intent:u8,pub gamut_separate_intents:bool,
 }
 impl Default for Preferences{
- fn default()->Self{Self{schema:1,preview_open:true,three_d:true,wireframe:false,solid:true,profile_colors:true,language:crate::i18n::Language::En,embedded_names:true,preview_width:360.,opacity_2d:100,layout:crate::gamut_raster::CompareLayout::default(),floor_contour:true,gamut_grid:33,compare_grid:17,chart_dpi:300}}
+ fn default()->Self{Self{schema:1,preview_open:true,three_d:true,wireframe:false,solid:true,profile_colors:true,language:crate::i18n::Language::En,embedded_names:true,preview_width:360.,opacity_2d:100,layout:crate::gamut_raster::CompareLayout::default(),floor_contour:true,gamut_grid:33,compare_grid:17,chart_dpi:300,gamut_reference_intent:1,gamut_candidate_intent:1,gamut_separate_intents:false}}
 }
 impl Preferences{
  pub fn validate(&self)->R<()>{
-  if self.schema!=1||!self.preview_width.is_finite()||!(280. ..=4000.).contains(&self.preview_width)||self.opacity_2d>100||![9,17,33].contains(&self.gamut_grid)||![9,17,33].contains(&self.compare_grid)||!(50..=1200).contains(&self.chart_dpi){return Err("Unsupported preferences schema or setting range".into())}
+  if self.gamut_reference_intent>3||self.gamut_candidate_intent>3||self.schema!=1||!self.preview_width.is_finite()||!(280. ..=4000.).contains(&self.preview_width)||self.opacity_2d>100||![9,17,33].contains(&self.gamut_grid)||![9,17,33].contains(&self.compare_grid)||!(50..=1200).contains(&self.chart_dpi){return Err("Unsupported preferences schema or setting range".into())}
   Ok(())
  }
 }
@@ -45,5 +46,12 @@ pub fn save(path:&Path,p:&Preferences)->R<()>{
  save(&p,&v).unwrap();let json:serde_json::Value=serde_json::from_slice(&fs::read(&p).unwrap()).unwrap();assert!(json.get("stream_enabled").is_none());assert!(json.get("monitor").is_none());assert!(json.get("dpi").is_none());assert!(json.get("library").is_none());
  }
  #[test]fn gamut_quality_roundtrip(){let d=tempfile::tempdir().unwrap();let p=d.path().join("settings.json");for grid in [9,17,33]{let v=Preferences{gamut_grid:grid,..Preferences::default()};save(&p,&v).unwrap();assert_eq!(load(&p).unwrap().gamut_grid,grid);}}
+ #[test]fn gamut_intents_roundtrip_and_legacy_defaults(){
+  let d=tempfile::tempdir().unwrap();let p=d.path().join("settings.json");
+  fs::write(&p,br#"{"schema":1}"#).unwrap();let old=load(&p).unwrap();
+  assert_eq!(old.gamut_reference_intent,1);assert_eq!(old.gamut_candidate_intent,1);assert!(!old.gamut_separate_intents);
+  let v=Preferences{gamut_reference_intent:0,gamut_candidate_intent:3,gamut_separate_intents:true,..old};save(&p,&v).unwrap();assert_eq!(load(&p).unwrap(),v);
+  assert!(Preferences{gamut_reference_intent:4,..v}.validate().is_err());
+ }
  #[test]fn rejects_invalid(){let d=tempfile::tempdir().unwrap();let p=d.path().join("settings.json");fs::write(&p,b"{\"schema\":1,\"chart_dpi\":0}").unwrap();assert!(load(&p).is_err());fs::write(&p,b"{\"schema\":99}").unwrap();assert!(load(&p).is_err());}
 }
