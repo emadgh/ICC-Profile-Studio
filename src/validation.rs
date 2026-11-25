@@ -37,6 +37,11 @@ fn lut_bound(l:&Lut)->R<(f64,bool)>{
 }
 pub fn bounds(p:&Profile)->R<Bounds>{
  let channels=p.verify([1.;4])?;
+ // For complex v4 PCS stages or unequal axes, use the conservative global
+ // CLUT envelope rather than assuming a uniform three-dimensional lattice.
+ if [b"B2A0",b"B2A1",b"B2A2"].iter().any(|k|p.tags.get(*k).is_some_and(|t|t.starts_with(b"mBA ")&&Lut::parse(t).is_err())){
+  let b=crate::print_space::bounds(p)?;return Ok(Bounds{channels,tac:b.tac,exact_node_tac:b.exact_node_tac})
+ }
  let mut tac=0f64;let mut exact=true;
  for key in [b"B2A0",b"B2A1",b"B2A2"]{
   let lut=Lut::parse(p.tags.get(key).ok_or("Missing B2A intent")?)?;
