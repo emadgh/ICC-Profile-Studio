@@ -1,0 +1,25 @@
+# Beta.45 performance QA
+
+## Independent FOGRA55 exact-neighbor scan diagnostic
+
+Source: operator-provided Ref_FOGRA55.zip / FOGRA55.txt; 4,884 rows, 4,272 unique 7-channel integer recipe keys; FNV1a fold 0, 3,405 training, 867 held-out. C implementation compiled with GCC -O3, contiguous uint32 arrays; compares full squared distance against early rejection once partial sum strictly exceeds current worst top-33 distance, same increasing-index tie rule. Instrumented component counter included in timing. Eight runs per algorithm, median of last seven. This is NOT the Rust binary benchmark.
+
+| Metric | Full | Bounded |
+|---|---:|---:|
+| Channel-distance component evaluations | 20,664,945 | 10,228,229 |
+| Median instrumented scan elapsed | 11.087867 ms | 11.089670 ms |
+| Top-33 results | reference | identical, all 867 queries |
+
+50.5044% fewer component evaluations; no meaningful measured wall-clock improvement in this isolated experiment. Branch overhead, compiler vectorization and data arrangement can offset arithmetic reductions. Existing model, weight and regression equations unchanged. Rust test compares complete ordered neighbor pairs on tied data, 2/4/7/15 axes; ignored release timing test `cargo test --release --no-default-features benchmark_neighbor_scan -- --ignored --nocapture` (synthetic).
+
+## Allocation design accounting (not measured RSS)
+
+- Removed full mesh copy from each visible profile render: 36 bytes/triangle logical payload, e.g. 100,000 triangles = 3.43 MiB avoided temporary copy per profile, plus point-list copy 12 bytes/point. Borrow original geometry instead.
+- Fixed three-element stack arrays for each edge intersection; reuse scanline scratch, remove duplicate intermediate slice collection.
+- Wire geometry cache capped at 65,536 segments/profile (24 bytes/segment logical payload; 1.5 MiB/profile, 3 MiB for two, excluding allocator overhead). Cache is a deliberate speed/memory tradeoff. Oversized grids stream without full segment buffer; first preparation may still allocate up to cap. Cache per preview and chart revision; prepared vs streaming pixel test. Raster still runs on UI thread; no FPS guarantee.
+- Arc chart snapshots avoid full deep copy of patch data for each worker; explicit fit is copy-on-write and stages results before commit. Filtered paired cloud cached by revision. Source bounds/TAC computed once on load, not per control redraw; write path retains fresh validation.
+- Contiguous BGRA conversion avoids per-pixel coordinate lookup; still allocates output buffer.
+
+## Required real Windows benchmark
+
+Use same build settings, hardware, ICC and chart inputs, resolution and display modes. Record cold/warm preview time, orbit/zoom median/P95 frame time, working set and peak private bytes, source-load time, characterization audit runtime, output hash / color metrics. Compare beta.44 and beta.45 with real 4/7/15-channel corpus; measure at 100% and high DPI, wire-only/solid/both, two profiles. Keep cache tradeoff explicit. No measured end-to-end Windows speed/RAM or manual UI sign-off yet. CI confirms tests/build only.
