@@ -786,5 +786,15 @@ pub fn audit_continuity(chart:&Chart,channels:usize)->R<ContinuityAudit>{
    }
   }
  }
+ #[test]#[ignore="Timing diagnostic; run release mode locally, not a CI performance threshold"]
+ fn benchmark_neighbor_scan(){
+  use std::hint::black_box;
+  let recipes:Vec<Vec<u32>>=(0..4272u32).map(|i|(0..7).map(|j|{let x=i.wrapping_mul(0x9e3779b9).rotate_left(j*3).wrapping_add(j*7919);x%1000001}).collect()).collect();
+  let scan=|bounded:bool|{let t=std::time::Instant::now();let mut checksum=0u64;for q in recipes.iter().step_by(5){
+   let mut best=[(u64::MAX,usize::MAX);33];for(i,v)in recipes.iter().enumerate(){let d=if bounded{distance_bounded(v,q,best[32].0)}else{distance(v,q)};let pair=(d,i);if pair<best[32]{let j=best.partition_point(|&p|p<=pair);best.copy_within(j..32,j+1);best[j]=pair;}}
+   checksum=checksum.wrapping_add(black_box(best[32].0));
+  }(checksum,t.elapsed())};
+  let a=scan(false);let b=scan(true);assert_eq!(a.0,b.0);println!("Full {:?}; bounded {:?}",a.1,b.1);
+ }
  #[test]fn exact_at_limit_and_full_range(){assert_eq!(distance_bounded(&[3,4],&[0,0],25),25);assert_eq!(distance_bounded(&[1000000;15],&[0;15],u64::MAX),15_000_000_000_000);}
 }
