@@ -1174,10 +1174,11 @@ impl Studio {
    .child(tr("GCR favors broad chroma-weighted replacement; UCR is concentrated in dark near-neutrals. The requested black curve is a preference, not a guaranteed separation."))
    .child(div().flex().gap_2().child(button("gcr-mode",if !s.ucr{"GCR ✓"}else{"GCR"}).on_click(cx.listener(|v,_,_,cx|{if !v.busy{v.black.ucr=false;cx.notify();}})))
     .child(button("ucr-mode",if s.ucr{"UCR ✓"}else{"UCR"}).on_click(cx.listener(|v,_,_,cx|{if !v.busy{v.black.ucr=true;cx.notify();}}))));
+  let mut controls=div().flex().flex_col().gap_2().p_3().rounded_md().bg(rgb(0x282828)).child(div().text_lg().child(tr("Black curve controls")));
   for (i,(name,value,step,lo,hi)) in [("Black start (darkness)",s.start,0.05,0.,0.95),("K target maximum",s.maximum,0.05,0.,1.),("Curve gamma",s.gamma,0.1,0.25,4.),("Preference strength",s.strength,0.05,0.,1.),("ΔE00 node tolerance",s.tolerance,0.1,0.1,5.)].into_iter().enumerate(){
    let label=if i==0||i==1||i==3{format!("{}: {:.0}%",tr(name),value*100.)}else{format!("{}: {value:.2}",tr(name))};
    let change=move|v:&mut Self,delta:f64|{let field=match i{0=>&mut v.black.start,1=>&mut v.black.maximum,2=>&mut v.black.gamma,3=>&mut v.black.strength,_=>&mut v.black.tolerance};*field=(*field+delta).clamp(lo,hi);};
-   p=p.child(div().flex().items_center().gap_2().child(div().w(px(225.)).child(label))
+   controls=controls.child(div().flex().flex_wrap().items_center().gap_2().child(div().w(px(165.)).child(label))
     .child(button(("black-minus",i),"−").on_click(cx.listener(move|v,_,_,cx|{if !v.busy{change(v,-step);cx.notify();}})))
     .child(self.numeric_slider(("black-slider",i),value,lo,hi,if i==2||i==4{0.01}else{0.01},move|v,x|{*match i{0=>&mut v.black.start,1=>&mut v.black.maximum,2=>&mut v.black.gamma,3=>&mut v.black.strength,_=>&mut v.black.tolerance}=x;},cx)).child(button(("black-plus",i),"+").on_click(cx.listener(move|v,_,_,cx|{if !v.busy{change(v,step);cx.notify();}}))));
   }
@@ -1201,14 +1202,17 @@ impl Studio {
     }
    }))
    .on_mouse_up(MouseButton::Left,cx.listener(|v,_,_,_|{v.curve_drag=None;}));
-  p=p.child(div().text_sm().child("Requested K preference (before constraints, chroma and tolerance)"))
-   .child(graph)
-   .child(format!("{}: {:.1}% · {}: {:.1}%",tr("Requested maximum"),s.maximum*100.,tr("Effective target maximum"),effective_max*100.))
-   .child(div().flex().justify_between().text_xs().child(tr("0% darkness")).child(tr("100% darkness"))).child(div().text_xs().child("Drag midpoint for gamma or right handle for maximum K. The solver remains constrained; requested curve is not guaranteed."))
-   .child(button("reset-black","Reset").on_click(cx.listener(|v,_,_,cx|{if !v.busy{v.black=BlackGeneration::default();cx.notify();}})));
+  p=p.child(div().flex().flex_col().gap_2().p_3().rounded_md().bg(rgb(0x282828))
+   .child(div().text_lg().child(tr("Requested black preference"))).child(graph)
+   .child(div().flex().justify_between().text_xs().child(tr("0% darkness")).child(tr("100% darkness")))
+   .child(div().flex().gap_2()
+    .child(div().flex_1().min_w(px(0.)).child(format!("{}: {:.1}%",tr("Requested maximum"),s.maximum*100.)).child(bar(s.maximum,0xcbd5e1,12.)))
+    .child(div().flex_1().min_w(px(0.)).child(format!("{}: {:.1}%",tr("Channel-capped maximum"),effective_max*100.)).child(bar(effective_max,0xe87935,12.))))
+   .child(div().text_xs().text_color(rgb(0xa1a1aa)).child(tr("Drag midpoint for gamma or right handle for maximum K. The solver remains constrained; requested curve is not guaranteed."))))
+   .child(controls.child(button("reset-black","Reset").on_click(cx.listener(|v,_,_,cx|{if !v.busy{v.black=BlackGeneration::default();cx.notify();}}))));
   p.child(self.correction_options(cx))
    .child(tr("ICC v4 mBA, 17/33 grid. Uses original A2B1 prediction and the stricter source/Rebuilder limits. Node tolerance is not a measured GCR/UCR calibration or a guarantee between nodes."))
-   .child(button("save-black","Generate black preference ICC").on_click(cx.listener(|v,_,_,cx|v.save_edit(6,cx))))
+   .child(button("save-black","Generate black preference ICC").bg(rgb(0xc65f24)).on_click(cx.listener(|v,_,_,cx|v.save_edit(6,cx))))
  }
  fn preference_snapshot(&self)->Preferences{
   Preferences{schema:1,preview_open:self.preview_open,three_d:self.preview_options.three_d,wireframe:self.preview_options.wireframe,solid:self.preview_options.solid,profile_colors:self.preview_options.profile_colors,language:self.language,embedded_names:self.embedded_names,layout:self.preview_options.layout,floor_contour:self.preview_options.floor_contour,preview_width:self.preview_width,opacity_2d:self.preview_options.opacity_2d,gamut_grid:self.gamut_grid,compare_grid:self.compare_grid,chart_dpi:self.chart_dpi}
