@@ -334,5 +334,13 @@ const ROWS:&[[&str;5]]=&[
 ["Supply an actual CMYK .ti3 file from a measurement workflow. Builds a new ICC with explicit TAC and Argyll default black generation. Validate it before production. No automatic compensation or matching is assumed.","فایل واقعی CMYK .ti3 از فرایند اندازه‌گیری وارد کنید. ICC جدید با TAC تعیین‌شده و تولید مشکی پیش‌فرض Argyll ساخته می‌شود. پیش از تولید اعتبارسنجی کنید؛ جبران یا تطبیق خودکار فرض نمی‌شود.","Fornire un .ti3 CMYK reale. Crea ICC con TAC esplicito e nero predefinito Argyll. Validare prima della produzione; nessuna compensazione automatica.","قدّم ملف CMYK .ti3 حقيقياً. ينشئ ICC بحد TAC محدد وتوليد الأسود الافتراضي. تحقّق قبل الإنتاج؛ لا تعويض تلقائي.","Предоставьте реальный CMYK .ti3. Создаётся ICC с заданным TAC и стандартной генерацией чёрного Argyll. Проверьте перед производством; автоматическая компенсация не предполагается."],
 ["CIE data / CC BY-SA 4.0","داده‌های CIE / CC BY-SA 4.0","Dati CIE / CC BY-SA 4.0","بيانات CIE / CC BY-SA 4.0","Данные CIE / CC BY-SA 4.0"],
 ["Export target CGATS","خروجی CGATS چارت","Esporta target CGATS","تصدير هدف CGATS","Экспорт шкалы CGATS"],
+["Separate","جداگانه","Separati","منفصل","Раздельно"],
+["Overlay","هم‌پوشانی","Sovrapposti","تراكب","Наложение"],
+["Neutral sample details","جزئیات نمونه‌های خنثی","Dettagli campioni neutri","تفاصيل العينات المحايدة","Детали нейтральных образцов"],
+["Ink weights and limits","وزن و محدودیت جوهر","Pesi e limiti inchiostri","أوزان وحدود الحبر","Веса и пределы красок"],
+["Total ink limit","محدودیت مجموع جوهر","Limite totale inchiostro","الحد الإجمالي للحبر","Общий лимит красок"],
+["Loading target patches…","در حال بارگذاری پچ‌ها…","Caricamento campioni…","جارٍ تحميل العينات…","Загрузка образцов…"],
+["Profile measured printing condition","ساخت پروفایل از اندازه‌گیری","Profilazione da misure","إنشاء ملف من القياسات","Профилирование по измерениям"],
+["Fixed 0–100 scale. Overlay pairs channel positions only, not physical ink identities.","مقیاس ثابت ۰ تا ۱۰۰. هم‌پوشانی بر اساس شماره کانال است، نه هویت فیزیکی جوهر.","Scala fissa 0–100. Sovrapposizione per indice, non per identità fisica degli inchiostri.","مقياس ثابت 0–100. التراكب حسب ترتيب القناة وليس هوية الحبر الفعلية.","Фиксированная шкала 0–100. Наложение по номеру канала, а не по физической краске."],
 ];
 #[cfg(test)]mod tests{use super::*;#[test]fn five_languages_and_fallback(){for l in Language::ALL{set_active(l);assert!(!tr("Settings").is_empty());assert_eq!(tr("A2B1"),"A2B1");}set_active(Language::Fa);assert_eq!(tr("Settings"),crate::rtl::visual("تنظیمات"));assert!(Language::Ar.rtl());}}
