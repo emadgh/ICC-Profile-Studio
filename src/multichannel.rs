@@ -4,6 +4,17 @@
 //! A2B and device channel identity stay intact; not a new characterization.
 use crate::{Profile,Lut,R,print_space,editing};
 use lcms2::{Tag,TagSignature};
+use std::sync::{Arc,atomic::{AtomicU8,Ordering}};
+/// Cancellation and publication are mutually exclusive. Once publishing begins,
+/// a cancel request returns false rather than promising to remove a saved ICC.
+#[derive(Clone,Debug,Default)]
+pub struct RebuildControl(Arc<AtomicU8>);
+impl RebuildControl{
+ pub fn cancel(&self)->bool{self.0.compare_exchange(0,1,Ordering::AcqRel,Ordering::Acquire).is_ok()}
+ pub fn cancelled(&self)->bool{self.0.load(Ordering::Acquire)==1}
+ pub fn check(&self)->R<()>{if self.cancelled(){Err("Rebuild cancelled".into())}else{Ok(())}}
+ pub(crate) fn begin_publish(&self)->R<()>{self.0.compare_exchange(0,2,Ordering::AcqRel,Ordering::Acquire).map(|_|()).map_err(|_|"Rebuild cancelled or already publishing".into())}
+}
 
 pub fn channel_count(p:&Profile)->R<usize>{
  if &p.header[12..16]!=b"prtr"||p.pcs()!="Lab "||!matches!(p.version_major(),2|4){return Err("Requires CMYK/nCLR output ICC v2/v4 with Lab PCS".into())}
@@ -50,7 +61,14 @@ pub fn verify(p:&Profile,caps:&[f64],tac:f64)->R<Verified>{
  Ok(out)
 }
 pub fn rebuild(p:&Profile,caps:&[f64],tac:f64,grid:usize,progress:impl Fn(String))->R<Profile>{
- let n=channel_count(p)?;settings(n,caps,tac,grid)?;
+ rebuild_verified(p,caps,tac,grid,&RebuildControl::default(),progress).map(|(p,_)|p)
+}
+pub(crate) fn rebuild_verified(p:&Profile,caps:&[f64],tac:f64,grid:usize,control:&RebuildControl,progress:impl Fn(String))->R<(Profile,Verified)>{
+ rebuild_impl(p,caps,tac,grid,control,progress,true)
+}
+fn rebuild_impl(p:&Profile,caps:&[f64],tac:f64,grid:usize,control:&RebuildControl,progress:impl Fn(String),skip_inactive:bool)->R<(Profile,Verified)>{
+ control.check()?;let n=channel_count(p)?;settings(n,caps,tac,grid)?;
+ let active:Vec<usize>=(0..n).filter(|&j|!skip_inactive||caps[j]>0.).collect();
  let native=lcms2::Profile::new_icc(&p.bytes()?).map_err(|e|e.to_string())?;
  let Tag::Pipeline(forward)=native.read_tag(TagSignature::AToB1Tag)else{return Err("Cannot decode native A2B1".into())};
  if forward.input_channels() as usize!=n||forward.output_channels()!=3{return Err("Unexpected native forward dimensions".into())}
@@ -67,7 +85,7 @@ pub fn rebuild(p:&Profile,caps:&[f64],tac:f64,grid:usize,progress:impl Fn(String
  // mixtures. No exponential N-dimensional Cartesian lattice allocation.
  let mut seeds=Vec::new();
  let zero=vec![0.;n];seeds.push((zero.clone(),eval(&zero)?));
- for j in 0..n{for f in [0.25,0.5,0.75,1.]{
+ for &j in &active{for f in [0.25,0.5,0.75,1.]{
   let mut x=zero.clone();x[j]=caps[j]*f;constrain(&mut x,caps,tac);seeds.push((x.clone(),eval(&x)?));
  }}
  let primes=[2usize,3,5,7,11,13,17,19,23,29,31,37,41,43,47];
@@ -78,8 +96,8 @@ pub fn rebuild(p:&Profile,caps:&[f64],tac:f64,grid:usize,progress:impl Fn(String
  let mut table=Vec::with_capacity(grid.pow(3)*n);
  let mut seed=[0f32;15];let den=(grid-1) as f64;
  for l in 0..grid{
-  progress(format!("Multichannel inversion: slice {}/{} · {} channels",l+1,grid,n));
-  for a in 0..grid{for b in 0..grid{
+  control.check()?;progress(format!("Multichannel inversion: slice {}/{} · {} channels ({} active)",l+1,grid,n,active.len()));
+  for a in 0..grid{control.check()?;for b in 0..grid{
    let target=[l as f64/den,a as f64/den,b as f64/den];
    seed[..n].fill(0.);if let Some(reverse)=&reverse{reverse.eval(&target.map(|v|v as f32),&mut seed[..n]);}
    if seed[..n].iter().any(|v|!v.is_finite()){return Err("Invalid source separation".into())}
@@ -91,12 +109,13 @@ pub fn rebuild(p:&Profile,caps:&[f64],tac:f64,grid:usize,progress:impl Fn(String
    for _ in 0..9{
     for _ in 0..2{
      let previous=cost;
-     for j in 0..n{for dir in [-1.,1.]{
+     for &j in &active{for dir in [-1.,1.]{
       trial.clone_from(&best);trial[j]=(trial[j]+dir*step).clamp(0.,caps[j]);
+      if skip_inactive&&trial[j]==best[j]{continue}
       if feasible(&trial,caps,tac){let d=dist(eval(&trial)?,target);if d+1e-12<cost{best.clone_from(&trial);cost=d;}}
      }}
      // Pair transfers permit motion on a saturated TAC boundary.
-     for j in 0..n{for k in j+1..n{for dir in [-1.,1.]{
+     for (i,&j) in active.iter().enumerate(){for &k in &active[i+1..]{for dir in [-1.,1.]{
       trial.clone_from(&best);
       let (from,to)=if dir>0.{(j,k)}else{(k,j)};
       let delta=step.min(trial[from]).min(caps[to]-trial[to]);
@@ -116,7 +135,7 @@ pub fn rebuild(p:&Profile,caps:&[f64],tac:f64,grid:usize,progress:impl Fn(String
  let tag=editing::encode(&lut,if p.version_major()==4{b"mBA "}else{b"mft2"})?;
  let mut result=p.clone();
  for k in [b"B2A0",b"B2A1",b"B2A2"]{result.tags.insert(*k,tag.clone());}
- result.clean_stale();verify(&result,caps,tac)?;Ok(result)
+ result.clean_stale();control.check()?;progress("Verifying all output intents…".into());let verified=verify(&result,caps,tac)?;control.check()?;Ok((result,verified))
 }
 #[cfg(test)]mod tests{
  use super::*;
@@ -144,6 +163,24 @@ pub fn rebuild(p:&Profile,caps:&[f64],tac:f64,grid:usize,progress:impl Fn(String
    }
    assert!(out.save_new(&path).is_err());
   }
+ }
+ #[test]fn sparse_search_is_byte_identical_to_full_search(){
+  let p=print_space::fixture(6);let caps=[0.6,0.1,0.,0.4,0.,0.];let c=RebuildControl::default();
+  let (fast,_)=rebuild_impl(&p,&caps,0.7,9,&c,|_|{},true).unwrap();
+  let (full,_)=rebuild_impl(&p,&caps,0.7,9,&c,|_|{},false).unwrap();
+  for k in [b"B2A0",b"B2A1",b"B2A2"]{assert_eq!(fast.tags[k],full.tags[k]);}
+ }
+ #[test]fn cancellation_excludes_publication(){
+  let c=RebuildControl::default();assert!(c.cancel());assert!(c.check().is_err());assert!(c.begin_publish().is_err());
+  let c=RebuildControl::default();assert!(c.begin_publish().is_ok());assert!(!c.cancel());
+  let p=print_space::fixture(6);let c=RebuildControl::default();
+  let err=rebuild_verified(&p,&[0.5;6],2.,9,&c,|_|{c.cancel();}).err().unwrap();
+  assert_eq!(err,"Rebuild cancelled");
+ }
+ #[test]#[ignore="Explicit release-mode performance benchmark"]
+ fn sparse_rebuild_benchmark(){
+  let p=print_space::fixture(15);let mut caps=vec![0.;15];caps[..3].fill(1.);
+  for fast in [false,true]{let start=std::time::Instant::now();let (_,v)=rebuild_impl(&p,&caps,2.,9,&RebuildControl::default(),|_|{},fast).unwrap();println!("sparse={fast} elapsed={:?} TAC={} samples={}",start.elapsed(),v.tac,v.samples);}
  }
  #[test]fn reject_wrong_caps_and_alternate(){
   let mut p=print_space::fixture(6);assert!(rebuild(&p,&[1.;4],1.,9,|_|{}).is_err());assert!(rebuild(&p,&[1.;6],7.,9,|_|{}).is_err());p.tags.insert(*b"B2D0",vec![0;8]);assert!(channel_count(&p).is_err());
