@@ -120,7 +120,7 @@ impl Profile {
     if let Some(l)=lab{let [r,g,b]=crate::gamut_raster::lab_rgb(l);return (u32::from(r)<<16)|(u32::from(g)<<8)|u32::from(b);}
    }
   }
-  if self.cmyk(){[0x00b7e5,0xe33b91,0xe8c44d,0x161616].get(index).copied().unwrap_or(0x858585)}else{0x858585}
+  if self.cmyk(){[0x00b7e5,0xe33b91,0xe8c44d,0x161616].get(index).copied().unwrap_or(0x858585)}else if self.space()=="CMY "{[0x00b7e5,0xe33b91,0xe8c44d].get(index).copied().unwrap_or(0x858585)}else{0x858585}
  }
  pub fn check(&self)->R<()>{
   if &self.header[12..16]!=b"prtr" || self.channels().len()!=4{return Err("Only four-channel printer ICC profiles are supported".into())}
