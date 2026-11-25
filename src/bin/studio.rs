@@ -924,6 +924,14 @@ impl Studio {
      .child(div().flex().items_end().gap_1().h(px(80.)).children(s.iter().map(|v|div().flex_1().h(px((75.*v/peak) as f32)).bg(rgb(0xe87935)))));
    }
   }
+  p=p.child(tr("CGATS preserves device values and homogeneous measured fields; use CSV for layout and model diagnostics. Virtual targets are not print-ready."))
+   .child(button("target-export-cgats","Export target CGATS").on_click(cx.listener(|v,_,_,cx|{
+    if v.busy{return}let Some(c)=&v.characterization else{return};
+    let Some(profile)=&v.display_profile else{return};
+    if let Some(path)=rfd::FileDialog::new().add_filter("CGATS",&["cgats"]).set_file_name("characterization.cgats").save_file(){
+     v.status=match color_convert_rust::characterization::export_cgats(profile,c,&path){Ok(())=>format!("Saved {}",path.display()),Err(e)=>e};cx.notify();
+    }
+   })));
   p.child(button("target-export","Export target CSV").on_click(cx.listener(|v,_,_,cx|{
    if v.busy{return}let Some(c)=&v.characterization else{return};
    if let Some(path)=rfd::FileDialog::new().add_filter("CSV",&["csv"]).set_file_name("characterization.csv").save_file(){
