@@ -919,8 +919,8 @@ impl Studio {
    .child(div().flex().gap_1().flex_wrap().children(["Single color recipe","Whole-profile optimization"].into_iter().enumerate().map(|(i,label)|seg(("optimizer-tab",i),label,self.recipe_tab==i).on_click(cx.listener(move|v,_,_,cx|{v.recipe_tab=i;cx.notify();})))));
   if self.recipe_tab==1{
    if let Some(reason)=self.capability.as_ref().and_then(|c|c.reason(Tool::Optimization)){return p.child(div().text_color(rgb(0xfbbf24)).child(i18n::diagnostic(reason)));}
-  if !self.display_profile.as_ref().is_some_and(|p|p.version_major()==4&&p.pcs()=="Lab "&&(p.cmyk()||color_convert_rust::multichannel::channel_count(p).is_ok())){return p.child(tr("Whole-profile optimization requires a compatible ICC v4 Lab profile."))}
-  return p.child(div().text_lg().child(tr("Whole-profile ink optimization (ICC v4 / mBA)")))
+  if !self.display_profile.as_ref().is_some_and(|p|matches!(p.version_major(),2|4)&&p.pcs()=="Lab "&&color_convert_rust::multichannel::channel_count(p).is_ok()){return p.child(tr("Whole-profile optimization requires compatible ICC v2 LUT16 or v4 mBA."))}
+  return p.child(div().text_lg().child(tr("Whole-profile ink optimization (v2 LUT16 / v4 mBA)")))
    .child(self.optimizer_constraints(&caps,tac,cx))
    .child(self.correction_options(cx))
    .child(tr("Whole-profile optimization preserves source channel bounds and uses the stricter of the Rebuilder TAC and correction TAC. It refuses an infeasible original separation. Node-level color tolerance does not certify interpolated color or real ink savings."))
@@ -1511,7 +1511,7 @@ impl Studio {
    .child(button("save-points","Generate bounded curves ICC").on_click(cx.listener(|v,_,_,cx|v.save_edit(7,cx))))
  }
  fn black_page(&self,cx:&mut Context<Self>)->Div{
-  if !self.display_profile.as_ref().is_some_and(|p|p.version_major()==4&&p.pcs()=="Lab "&&(p.cmyk()||color_convert_rust::multichannel::channel_count(p).is_ok())){return div().child(tr("Black generation requires a compatible ICC v4 Lab profile."))}
+  if !self.display_profile.as_ref().is_some_and(|p|matches!(p.version_major(),2|4)&&p.pcs()=="Lab "&&color_convert_rust::multichannel::channel_count(p).is_ok()){return div().child(tr("Black generation requires compatible ICC v2 LUT16 or v4 mBA."))}
   let dynamic=self.display_profile.as_ref().is_some_and(|p|!p.cmyk());
   let user_caps=self.caps.clone();
   let bounds=self.display_profile.as_ref().and_then(|p|color_convert_rust::print_space::bounds(p).ok());
@@ -1570,7 +1570,7 @@ impl Studio {
    .child(div().text_xs().text_color(rgb(0xa1a1aa)).child(tr("Drag midpoint for gamma or right handle for maximum K. The solver remains constrained; requested curve is not guaranteed."))))
    .child(controls.child(button("reset-black","Reset").on_click(cx.listener(|v,_,_,cx|{if !v.busy{v.black=BlackGeneration::default();cx.notify();}}))));
   p.child(self.correction_options(cx))
-   .child(tr("ICC v4 mBA, 17/33 grid. Uses original A2B1 prediction and the stricter source/Rebuilder limits. Node tolerance is not a measured GCR/UCR calibration or a guarantee between nodes."))
+   .child(tr("ICC v2 LUT16 or v4 mBA, 17/33 grid. Uses original A2B1 prediction and stricter source/Rebuilder limits. Legacy output also requires sampled color tolerance for all four intents. Not measured calibration or a continuous color-error guarantee."))
    .child(button("save-black","Generate black preference ICC").bg(rgb(0xc65f24)).on_click(cx.listener(|v,_,_,cx|v.save_edit(6,cx))))
  }
  fn preference_snapshot(&self)->Preferences{
