@@ -45,23 +45,23 @@ fn seg(id:impl Into<ElementId>,label:impl Into<SharedString>,active:bool)->State
  div().id(id).px_2().py_1().text_xs().rounded_md().bg(rgb(if active{0xb95b26}else{0x333333})).text_color(rgb(0xf1f1f1)).cursor_pointer().hover(|s|s.bg(rgb(0x4a4a4a))).child(tr(label.as_ref()))
 }
 fn heading(title:&str,sub:&str)->Div{div().flex().flex_col().gap_1().when(i18n::is_rtl(),|p|p.text_right()).child(div().text_2xl().child(tr(title))).child(div().text_sm().text_color(rgb(0xa1a1aa)).child(tr(sub)))}
-fn visible_ink(color:u32)->u32{if color==0||((color>>16)&255)<32&&((color>>8)&255)<32&&(color&255)<32{0x505050}else{color}}
+fn visible_ink(color:u32)->u32{if color==0||((color>>16)&255)<32&&((color>>8)&255)<32&&(color&255)<32{0x262626}else{color}}
 fn swatch(color:u32,height:f32)->Div{div().h(px(height)).min_w(px(height)).rounded_md().border_1().border_color(rgb(0x777777)).bg(rgb(color))}
 fn bar(value:f64,color:u32,height:f32)->Div{
  div().w_full().h(px(height)).rounded_md().bg(rgb(0x171717)).overflow_hidden()
-  .child(div().w(relative(value.clamp(0.,1.) as f32)).h_full().bg(rgb(color)))
+  .child(div().w(relative(value.clamp(0.,1.) as f32)).h_full().bg(rgb(color)).when(value>0.&&color==0x262626,|p|p.border_1().border_color(rgb(0x696969))))
 }
 fn ink_budget_dynamic(caps:&[f64],tac:f64)->Div{
  let max=caps.len() as f64*100.;let sum=caps.iter().sum::<f64>();let effective=sum.min(tac);
  div().flex().flex_col().gap_2().p_3().rounded_md().bg(rgb(0x282828))
   .child(div().text_lg().child(tr("Total ink coverage (TAC)")))
-  .child(format!("Sum of limits {sum:.0}% · TAC {tac:.0}%"))
+  .child(format!("{} {sum:.0}% · TAC {tac:.0}%",tr("Sum of limits")))
   .child(div().relative().w_full().h(px(22.)).bg(rgb(0x171717)).rounded_md().overflow_hidden()
    .child(div().absolute().left(px(0.)).top(px(0.)).h_full().w(relative((sum/max).clamp(0.,1.) as f32)).bg(rgb(0x484848)))
    .child(div().absolute().left(px(0.)).top(px(0.)).h_full().w(relative((effective/max).clamp(0.,1.) as f32)).bg(rgb(0xe87935)))
    .child(div().absolute().left(relative((tac/max).clamp(0.,1.) as f32)).top(px(0.)).w(px(2.)).h_full().bg(rgb(0xf1f1f1))))
   .child(div().flex().justify_between().text_xs().children((0..=4).map(|i|format!("{:.0}%",max*i as f64/4.))))
-  .child(format!("Requested combined ceiling ≤ {effective:.0}%"))
+  .child(format!("{} ≤ {effective:.0}%",tr("Requested combined ceiling")))
   .child(div().text_xs().child(tr("Live requested limits, not simulated separation.")))
 }
 
@@ -134,7 +134,7 @@ impl Studio {
    .on_mouse_up(MouseButton::Left,cx.listener(|v,_,_,_|{v.slider_drag=None;})).on_mouse_up_out(MouseButton::Left,cx.listener(|v,_,_,_|{v.slider_drag=None;}));
   // Existing callers with coarse +/- buttons retain those controls.
   // For previously bare sliders provide a precise single-step pair.
-  let bare=matches!(id.0,"link-tolerance"|"target-min"|"target-max"|"target-tac"|"target-yaw"|"target-pitch");
+  let bare=matches!(id.0,"target-min"|"target-max"|"target-tac"|"target-yaw"|"target-pitch");
   let mut control=div().flex().items_center().gap_1().flex_shrink_0();
   if bare{control=control.child(seg(("precise-minus",match id.0{"link-tolerance"=>0usize,"target-min"=>1,"target-max"=>2,"target-tac"=>3,"target-yaw"=>4,_=>5}),"−",false).on_click(cx.listener(move|v,_,_,cx|{if !v.busy{set(v,scale.adjust(value,-1));cx.notify();}})));}
   control=control.child(track);
@@ -158,8 +158,8 @@ impl Studio {
  fn system_dropdown(&self,target:Picker,cx:&mut Context<Self>)->Div{
   let key=match target{Picker::Reference=>"sys-ref-button",Picker::Comparison=>"sys-compare-button",Picker::Gamut=>"sys-gamut-button"};
   let selected=if target==Picker::Reference{self.source.as_ref()}else{self.candidate.as_ref()};
-  let label=if target==Picker::Reference{tr("System profiles")}else{selected.and_then(|p|p.file_name()).map(|p|{let name=p.to_string_lossy();let mut label=name.chars().take(22).collect::<String>();if name.chars().count()>22{label.push('…');}label}).unwrap_or_else(||tr("System profiles"))};
-  div().relative().flex_shrink_0().child(div().id(key).flex().items_center().gap_2().px_2().py_2().rounded_md().border_1().border_color(rgb(0x626262)).bg(rgb(0x262626)).cursor_pointer().child(label).child(if self.picker==Some(target){"▴"}else{"▾"}).on_click(cx.listener(move|v,_,_,cx|v.toggle_system_picker(target,cx))))
+  let label=selected.and_then(|p|p.file_name()).map(|p|{let name=p.to_string_lossy();let mut label=name.chars().take(20).collect::<String>();if name.chars().count()>20{label.push('…');}label}).unwrap_or_else(||tr("System profiles"));
+  div().relative().flex_shrink_0().when(target==Picker::Reference,|p|p.w_full()).child(div().id(key).flex().items_center().justify_between().gap_2().px_2().py_2().rounded_md().border_1().border_color(rgb(if self.picker==Some(target){0xe87935}else{0x626262})).bg(rgb(0x262626)).hover(|p|p.bg(rgb(0x333333))).cursor_pointer().child(div().flex_1().min_w(px(0.)).child(label)).child(div().text_color(rgb(0xa1a1aa)).child(if self.picker==Some(target){"▴"}else{"▾"})).on_click(cx.listener(move|v,_,_,cx|v.toggle_system_picker(target,cx))))
    .when(self.picker==Some(target),|p|p.child(div().absolute().left(px(0.)).top(px(35.)).child(deferred(anchored().snap_to_window().child(self.system_picker(target,cx))).with_priority(10))))
  }
  fn system_picker(&self,target:Picker,cx:&mut Context<Self>)->Div{
@@ -197,7 +197,7 @@ impl Studio {
  fn load_reference(&mut self,path:PathBuf,cx:&mut Context<Self>){
   if self.busy{return}
   self.picker=None;
-  let retained_candidate=if self.page==Page::Comparison{self.candidate.clone()}else{None};
+  let retained_candidate=if matches!(self.page,Page::Comparison|Page::DeviceLink|Page::Gradient){self.candidate.clone()}else{None};
   self.lab_epoch=self.lab_epoch.wrapping_add(1);self.lab_loading=false;self.lab_attempted=false;self.lab_error=None;self.measured=[None,None];self.measurement_result=None;self.link_report=None;
   self.source=Some(path.clone());self.characterization=None;self.characterization_patch=None;self.characterization_fit=None;self.characterization_measured=false;self.characterization_heat=false;self.spectral_illuminant=Illuminant::D50;self.spectral_observer=Observer::Two;self.characterization_filter=target_tools::Filter::default();self.characterization_cloud=false;self.characterization_revision=self.characterization_revision.wrapping_add(1);self.characterization_page=1;self.version_report=None;self.version_allow_omit=false;self.version_relative_only=false;self.black=BlackGeneration::default();self.black_channel=None;self.curve_points=IDENTITY_POINTS.to_vec();self.recipe_result=None;self.recipe_settings.weights.clear();self.regions=[Selective::default();MAX_REGIONS];self.region_count=1;self.region_selected=0;self.correction_grid=33;self.correction_tac=400.;self.smoothing=0.20;self.smoothing_passes=1;self.preview=None;self.candidate=retained_candidate;self.gradient=None;self.gradient_detail=None;self.gradient_error=None;self.gamma.clear();self.order.clear();self.curve_drag=None;self.curve_channel=0;self.comparison=None;self.compare_error=None;self.report=None;self.profile=None;self.display_profile=None;self.multi_caps.clear();self.multi_tac=0.;self.error=None;
   match inspection::inspect(&path){Ok(r)=>self.report=Some(r),Err(e)=>self.error=Some(e)}
@@ -409,10 +409,10 @@ impl Studio {
      .child(div().flex().justify_between().text_xs().text_color(rgb(0xa1a1aa)).child("0%").child(tr("Input →")).child("100%"));
     if point_mode{
      for j in 1..4{card=card.child(div().flex().flex_wrap().gap_1().items_center().text_xs().child(format!("{}% → {:.0}%",j*25,self.curve_points[i][j]*100.))
-      .child(seg(("point-minus",i*5+j),"−",false).on_click(cx.listener(move|v,_,_,cx|{if !v.busy{let p=&mut v.curve_points[i];p[j]=(p[j]-0.05).max(p[j-1]);cx.notify();}})))
-      .child(self.numeric_slider(("point-slider",i*5+j),self.curve_points[i][j],self.curve_points[i][j-1],self.curve_points[i][j+1],0.01,move|v,x|v.curve_points[i][j]=x,cx)).child(seg(("point-plus",i*5+j),"+",false).on_click(cx.listener(move|v,_,_,cx|{if !v.busy{let p=&mut v.curve_points[i];p[j]=(p[j]+0.05).min(p[j+1]);cx.notify();}}))));}
+      .child(seg(("point-minus",i*5+j),"−",false).on_click(cx.listener(move|v,_,_,cx|{if !v.busy{let p=&mut v.curve_points[i];p[j]=(p[j]-0.01).max(p[j-1]);cx.notify();}})))
+      .child(self.numeric_slider(("point-slider",i*5+j),self.curve_points[i][j],self.curve_points[i][j-1],self.curve_points[i][j+1],0.01,move|v,x|v.curve_points[i][j]=x,cx)).child(seg(("point-plus",i*5+j),"+",false).on_click(cx.listener(move|v,_,_,cx|{if !v.busy{let p=&mut v.curve_points[i];p[j]=(p[j]+0.01).min(p[j+1]);cx.notify();}}))));}
     }else{
-     card=card.child(div().flex().flex_wrap().items_center().gap_1().child(seg(("gamma-minus",i),"−",false).on_click(cx.listener(move|v,_,_,cx|{if !v.busy{v.gamma[i]=(v.gamma[i]-0.1).max(0.25);cx.notify();}}))).child(format!("γ {:.2}",self.gamma[i])).child(self.numeric_slider(("gamma-slider",i),self.gamma[i],0.25,4.,0.01,move|v,x|v.gamma[i]=x,cx)).child(seg(("gamma-plus",i),"+",false).on_click(cx.listener(move|v,_,_,cx|{if !v.busy{v.gamma[i]=(v.gamma[i]+0.1).min(4.);cx.notify();}}))))
+     card=card.child(div().flex().flex_wrap().items_center().gap_1().child(seg(("gamma-minus",i),"−",false).on_click(cx.listener(move|v,_,_,cx|{if !v.busy{v.gamma[i]=(v.gamma[i]-0.01).max(0.25);cx.notify();}}))).child(format!("γ {:.2}",self.gamma[i])).child(self.numeric_slider(("gamma-slider",i),self.gamma[i],0.25,4.,0.01,move|v,x|v.gamma[i]=x,cx)).child(seg(("gamma-plus",i),"+",false).on_click(cx.listener(move|v,_,_,cx|{if !v.busy{v.gamma[i]=(v.gamma[i]+0.01).min(4.);cx.notify();}}))))
       .child(div().text_xs().child(format!("25/50/75% → {:.0}/{:.0}/{:.0}%",100.*0.25_f64.powf(self.gamma[i]),100.*0.5_f64.powf(self.gamma[i]),100.*0.75_f64.powf(self.gamma[i]))));
     }
     grid=grid.child(card);
@@ -436,16 +436,22 @@ impl Studio {
  fn reorder_page(&self,cx:&mut Context<Self>)->Div{
   let mut p=div().flex().flex_col().gap_3().child(heading("Channel Reorder","New channel index → original physical ink."));
   if self.order.is_empty(){return p.child(tr("Open a supported printer profile first."))}
-  for start in (0..self.order.len()).step_by(4){
-   p=p.child(div().flex().gap_2().children((start..(start+4).min(self.order.len())).map(|i|div().flex_1().min_w(px(0.)).flex().flex_col().gap_1().child(swatch(self.ink_color(self.order[i]),48.)).child(div().text_xs().child(format!("{} → {}",i+1,self.ink_name(self.order[i])))))));
+  let unchanged=self.order.iter().enumerate().all(|(i,&j)|i==j);
+  p=p.child(div().flex().flex_col().gap_2().p_3().rounded_md().bg(rgb(0x282828))
+   .child(div().flex().items_center().justify_between().child(div().text_lg().child(tr("Original channel order"))).child(format!("{} {}",self.order.len(),tr("Channels"))))
+   .child(div().flex().flex_wrap().gap_2().children((0..self.order.len()).map(|i|div().flex().flex_col().gap_1().child(swatch(self.ink_color(i),36.)).child(div().text_xs().child(format!("{} · {}",i+1,self.ink_name(i))))))))
+   .child(div().flex().items_center().justify_between().gap_2().child(div().text_lg().child(tr("New channel order"))).child(button("reset-order","Reset mapping").on_click(cx.listener(|v,_,_,cx|{if !v.busy{v.order=(0..v.order.len()).collect();cx.notify();}}))));
+  for (i,&old) in self.order.iter().enumerate(){
+   p=p.child(div().flex().flex_wrap().items_center().gap_2().p_3().rounded_md().bg(rgb(if old==i{0x282828}else{0x392c22}))
+    .child(div().text_lg().child(format!("{}",i+1))).child(swatch(self.ink_color(old),26.))
+    .child(div().flex_1().min_w(px(0.)).flex().flex_col().gap_1().child(self.ink_name(old)).child(div().text_xs().text_color(rgb(0xa1a1aa)).child(format!("{} {}",tr("Original channel"),old+1))))
+    .child(seg(("order-up",i),"↑",false).on_click(cx.listener(move|v,_,_,cx|{if !v.busy&&i>0{v.order.swap(i,i-1);cx.notify();}})))
+    .child(seg(("order-down",i),"↓",false).on_click(cx.listener(move|v,_,_,cx|{if !v.busy&&i+1<v.order.len(){v.order.swap(i,i+1);cx.notify();}}))));
   }
-  for i in 0..self.order.len(){p=p.child(div().flex().items_center().gap_2().child(swatch(self.ink_color(self.order[i]),24.)).child(div().w(px(200.)).child(format!("{} → {}",i+1,self.ink_name(self.order[i]))))
-   .child(button(("order-up",i),"↑").on_click(cx.listener(move|this,_,_,cx|{if !this.busy&&i>0{this.order.swap(i,i-1);cx.notify();}})))
-   .child(button(("order-down",i),"↓").on_click(cx.listener(move|this,_,_,cx|{if !this.busy&&i+1<this.order.len(){this.order.swap(i,i+1);cx.notify();}}))));}
-  p.child(button("reset-order","Reset mapping").on_click(cx.listener(|this,_,_,cx|{if !this.busy{this.order=(0..this.order.len()).collect();cx.notify();}})))
+  p=p.child(div().text_sm().text_color(rgb(if unchanged{0xa1a1aa}else{0xfb923c})).child(tr(if unchanged{"Original mapping unchanged"}else{"Channel mapping changed"})))
    .child(tr("Changes both A2B input axes and B2A output channels. Unknown vendor tags or calibration data cause rejection. RIP channel order must match the new physical order."))
-   .child(tr("Before saving, all four rendering intents are sampled with LittleCMS. Maximum allowed ΔE00, channel deviation and TAC deviation: 0.5 each."))
-   .child(button("save-order","Save reordered ICC").on_click(cx.listener(|this,_,_,cx|this.save_edit(1,cx))))
+   .child(tr("Before saving, all four rendering intents are sampled with LittleCMS. Maximum allowed ΔE00, channel deviation and TAC deviation: 0.5 each."));
+  p.child(button("save-order","Save reordered ICC").bg(rgb(if unchanged{0x333333}else{0xc65f24})).on_click(cx.listener(|v,_,_,cx|{if v.order.iter().enumerate().any(|(i,&j)|i!=j){v.save_edit(1,cx);}})))
  }
  fn version_page(&self,cx:&mut Context<Self>)->Div{
   let mut p=div().flex().flex_col().gap_3().child(heading("ICC Version Conversion","Structural conversion of CMYK / nCLR Lab printer profiles, verified in LittleCMS."));
@@ -456,23 +462,23 @@ impl Studio {
   p=p.child(format!("ICC v{} → v{} · {} · {}",profile.version_major(),target,profile.space(),if target==2{"lut16 (mft2)"}else{"mAB / mBA"}))
    .child(div().flex().flex_wrap().gap_2().children((0..profile.channels().len()).map(|j|div().flex().items_center().gap_1().child(swatch(self.ink_color(j),12.)).child(format!("{} · {}",j+1,self.ink_name(j))))))
    .child(tr("Valid colorant names and laydown order tags are retained as original bytes. In ICC v2 these tags may be extensions; verify interpretation in the target RIP."))
-   .child("Preserves the six intent CLUTs and adapts the PCS-side Lab encoding; does not regenerate separations or relabel the header only. Unsupported curve/matrix structures fail closed.");
+   .child(tr("Preserves the six intent CLUTs and adapts the PCS-side Lab encoding; does not regenerate separations or relabel the header only. Unsupported curve/matrix structures fail closed."));
   if !omitted.is_empty(){
    p=p.child(div().text_sm().text_color(rgb(0xfbbf24)).child(format!("Optional / unhandled tags NOT transferred: {}",omitted.join(", "))))
-    .child("These may include vendor metadata or gamut data. The original ICC remains intact. Only enable omission for an independent compatibility copy; vendor/RIP behavior is not guaranteed.")
+    .child(tr("These may include vendor metadata or gamut data. The original ICC remains intact. Only enable omission for an independent compatibility copy; vendor/RIP behavior is not guaranteed."))
     .child(seg("version-omit",if self.version_allow_omit{"Omit listed tags ✓"}else{"Allow omission of listed tags"},self.version_allow_omit).on_click(cx.listener(|v,_,_,cx|{if !v.busy{v.version_allow_omit=!v.version_allow_omit;cx.notify();}})));
   }
   for (i,(label,value)) in [("Max forward ΔE00",self.version_de),("Max channel Δ (percentage points)",self.version_ink)].into_iter().enumerate(){
    let change=move|v:&mut Self,d:f64|{let x=if i==0{&mut v.version_de}else{&mut v.version_ink};*x=(*x+d).clamp(0.05,2.);};
    p=p.child(div().flex().items_center().gap_2().child(div().w(px(220.)).child(tr(label)))
-    .child(seg(("version-minus",i),"−",false).on_click(cx.listener(move|v,_,_,cx|{if !v.busy{change(v,-0.05);cx.notify();}}))).child(format!("{value:.2}"))
-    .child(self.numeric_slider(("version-slider",i),value,0.05,2.,0.01,move|v,x|if i==0{v.version_de=x}else{v.version_ink=x},cx)).child(seg(("version-plus",i),"+",false).on_click(cx.listener(move|v,_,_,cx|{if !v.busy{change(v,0.05);cx.notify();}}))));
+    .child(seg(("version-minus",i),"−",false).on_click(cx.listener(move|v,_,_,cx|{if !v.busy{change(v,-0.01);cx.notify();}}))).child(format!("{value:.2}"))
+    .child(self.numeric_slider(("version-slider",i),value,0.05,2.,0.01,move|v,x|if i==0{v.version_de=x}else{v.version_ink=x},cx)).child(seg(("version-plus",i),"+",false).on_click(cx.listener(move|v,_,_,cx|{if !v.busy{change(v,0.01);cx.notify();}}))));
   }
   p=p.child(div().flex().gap_1().flex_wrap()
     .child(seg("version-all","Require all intents",!self.version_relative_only).on_click(cx.listener(|v,_,_,cx|{if !v.busy{v.version_relative_only=false;v.version_report=None;cx.notify();}})))
     .child(seg("version-rel","Relative / Absolute only",self.version_relative_only).on_click(cx.listener(|v,_,_,cx|{if !v.busy{v.version_relative_only=true;v.version_report=None;cx.notify();}}))))
-   .when(self.version_relative_only,|p|p.child(div().text_sm().text_color(rgb(0xfbbf24)).child("Compatibility copy: Perceptual and Saturation may change substantially. Do not use those intents in the RIP. All four are measured and reported, but only Relative and Absolute must meet the selected tolerance.")))
-   .child("Checks device→PCS color, PCS→device channel differences and TAC for all four intents. Preserves zero-ink channels and bounds; no new ICC saved if required limits fail.")
+   .when(self.version_relative_only,|p|p.child(div().text_sm().text_color(rgb(0xfbbf24)).child(tr("Compatibility copy: Perceptual and Saturation may change substantially. Do not use those intents in the RIP. All four are measured and reported, but only Relative and Absolute must meet the selected tolerance."))))
+   .child(tr("Checks device→PCS color, PCS→device channel differences and TAC for all four intents. Preserves zero-ink channels and bounds; no new ICC saved if required limits fail."))
    .child(button("convert-icc-version",if self.busy{"Working…"}else{"Convert & validate new ICC"}).on_click(cx.listener(move|v,_,_,cx|{
     if v.busy{return}let Some(source)=v.source.clone()else{return};
     if !omitted.is_empty()&&!v.version_allow_omit{v.status="Review listed tags and explicitly allow omission, or keep the original ICC.".into();cx.notify();return}
@@ -500,7 +506,7 @@ impl Studio {
    for i in &r.checks{p=p.child(div().text_sm().text_color(rgb(if i.passed{0xa7f3d0}else{0xfbbf24})).child(format!("{} [{}]: mean ΔE00 {:.4} · max {:.4} · channel Δ {:.4} pp · TAC Δ {:.4} pp",i.name,if i.passed{"PASS"}else if i.required{"FAIL"}else{"OUTSIDE TOLERANCE — NOT CERTIFIED"},i.mean_de,i.max_de,i.max_ink_pp,i.max_tac_pp)));}
    if !r.omitted.is_empty(){p=p.child(format!("Omitted by consent: {}",r.omitted.join(", ")));}
   }
-  p.child("Sampled equivalence, not a guarantee for all colors or vendor compatibility. Always validate in the target RIP and print-test.")
+  p.child(tr("Sampled equivalence, not a guarantee for all colors or vendor compatibility. Always validate in the target RIP and print-test."))
  }
  fn refresh_gamut(&mut self,cx:&mut Context<Self>){
   if self.busy{return}let Some(reference)=self.source.clone()else{return};
@@ -553,10 +559,10 @@ impl Studio {
    .child(div().text_xs().text_color(rgb(0xa1a1aa)).child(name))
    .when(!o.three_d,|p|p.child(div().flex().gap_1().items_center().flex_wrap()
     .child(seg("slice-toggle",if o.slice{"Slice"}else{"All L*"},o.slice).on_click(cx.listener(|v,_,_,cx|{v.preview_options.slice=!v.preview_options.slice;cx.notify();})))
-    .when(o.slice,|p|p.child(seg("slice-down","−",false).on_click(cx.listener(|v,_,_,cx|{v.preview_options.light=(v.preview_options.light-5.).max(0.);cx.notify();}))).child(format!("L* {:.0}",o.light)).child(self.numeric_slider(("slice-slider",0),o.light as f64,0.,100.,1.,|v,x|v.preview_options.light=x as f32,cx)).child(seg("slice-up","+",false).on_click(cx.listener(|v,_,_,cx|{v.preview_options.light=(v.preview_options.light+5.).min(100.);cx.notify();}))))
+    .when(o.slice,|p|p.child(seg("slice-down","−",false).on_click(cx.listener(|v,_,_,cx|{v.preview_options.light=(v.preview_options.light-1.).max(0.);cx.notify();}))).child(format!("L* {:.0}",o.light)).child(self.numeric_slider(("slice-slider",0),o.light as f64,0.,100.,1.,|v,x|v.preview_options.light=x as f32,cx)).child(seg("slice-up","+",false).on_click(cx.listener(|v,_,_,cx|{v.preview_options.light=(v.preview_options.light+1.).min(100.);cx.notify();}))))
     .child(div().text_xs().child(format!("Fill {}%",o.opacity_2d)))
-    .child(seg("opacity-down","−",false).on_click(cx.listener(|v,_,_,cx|{v.preview_options.opacity_2d=v.preview_options.opacity_2d.saturating_sub(10);cx.notify();})))
-    .child(self.numeric_slider(("opacity-slider",0),o.opacity_2d as f64,0.,100.,1.,|v,x|v.preview_options.opacity_2d=x as _,cx)).child(seg("opacity-up","+",false).on_click(cx.listener(|v,_,_,cx|{v.preview_options.opacity_2d=(v.preview_options.opacity_2d+10).min(100);cx.notify();})))))
+    .child(seg("opacity-down","−",false).on_click(cx.listener(|v,_,_,cx|{v.preview_options.opacity_2d=v.preview_options.opacity_2d.saturating_sub(1);cx.notify();})))
+    .child(self.numeric_slider(("opacity-slider",0),o.opacity_2d as f64,0.,100.,1.,|v,x|v.preview_options.opacity_2d=x as _,cx)).child(seg("opacity-up","+",false).on_click(cx.listener(|v,_,_,cx|{v.preview_options.opacity_2d=(v.preview_options.opacity_2d+1).min(100);cx.notify();})))))
  }
  fn preview_panel(&self,width:f32,display:f32,full:bool,cx:&mut Context<Self>)->Div{
   let panel=div().flex().flex_col().w(px(width)).flex_shrink_0().h_full().min_h(px(0.)).overflow_hidden().bg(rgb(0x101010))
@@ -574,8 +580,8 @@ impl Studio {
   let o=self.preview_options;
   let filename=|p:&Option<PathBuf>|p.as_ref().and_then(|p|p.file_name()).map(|n|n.to_string_lossy().into_owned()).unwrap_or("Not selected".into());
   let mut p=div().flex().flex_col().gap_2().text_sm()
-   .child(div().text_xs().child(format!("Reference: {}",filename(&self.source))))
-   .child(div().text_xs().child(format!("Candidate: {}",filename(&self.candidate))))
+   .child(div().text_xs().child(format!("{}: {}",tr("Reference"),filename(&self.source))))
+   .child(div().text_xs().child(format!("{}: {}",tr("Candidate"),filename(&self.candidate))))
    .child(div().flex().gap_1().flex_wrap()
     .child(seg("preview-pick","Compare ICC",false).on_click(cx.listener(|v,_,_,cx|{if !v.busy{if let Some(path)=rfd::FileDialog::new().add_filter("ICC profile",&["icc","icm"]).pick_file(){v.candidate=Some(path);v.preview_options.candidate=true;v.preview=None;v.comparison=None;v.gradient=None;v.gradient_detail=None;v.gradient_error=None;v.refresh_gamut(cx);cx.notify();}}})))
     .child(self.system_dropdown(Picker::Gamut,cx))
@@ -583,7 +589,7 @@ impl Studio {
     .child(seg("refresh-gamut",if self.busy{"Working…"}else{"Refresh"},false).on_click(cx.listener(|v,_,_,cx|v.refresh_gamut(cx)))))
    
    .child(div().text_xs().text_color(rgb(0xa1a1aa)).child(tr("High quality surface")))
-   .child(div().flex().flex_wrap().gap_1().items_center().child(seg("zoom-out","−",false).on_click(cx.listener(|v,_,_,cx|{v.preview_options.zoom=(v.preview_options.zoom/1.2).max(0.5);cx.notify();}))).child(format!("{:.0}%",100.*o.zoom)).child(self.numeric_slider(("zoom-slider",0),o.zoom as f64,0.5,3.,0.01,|v,x|v.preview_options.zoom=x as f32,cx)).child(seg("zoom-in","+",false).on_click(cx.listener(|v,_,_,cx|{v.preview_options.zoom=(v.preview_options.zoom*1.2).min(3.);cx.notify();}))).child(seg("reset-view","Reset",false).on_click(cx.listener(|v,_,_,cx|{v.preview_options=ViewOptions::default();cx.notify();}))))
+   .child(div().flex().flex_wrap().gap_1().items_center().child(seg("zoom-out","−",false).on_click(cx.listener(|v,_,_,cx|{v.preview_options.zoom=(v.preview_options.zoom-0.01).max(0.5);cx.notify();}))).child(format!("{:.0}%",100.*o.zoom)).child(self.numeric_slider(("zoom-slider",0),o.zoom as f64,0.5,3.,0.01,|v,x|v.preview_options.zoom=x as f32,cx)).child(seg("zoom-in","+",false).on_click(cx.listener(|v,_,_,cx|{v.preview_options.zoom=(v.preview_options.zoom+0.01).min(3.);cx.notify();}))).child(seg("reset-view","Reset",false).on_click(cx.listener(|v,_,_,cx|{v.preview_options=ViewOptions::default();cx.notify();}))))
    .child(seg("advanced-gamut",if self.gamut_advanced{"Advanced ▴"}else{"Advanced ▾"},self.gamut_advanced).on_click(cx.listener(|v,_,_,cx|{v.gamut_advanced=!v.gamut_advanced;cx.notify();})));
   if let Some(d)=&self.preview{
    if let Err(e)=&d.reference{p=p.child(format!("Reference: {e}"));}
@@ -601,7 +607,7 @@ impl Studio {
     .child(div().flex().gap_1().flex_wrap()
      .child(seg("floor","Floor",o.floor_contour).on_click(cx.listener(|v,_,_,cx|{v.preview_options.floor_contour=!v.preview_options.floor_contour;cx.notify();}))))
     .child(seg("save-gamut-png","Export PNG",false).on_click(cx.listener(|v,_,_,cx|{if let Some(data)=&v.preview{if let Some(path)=rfd::FileDialog::new().add_filter("PNG",&["png"]).set_file_name("gamut.png").save_file(){let result=color_convert_rust::gamut_raster::render(Some(data),v.preview_options).png().and_then(|bytes|{use std::io::Write;let mut f=tempfile::NamedTempFile::new_in(path.parent().unwrap_or(std::path::Path::new("."))).map_err(|e|e.to_string())?;f.write_all(&bytes).map_err(|e|e.to_string())?;f.persist_noclobber(&path).map_err(|e|e.to_string())?;Ok(())});v.status=result.map(|_|format!("Saved {}",path.display())).unwrap_or_else(|e|format!("Error: {e}"));cx.notify();}}})))
-    .child(div().text_xs().text_color(rgb(0xa1a1aa)).child("Sampled round-trip ΔE00 ≤ 2 surface; profile colors approximate D50 Lab to sRGB. Wire grid = L* rings and hue meridians. Not a measured physical gamut."));
+    .child(div().text_xs().text_color(rgb(0xa1a1aa)).child(tr("Sampled round-trip ΔE00 ≤ 2 surface; profile colors approximate D50 Lab to sRGB. Wire grid = L* rings and hue meridians. Not a measured physical gamut.")));
   }
   p
  }
@@ -689,7 +695,7 @@ impl Studio {
     }
    }else{p=p.child(tr("Select two valid CMYK or nCLR printer profiles to calculate target coverage differences."));}
   }
-  p.child("Coverage is a sampled round-trip reproduction test, not proof of physical achievability. Volume estimates integrate sampled cell occupancy at ΔE00 ≤ 2; resolution dependent, not a measured physical gamut.")
+  p.child(tr("Coverage is a sampled round-trip reproduction test, not proof of physical achievability. Volume estimates integrate sampled cell occupancy at ΔE00 ≤ 2; resolution dependent, not a measured physical gamut."))
  }
  fn correction_options(&self,cx:&mut Context<Self>)->Div{
   let estimate=self.profile.as_ref().and_then(|p|p.estimated_tac_percent());
@@ -698,8 +704,8 @@ impl Studio {
   let mut p=div().flex().flex_col().gap_2().p_3().rounded_md().bg(rgb(0x282828)).child(div().text_lg().child(tr("Output settings")))
    .child(div().flex().flex_wrap().items_center().gap_1().child(tr("CLUT grid")).children([17usize,33,49,65].into_iter().filter(|&g|!dynamic||g<=33).map(|g|button(("edit-grid",g),if self.correction_grid==g{format!("{g} ✓")}else{g.to_string()}).on_click(cx.listener(move|this,_,_,cx|{if !this.busy{this.correction_grid=g;cx.notify();}})))))
    .child(div().flex().flex_wrap().items_center().gap_2().child(format!("{}: {:.0}%",tr("TAC ceiling"),self.correction_tac))
-    .child(button("edit-tac-minus","−5").on_click(cx.listener(|this,_,_,cx|{if !this.busy{this.correction_tac=(this.correction_tac-5.).max(0.);cx.notify();}})))
-    .child(self.numeric_slider(("edit-tac-slider",0),self.correction_tac,0.,maximum,1.,|v,x|v.correction_tac=x,cx)).child(button("edit-tac-plus","+5").on_click(cx.listener(move|this,_,_,cx|{if !this.busy{this.correction_tac=(this.correction_tac+5.).min(maximum);cx.notify();}}))));
+    .child(button("edit-tac-minus","−1").on_click(cx.listener(|this,_,_,cx|{if !this.busy{this.correction_tac=(this.correction_tac-1.).max(0.);cx.notify();}})))
+    .child(self.numeric_slider(("edit-tac-slider",0),self.correction_tac,0.,maximum,1.,|v,x|v.correction_tac=x,cx)).child(button("edit-tac-plus","+1").on_click(cx.listener(move|this,_,_,cx|{if !this.busy{this.correction_tac=(this.correction_tac+1.).min(maximum);cx.notify();}}))));
   if let Some(v)=source_bound{p=p.child(button("edit-tac-bound",format!("{} ({v:.2}%)",tr("Use source TAC upper bound"))).on_click(cx.listener(move|this,_,_,cx|{if !this.busy{this.correction_tac=v.clamp(0.,maximum);cx.notify();}})));}
   if let Some(v)=estimate{p=p.child(button("edit-tac-reference",format!("Use reference B2A1 node estimate ({v:.0}%)")).on_click(cx.listener(move|this,_,_,cx|{if !this.busy{this.correction_tac=v;cx.notify();}})));}
   p.child(tr("Select a safe explicit TAC. Source channel maxima are enforced automatically. A2B is preserved."))
@@ -733,7 +739,7 @@ impl Studio {
    .when(self.region_count<MAX_REGIONS,|p|p.child(seg("add-region","+ Region",false).on_click(cx.listener(|v,_,_,cx|{if !v.busy&&v.region_count<MAX_REGIONS{v.regions[v.region_count]=Selective{center:(v.regions[v.region_selected].center+60.).rem_euclid(360.),..Default::default()};v.region_selected=v.region_count;v.region_count+=1;cx.notify();}}))))
    .when(self.region_count>1,|p|p.child(seg("remove-region","Remove",false).on_click(cx.listener(|v,_,_,cx|{if !v.busy&&v.region_count>1{let i=v.region_selected;v.regions.copy_within(i+1..v.region_count,i);v.region_count-=1;v.regions[v.region_count]=Selective::default();v.region_selected=i.min(v.region_count-1);cx.notify();}})))));
   p=p.child(div().flex().gap_1().flex_wrap().children([("Red",40.,0xc34c4c),("Yellow",90.,0xdbbb35),("Green",135.,0x47a86a),("Cyan",200.,0x2fa6b8),("Blue",270.,0x547cda),("Magenta",320.,0xb865b5)].into_iter().enumerate().map(|(i,(name,hue,color))|seg(("hue-preset",i),name,false).bg(rgb(color)).on_click(cx.listener(move|v,_,_,cx|{if !v.busy{v.regions[v.region_selected].center=hue;cx.notify();}})))));
-  for (i,(name,value,lo,hi,step,unit)) in [("Hue center",r.center,0.,360.,5.,"°"),("Hue half-width",r.width,10.,180.,5.,"°"),("Lightness",r.light,-30.,30.,1.," L*"),("Chroma",r.chroma_percent,-80.,80.,5.,"%"),("Hue shift",r.hue_shift,-60.,60.,5.,"°")].into_iter().enumerate(){
+  for (i,(name,value,lo,hi,step,unit)) in [("Hue center",r.center,0.,360.,1.,"°"),("Hue half-width",r.width,10.,180.,1.,"°"),("Lightness",r.light,-30.,30.,1.," L*"),("Chroma",r.chroma_percent,-80.,80.,1.,"%"),("Hue shift",r.hue_shift,-60.,60.,1.,"°")].into_iter().enumerate(){
    let change=move|v:&mut Self,delta:f64|{let r=&mut v.regions[v.region_selected];let f=match i{0=>&mut r.center,1=>&mut r.width,2=>&mut r.light,3=>&mut r.chroma_percent,_=>&mut r.hue_shift};*f=(*f+delta).clamp(lo,hi);};
    p=p.child(div().flex().flex_wrap().items_center().gap_2().p_2().rounded_md().bg(rgb(0x282828)).child(div().w(px(120.)).child(tr(name)))
     .child(seg(("correction-minus",i),"−",false).on_click(cx.listener(move|v,_,_,cx|{if !v.busy{change(v,-step);cx.notify();}})))
@@ -746,44 +752,44 @@ impl Studio {
    .child(seg("reset-regions","Reset all",false).on_click(cx.listener(|v,_,_,cx|{if !v.busy{v.regions=[Selective::default();MAX_REGIONS];v.region_count=1;v.region_selected=0;cx.notify();}}))))
    .child(format!("{active} active correction region(s). Overlap is normalized; all masks use the original PCS color. Near-neutrals and lightness endpoints remain protected."))
    .child(self.correction_options(cx))
-   .child("One resampling pass for all regions, independent B2A intents; preserves A2B. Resampling can change unselected colors. Compare the new ICC before printing.")
+   .child(tr("One resampling pass for all regions, independent B2A intents; preserves A2B. Resampling can change unselected colors. Compare the new ICC before printing."))
    .child(button("save-selective","Generate corrected ICC").on_click(cx.listener(|v,_,_,cx|{if v.regions[..v.region_count].iter().any(|r|r.active()){v.save_edit(3,cx);}else{v.status="Choose a nonzero region adjustment first.".into();cx.notify();}})))
  }
  fn smoothing_page(&self,cx:&mut Context<Self>)->Div{
   let mut p=div().flex().flex_col().gap_3().child(heading("LUT Smoothing","Bounded six-neighbor averaging in the B2A separation lattice."));
   let Some(profile)=&self.display_profile else{return p.child(tr("Open a compatible ICC v4 Lab printer profile."))};
   if profile.version_major()!=4||profile.pcs()!="Lab "||(!profile.cmyk()&&color_convert_rust::multichannel::channel_count(profile).is_err()){return p.child(tr("Bounded correction requires compatible ICC v4 Lab profiles."))}
-  p=p.child(div().flex().items_center().gap_2().child(format!("{}: {:.0}%",tr("Strength"),self.smoothing*100.))
-   .child(button("smooth-minus","−5").on_click(cx.listener(|this,_,_,cx|{if !this.busy{this.smoothing=(this.smoothing-0.05).max(0.05);cx.notify();}})))
-   .child(self.numeric_slider(("smooth-slider",0),self.smoothing,0.05,0.5,0.01,|v,x|v.smoothing=x,cx)).child(button("smooth-plus","+5").on_click(cx.listener(|this,_,_,cx|{if !this.busy{this.smoothing=(this.smoothing+0.05).min(0.5);cx.notify();}}))))
-   .child(div().flex().gap_1().items_center().child(tr("Passes")).children([1usize,2,3,4,5].map(|n|button(("smooth-pass",n),if n==self.smoothing_passes{format!("{n} ✓")}else{n.to_string()}).on_click(cx.listener(move|this,_,_,cx|{if !this.busy{this.smoothing_passes=n;cx.notify();}})))));
+  p=p.child(div().flex().flex_col().gap_2().p_3().rounded_md().bg(rgb(0x282828)).child(div().text_lg().child(tr("Smoothing settings"))).child(div().flex().items_center().justify_between().child(tr("Strength")).child(div().text_2xl().child(format!("{:.0}%",self.smoothing*100.)))).child(bar(self.smoothing,0xe87935,12.)).child(div().flex().flex_wrap().items_center().gap_2().child(format!("{}: {:.0}%",tr("Strength"),self.smoothing*100.))
+   .child(button("smooth-minus","−1").on_click(cx.listener(|this,_,_,cx|{if !this.busy{this.smoothing=(this.smoothing-0.01).max(0.05);cx.notify();}})))
+   .child(self.numeric_slider(("smooth-slider",0),self.smoothing,0.05,0.5,0.01,|v,x|v.smoothing=x,cx)).child(button("smooth-plus","+1").on_click(cx.listener(|this,_,_,cx|{if !this.busy{this.smoothing=(this.smoothing+0.01).min(0.5);cx.notify();}}))))
+   .child(div().flex().flex_wrap().gap_1().items_center().child(tr("Passes")).children([1usize,2,3,4,5].map(|n|button(("smooth-pass",n),if n==self.smoothing_passes{format!("{n} ✓")}else{n.to_string()}).on_click(cx.listener(move|this,_,_,cx|{if !this.busy{this.smoothing_passes=n;cx.notify();}}))))) .child(div().text_xs().child(tr("Requested smoothing strength and passes, not measured improvement."))));
   p.child(self.correction_options(cx))
    .child(tr("Lattice boundaries are not averaged; initial resampling and ink constraints can still change them. Use Gradient Analyzer and Profile Comparison after saving to check the trade-off between smoothness and color accuracy."))
-   .child(button("save-smoothing","Generate smoothed ICC").on_click(cx.listener(|this,_,_,cx|this.save_edit(4,cx))))
+   .child(button("save-smoothing","Generate smoothed ICC").bg(rgb(0xc65f24)).on_click(cx.listener(|this,_,_,cx|this.save_edit(4,cx))))
  }
  fn link_page(&self,cx:&mut Context<Self>)->Div{
   let mut p=div().flex().flex_col().gap_3().child(heading("DeviceLink Generator","CMYK / nCLR → CMYK / nCLR · ICC v4.3"))
    .child(tr("Reference and candidate may have different channel counts. Source and destination ink orders are independent."));
-  p=p.child(div().flex().flex_col().gap_2().p_3().rounded_md().bg(rgb(0x282828))
-   .child(div().text_sm().child(tr("Source profile")))
+  p=p.child(div().flex().flex_wrap().gap_2().child(div().flex_1().min_w(px(180.)).flex().flex_col().gap_2().p_3().rounded_md().bg(rgb(0x282828))
+   .child(div().text_sm().text_color(rgb(0x60a5fa)).child(tr("Source profile")))
    .child(self.source.as_ref().map(|p|p.display().to_string()).unwrap_or_else(||tr("Not selected")))
-   .child(div().flex().flex_wrap().gap_1().child(button("link-source","Open ICC").on_click(cx.listener(|v,_,_,cx|{v.open(cx);cx.notify();}))))
-   .child(div().text_sm().child(tr("Destination profile")))
+   .child(div().flex().flex_wrap().gap_1().child(button("link-source","Open ICC").on_click(cx.listener(|v,_,_,cx|{v.open(cx);cx.notify();}))))).child(div().flex_1().min_w(px(180.)).flex().flex_col().gap_2().p_3().rounded_md().bg(rgb(0x282828))
+   .child(div().text_sm().text_color(rgb(0xfb923c)).child(tr("Destination profile")))
    .child(self.candidate.as_ref().map(|p|p.display().to_string()).unwrap_or_else(||tr("Not selected")))
    .child(div().flex().flex_wrap().gap_1().child(button("link-candidate","Select candidate ICC").on_click(cx.listener(|v,_,_,cx|{
     if !v.busy{if let Some(path)=rfd::FileDialog::new().add_filter("ICC profile",&["icc","icm"]).pick_file(){v.candidate=Some(path);v.preview=None;v.comparison=None;v.compare_error=None;v.gradient=None;v.gradient_detail=None;v.gradient_error=None;if v.preview_open{v.refresh_gamut(cx);}cx.notify();}}
-   }))).child(self.system_dropdown(Picker::Comparison,cx))));
+   }))).child(self.system_dropdown(Picker::Comparison,cx)))));
   p=p.child(div().flex().flex_wrap().gap_1().items_center().child(tr("Rendering intent"))
    .children([("Relative",lcms2::Intent::RelativeColorimetric),("Perceptual",lcms2::Intent::Perceptual),("Saturation",lcms2::Intent::Saturation),("Absolute",lcms2::Intent::AbsoluteColorimetric)].into_iter().enumerate().map(|(i,(label,intent))|seg(("link-intent",i),label,self.link_intent==intent).on_click(cx.listener(move|v,_,_,cx|{if !v.busy{v.link_intent=intent;cx.notify();}})))));
   p=p.child(div().flex().flex_wrap().gap_1().items_center().child(tr("CLUT grid"))
    .children([0usize,2,3,4,5,7,9,13,17,25,33].into_iter().map(|g|seg(("link-grid",g),if g==0{"Automatic".to_owned()}else{g.to_string()},self.link_grid==g).on_click(cx.listener(move|v,_,_,cx|{if !v.busy{v.link_grid=g;cx.notify();}})))))
    .child(tr("Automatic selects the largest supported grid within a 2,000,000-value CLUT budget. High input-channel counts may require a coarse grid."));
   p=p.child(div().flex().flex_wrap().items_center().gap_2().child(format!("{}: {:.1} pp",tr("Maximum channel deviation"),self.link_tolerance))
-   .child(seg("link-tol-minus","−",false).on_click(cx.listener(|v,_,_,cx|{if !v.busy{v.link_tolerance=(v.link_tolerance-0.5).max(0.1);cx.notify();}})))
+   .child(seg("link-tol-minus","−",false).on_click(cx.listener(|v,_,_,cx|{if !v.busy{v.link_tolerance=Scale{low:0.1,high:10.,step:0.1}.adjust(v.link_tolerance,-1);cx.notify();}})))
    .child(self.numeric_slider(("link-tolerance",0),self.link_tolerance,0.1,10.,0.1,|v,x|v.link_tolerance=x,cx))
-   .child(seg("link-tol-plus","+",false).on_click(cx.listener(|v,_,_,cx|{if !v.busy{v.link_tolerance=(v.link_tolerance+0.5).min(10.);cx.notify();}}))))
+   .child(seg("link-tol-plus","+",false).on_click(cx.listener(|v,_,_,cx|{if !v.busy{v.link_tolerance=Scale{low:0.1,high:10.,step:0.1}.adjust(v.link_tolerance,1);cx.notify();}}))))
    .child(tr("The selected intent is baked into the link. No special black preservation, BPC, or certified physical ink-limit guarantee. Excessive sampled channel error prevents saving."));
-  p=p.child(button("save-link",if self.busy{"Working…"}else{"Generate DeviceLink"}).on_click(cx.listener(|v,_,_,cx|{
+  p=p.child(button("save-link",if self.busy{"Working…"}else{"Generate DeviceLink"}).bg(rgb(0xc65f24)).on_click(cx.listener(|v,_,_,cx|{
     if v.busy{return}let (Some(a),Some(b))=(v.source.clone(),v.candidate.clone())else{v.status="Select two printer profiles.".into();cx.notify();return};
     let Some(mut dest)=rfd::FileDialog::new().add_filter("ICC",&["icc"]).set_file_name("print_DeviceLink.icc").save_file()else{return};if dest.extension().is_none(){dest.set_extension("icc");}
     let settings=device_link::LinkSettings{grid:v.link_grid,max_ink_pp:v.link_tolerance,intent:v.link_intent};
@@ -824,8 +830,8 @@ impl Studio {
   }
   for j in 0..self.gamma.len(){
    weights=weights.child(div().flex().flex_col().gap_1().child(div().flex().items_center().gap_2().child(swatch(self.ink_color(j),14.)).child(div().flex_1().child(self.ink_name(j))).child(div().text_xs().child(format!("{} {:.1}% · {} {:.2}",tr("Ink ceiling"),caps[j],tr("Relative weight"),self.recipe_settings.weights[j])))).child(bar(caps[j]/100.,self.ink_color(j),6.)).when(self.recipe_weights_open,|row|row.child(div().flex().flex_wrap().items_center().gap_1()
-    .child(button(("weight-minus",j),"−0.25").on_click(cx.listener(move|v,_,_,cx|{if !v.busy{v.recipe_settings.weights[j]=(v.recipe_settings.weights[j]-0.25).max(0.01);v.recipe_result=None;cx.notify();}})))
-    .child(self.numeric_slider(("weight-slider",j),self.recipe_settings.weights[j],0.01,100.,0.01,move|v,x|{v.recipe_settings.weights[j]=x;v.recipe_result=None;},cx)).child(button(("weight-plus",j),"+0.25").on_click(cx.listener(move|v,_,_,cx|{if !v.busy{v.recipe_settings.weights[j]=(v.recipe_settings.weights[j]+0.25).min(100.);v.recipe_result=None;cx.notify();}}))))));
+    .child(button(("weight-minus",j),"−0.01").on_click(cx.listener(move|v,_,_,cx|{if !v.busy{v.recipe_settings.weights[j]=(v.recipe_settings.weights[j]-0.01).max(0.01);v.recipe_result=None;cx.notify();}})))
+    .child(self.numeric_slider(("weight-slider",j),self.recipe_settings.weights[j],0.01,100.,0.01,move|v,x|{v.recipe_settings.weights[j]=x;v.recipe_result=None;},cx)).child(button(("weight-plus",j),"+0.01").on_click(cx.listener(move|v,_,_,cx|{if !v.busy{v.recipe_settings.weights[j]=(v.recipe_settings.weights[j]+0.01).min(100.);v.recipe_result=None;cx.notify();}}))))));
   }
   weights.child(ink_budget_dynamic(caps,tac)).child(div().flex().flex_wrap().items_center().gap_2().child(format!("{}: {:.1}",tr("ΔE00 tolerance"),self.recipe_settings.tolerance))
    .child(button("recipe-tolerance-minus","−0.1").on_click(cx.listener(|v,_,_,cx|{if !v.busy{v.recipe_settings.tolerance=((v.recipe_settings.tolerance*10.).round()-1.).max(1.)/10.;v.recipe_result=None;cx.notify();}})))
@@ -852,8 +858,8 @@ impl Studio {
   let mut target=div().flex().flex_col().gap_2().p_3().rounded_md().bg(rgb(0x282828)).child(div().flex().items_center().gap_3().child(swatch(lab_swatch(self.recipe_target),64.)).child(div().flex().flex_col().gap_1().child(div().text_lg().child(tr("Target Lab"))).child(format!("{:.1?}",self.recipe_target)).child(div().text_xs().text_color(rgb(0xa1a1aa)).child(tr("Approximate screen color")))));
   for (i,(name,lo,hi)) in [("L*",0.,100.),("a*",-128.,127.),("b*",-128.,127.)].into_iter().enumerate(){
    target=target.child(div().flex().flex_wrap().items_center().gap_1().child(format!("{name}: {:.1}",self.recipe_target[i]))
-    .child(button(("recipe-target-minus",i),"−1").on_click(cx.listener(move|v,_,_,cx|{if !v.busy{v.recipe_target[i]=(v.recipe_target[i]-1.).max(lo);v.recipe_result=None;cx.notify();}})))
-    .child(self.numeric_slider(("recipe-target-slider",i),self.recipe_target[i],lo,hi,0.1,move|v,x|{v.recipe_target[i]=x;v.recipe_result=None;},cx)).child(button(("recipe-target-plus",i),"+1").on_click(cx.listener(move|v,_,_,cx|{if !v.busy{v.recipe_target[i]=(v.recipe_target[i]+1.).min(hi);v.recipe_result=None;cx.notify();}}))));
+    .child(button(("recipe-target-minus",i),"−0.1").on_click(cx.listener(move|v,_,_,cx|{if !v.busy{v.recipe_target[i]=(v.recipe_target[i]-0.1).max(lo);v.recipe_result=None;cx.notify();}})))
+    .child(self.numeric_slider(("recipe-target-slider",i),self.recipe_target[i],lo,hi,0.1,move|v,x|{v.recipe_target[i]=x;v.recipe_result=None;},cx)).child(button(("recipe-target-plus",i),"+0.1").on_click(cx.listener(move|v,_,_,cx|{if !v.busy{v.recipe_target[i]=(v.recipe_target[i]+0.1).min(hi);v.recipe_result=None;cx.notify();}}))));
   }
   p=p.child(target).child(self.optimizer_constraints(&caps,tac,cx))
    .child(button("solve-recipe",if self.busy{"Working…"}else{"Find ink recipes"}).bg(rgb(0xc65f24)).on_click(cx.listener(|v,_,_,cx|{
@@ -1205,12 +1211,12 @@ impl Studio {
    .child(div().flex().gap_2().child(button("gcr-mode",if !s.ucr{"GCR ✓"}else{"GCR"}).on_click(cx.listener(|v,_,_,cx|{if !v.busy{v.black.ucr=false;cx.notify();}})))
     .child(button("ucr-mode",if s.ucr{"UCR ✓"}else{"UCR"}).on_click(cx.listener(|v,_,_,cx|{if !v.busy{v.black.ucr=true;cx.notify();}}))));
   let mut controls=div().flex().flex_col().gap_2().p_3().rounded_md().bg(rgb(0x282828)).child(div().text_lg().child(tr("Black curve controls")));
-  for (i,(name,value,step,lo,hi)) in [("Black start (darkness)",s.start,0.05,0.,0.95),("K target maximum",s.maximum,0.05,0.,1.),("Curve gamma",s.gamma,0.1,0.25,4.),("Preference strength",s.strength,0.05,0.,1.),("ΔE00 node tolerance",s.tolerance,0.1,0.1,5.)].into_iter().enumerate(){
+  for (i,(name,value,step,lo,hi)) in [("Black start (darkness)",s.start,0.01,0.,0.95),("K target maximum",s.maximum,0.01,0.,1.),("Curve gamma",s.gamma,0.01,0.25,4.),("Preference strength",s.strength,0.01,0.,1.),("ΔE00 node tolerance",s.tolerance,0.1,0.1,5.)].into_iter().enumerate(){
    let label=if i==0||i==1||i==3{format!("{}: {:.0}%",tr(name),value*100.)}else{format!("{}: {value:.2}",tr(name))};
    let change=move|v:&mut Self,delta:f64|{let field=match i{0=>&mut v.black.start,1=>&mut v.black.maximum,2=>&mut v.black.gamma,3=>&mut v.black.strength,_=>&mut v.black.tolerance};*field=(*field+delta).clamp(lo,hi);};
    controls=controls.child(div().flex().flex_wrap().items_center().gap_2().child(div().w(px(165.)).child(label))
     .child(button(("black-minus",i),"−").on_click(cx.listener(move|v,_,_,cx|{if !v.busy{change(v,-step);cx.notify();}})))
-    .child(self.numeric_slider(("black-slider",i),value,lo,hi,if i==2||i==4{0.01}else{0.01},move|v,x|{*match i{0=>&mut v.black.start,1=>&mut v.black.maximum,2=>&mut v.black.gamma,3=>&mut v.black.strength,_=>&mut v.black.tolerance}=x;},cx)).child(button(("black-plus",i),"+").on_click(cx.listener(move|v,_,_,cx|{if !v.busy{change(v,step);cx.notify();}}))));
+    .child(self.numeric_slider(("black-slider",i),value,lo,hi,if i==4{0.1}else{0.01},move|v,x|{*match i{0=>&mut v.black.start,1=>&mut v.black.maximum,2=>&mut v.black.gamma,3=>&mut v.black.strength,_=>&mut v.black.tolerance}=x;},cx)).child(button(("black-plus",i),"+").on_click(cx.listener(move|v,_,_,cx|{if !v.busy{change(v,step);cx.notify();}}))));
   }
   let effective_max=self.black_channel.and_then(|k|caps.get(k)).map(|c|s.maximum.min(*c/100.)).unwrap_or(0.);
   let samples:Vec<f64>=(0..=256).map(|i|s.maximum*((i as f64/256.-s.start)/(1.-s.start)).clamp(0.,1.).powf(s.gamma)).collect();
@@ -1288,7 +1294,7 @@ impl Studio {
     ;
    let mut white=div().flex().flex_col().gap_2().p_3().rounded_md().bg(rgb(0x282828))
     .child(div().text_lg().child(if r.is_output{tr("Paper / Substrate Color")}else{tr("Media White Point")}))
-    .child(div().text_xs().text_color(rgb(0xa1a1aa)).child("ICC mediaWhitePointTag (wtpt), D50 PCS; not the header illuminant."));
+    .child(div().text_xs().text_color(rgb(0xa1a1aa)).child(tr("ICC mediaWhitePointTag (wtpt), D50 PCS; not the header illuminant.")));
    if let Some(w)=&r.media_white{
     let mut details=div().flex().flex_col().gap_1()
      .child(format!("XYZ (Y=1 reference): {:.5} / {:.5} / {:.5}",w.xyz[0],w.xyz[1],w.xyz[2]))
@@ -1298,8 +1304,8 @@ impl Studio {
      details=details.child(format!("Approx. sRGB #{hex:06X}"));
      white=white.child(div().flex().items_center().gap_3().child(div().w(px(64.)).h(px(64.)).rounded_md().bg(rgb(hex))).child(details));
     }else{white=white.child(details);}
-    white=white.child(div().text_xs().child("Stored tag only. Swatch is an approximate sRGB rendering, not a calibrated or measured sample. A normalized D50 value does not prove the substrate is physically neutral."));
-   }else{white=white.child("Not available: wtpt missing, unreadable or invalid. No substitute white is assumed.");}
+    white=white.child(div().text_xs().child(tr("Stored tag only. Swatch is an approximate sRGB rendering, not a calibrated or measured sample. A normalized D50 value does not prove the substrate is physically neutral.")));
+   }else{white=white.child(tr("Not available: wtpt missing, unreadable or invalid. No substitute white is assumed."));}
    panel=panel.child(white);
    if let Some(profile)=&self.display_profile{
     let structures=color_convert_rust::advanced_lut::inspect(profile);
@@ -1345,14 +1351,14 @@ impl Studio {
     let line=match &check.result{Ok(max)=>format!("Transforms created • sampled maxima {}",max.iter().map(|v|format!("{v:.2}%")).collect::<Vec<_>>().join(" / ")),Err(e)=>format!("Failed: {e}")};
     panel=panel.child(div().flex().flex_col().gap_1().p_3().rounded_md().bg(rgb(0x282828)).child(check.name).child(div().text_sm().child(line)));
    }
-   panel=panel.child("729 sRGB samples per intent. Sampled values are not exhaustive.");
+   panel=panel.child(tr("729 sRGB samples per intent. Sampled values are not exhaustive."));
    if let Some(bounds)=&r.multichannel_bounds{
     panel=panel.child(div().text_lg().child(tr("Strict LUT bounds")));
     match bounds{
      Ok(b)=>{for (j,v) in b.channels.iter().enumerate(){panel=panel.child(format!("{}: {:.4}%",self.ink_name(j),100.*v));}panel=panel.child(format!("TAC upper bound: {:.4}% ({})",100.*b.tac,if b.exact_node_tac{"affine output curves; exact node maximum"}else{"conservative global envelope; may overestimate"}));},
      Err(e)=>panel=panel.child(format!("Not certifiable with supported LUT parser: {e}")),
     }
-    panel=panel.child("Multichannel bounds are conservative; editing support depends on the LUT structure.");
+    panel=panel.child(tr("Multichannel bounds are conservative; editing support depends on the LUT structure."));
    }
    if let Some(bounds)=&r.strict_bounds{
     panel=panel.child(div().text_lg().child(tr("Strict LUT bounds")));
