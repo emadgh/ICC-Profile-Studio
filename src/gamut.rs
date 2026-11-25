@@ -17,6 +17,7 @@ pub fn sample(path:&Path,grid:usize)->Result<Cloud,String>{sample_with_intent(pa
 /// The requested intent applies to both separation and appearance legs.
 /// Native LittleCMS may use standard fallback for missing intent tables.
 pub fn sample_with_intent(path:&Path,grid:usize,intent:Intent)->Result<Cloud,String>{
+ crate::analysis_job::check()?;
  if !(5..=33).contains(&grid){return Err("Grid must be 5..33".into())}
  if std::fs::metadata(path).map_err(|e|e.to_string())?.len()>128*1024*1024{return Err("ICC exceeds 128 MiB".into())}
  let p=Profile::new_icc(&std::fs::read(path).map_err(|e|e.to_string())?).map_err(|e|e.to_string())?;
@@ -80,7 +81,10 @@ pub fn overlay(reference:&Path,candidate:Option<&Path>,grid:usize)->Overlay{
  overlay_with_intents(reference,candidate,grid,Intent::RelativeColorimetric,Intent::RelativeColorimetric)
 }
 pub fn overlay_with_intents(reference:&Path,candidate:Option<&Path>,grid:usize,reference_intent:Intent,candidate_intent:Intent)->Overlay{
- Overlay{reference:sample_with_intent(reference,grid,reference_intent),candidate:candidate.map(|p|sample_with_intent(p,grid,candidate_intent))}
+ let _=crate::analysis_job::phase("Sampling profile gamut",if candidate.is_some(){2}else{1});
+ let reference=sample_with_intent(reference,grid,reference_intent);let _=crate::analysis_job::advance();
+ let candidate=candidate.map(|p|{let result=sample_with_intent(p,grid,candidate_intent);let _=crate::analysis_job::advance();result});
+ Overlay{reference,candidate}
 }
 /// Equal Lab scaling, orthographic projection. x=a*, y=b*, z=L*-50.
 pub fn project(lab:[f32;3],yaw:f32,pitch:f32)->[f32;3]{
