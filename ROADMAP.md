@@ -14,7 +14,36 @@ Lean, vendor-independent GPUI application for CMYK and multichannel output ICCs 
 - Print DeviceLink generation; characterization chart, measured CSV comparison and measured TI3 profiling.
 - System profile picker next to disk selection in reference/comparison/gamut, local display preferences and updater.
 
-## Remaining work (priority order)
+## Active delivery plan — 2026-11-25 (supersedes historical priority lists)
+
+**Verified baseline:** beta.39 / PR #23 merged after Windows CI #105. Beta.40 / PR #24 failed CI #106 at the GUI format argument (184 backend tests passed, 4 ignored); fix committed and recheck requested. A separate stacked PR implements selectable gamut intents and documents the plan. Merge only after successful CI on the exact current head and predecessor integration. Existing preview history below is retained as historical evidence; older “CI pending” headings describe their state at the time, not today's state.
+
+**Release scope:** finish a reliable existing-print-ICC editor/analysis application first. Complete new measurement-based N-color ICC construction as a separate experimental workstream, not a prerequisite for an editing-only 1.0 if the owner accepts that scope. No image conversion, device communication, non-print profile editor or library/project manager.
+
+### P0 — repair and verify
+- [ ] [PR #24](https://github.com/emadgh/color-convert-rust/pull/24) build recheck, exact-head merge after CI; no stable release implied.
+
+### P1 — user-requested priorities and release acceptance
+- [ ] [#25](https://github.com/emadgh/color-convert-rust/issues/25) Full Persian/Arabic RTL: layout, bidi shaping, mixed-script labels, editable fields, focus order, DPI; retain scientific axis/channel ordering.
+- [ ] [#26](https://github.com/emadgh/color-convert-rust/issues/26) Complete five-language technical descriptions, structured localized diagnostics, preserve raw native error details.
+- [ ] [#27](https://github.com/emadgh/color-convert-rust/issues/27) Sliders, numeric inputs and chart usability, keyboard/focus, unit conversion, consistent axes and color provenance.
+- [ ] [#28](https://github.com/emadgh/color-convert-rust/issues/28) Common progress/cancel state for long jobs, cancellation checkpoints, stale-result prevention, no partial ICC publication.
+- [ ] [#29](https://github.com/emadgh/color-convert-rust/issues/29) About/updater, startup prompt, offline/checksum failures, Windows title and executable metadata.
+- [ ] [#30](https://github.com/emadgh/color-convert-rust/issues/30) Gamut shared/separate intents (source implemented on stacked branch; CI/manual acceptance pending). Default Relative Colorimetric, Perceptual/Saturation/Absolute choices. Independent Reference/Candidate selectors only in comparison. Same D50 target grid and quality, invalidate previous result on intent changes; label cross-intent comparisons. Choices session-local initially.
+- [ ] [#33](https://github.com/emadgh/color-convert-rust/issues/33) Real profiles 3/4/5/6/7/8/15 channels, Windows acceptance, benchmark, reproducible dependencies, licensing/checksums and RC packaging. Physical print QA requires operator measurements.
+
+### P2 — advanced engine and independent profiling
+- [ ] [#32](https://github.com/emadgh/color-convert-rust/issues/32) Real channel-count reduction (CMYK→CMY distinct from K=0), v2 optimization/black generation, complex LUTs and DeviceLink verification; fail explicitly on unsupported stages.
+- [ ] [#31](https://github.com/emadgh/color-convert-rust/issues/31) Gamut mapping, distinguish target missed vs unsupported, improve full-device-domain model, reverse lattice continuity and scalable forward CLUT, PCS/media white and rendering intents, validated A2B/B2A generation, native save/reopen and independent print QA. No new ICC output until coverage and verification gates pass.
+
+### Exit criteria
+- [ ] All P0/P1 release-blocking issues closed only with exact-head CI and documented manual acceptance where applicable.
+- [ ] No silent unsupported transformations, incorrect ink mapping or source overwrite; no claim of physical accuracy without print measurement.
+- [ ] Review remaining P2 limitations with owner and explicitly document excluded features before publishing stable editing-only version.
+- [ ] Release candidate installed and tested on Windows 10/11; reviewed dependency lockfile, license notices, checksum, updater, version/provenance validated.
+- [ ] Keep issue acceptance checklists synchronized with [RELEASE_QA.md](RELEASE_QA.md); update status after CI rather than marking code commits complete.
+
+## Historical remaining work (original priority order)
 
 1. Broaden supported printer LUT structures: sampled/parametric curves, mft1/mft2, mAB/mBA, varying CLUT axes and supported mpet elements. Reject unsupported transformations explicitly, preserve unknown tags safely. Test native interpolation and round-trip accuracy.
 2. Multichannel output profiles: dynamic channel count and names, 2–15 channels where supported by ICC and the underlying engine; generalize device sampling, bounds, TAC, curves, comparison, gamut, rebuilding and constrained correction in stages. Avoid treating arbitrary inks as CMYK or assuming a black channel.
