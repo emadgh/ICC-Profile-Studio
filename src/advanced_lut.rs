@@ -43,8 +43,8 @@ impl Layout{
   let b=curves(t,bo,pcs)?;let m=curves(t,co,pcs)?;let a=curves(t,ao,dev)?;
   let matrix=if mo==0{None}else{Some(region(t,mo,48)?)};
   if m.is_some()!=matrix.is_some(){return Err("Matrix and M curve stages must be paired".into())}
-  // Only CLUT-based structures are handled, including optional device curves.
-  // LittleCMS independently validates legal stage combinations.
+  // CLUT-based ICC v4 stage combinations require A and B curves.
+  if a.is_none()||b.is_none(){return Err("CLUT-based v4 LUT requires A and B curve sets".into())}
   region(t,cl,20)?;
   let axes=t[cl..cl+inputs].iter().map(|&x|x as usize).collect::<Vec<_>>();
   if axes.iter().any(|&x|x<2){return Err("Invalid CLUT axis length".into())}
@@ -64,6 +64,7 @@ impl Layout{
 }
 fn describe(key:&[u8;4],t:&[u8])->R<Structure>{
  let l=Layout::parse(t)?;
+ if l.forward!=(key[0]==b'A'){return Err("Transform tag direction and LUT type disagree".into())}
  let mut sampled=0;let mut gamma=0;let mut parametric=0;
  for c in [&l.a,&l.b,&l.m].into_iter().flatten(){gamma+=c.gamma;parametric+=c.parametric;sampled+=c.ranges.len()-c.gamma-c.parametric;}
  let strict_sampled_bounds=!l.forward&&l.device_curves().is_none_or(|c|c.gamma==0&&c.parametric==0);
@@ -156,6 +157,18 @@ mod tests{
   let v=reorder(&t,false,&[5,4,3,2,1,0]).unwrap();assert_eq!(&t[mo..],&v[mo..]);
   let (clut,_)=reverse_envelope(&v,6).unwrap();assert!(clut.chunks_exact(6).all(|x|x[0]==0.));
   assert_eq!(reorder(&v,false,&[5,4,3,2,1,0]).unwrap(),t);
+ }
+ #[test]fn native_unequal_forward_identity_and_permutation(){
+  let mut p=crate::synthetic_cmyk_v4(true);
+  let t=unequal();for k in [b"A2B0",b"A2B1",b"A2B2"]{p.tags.insert(*k,t.clone());}
+  let q=p.reorder_channels_multi(&[0,1,2,3]).unwrap();
+  assert_eq!(q.tags[b"A2B1"],t);
+  let report=crate::editing::verify_reorder(&p,&q,&[0,1,2,3]).unwrap();
+  assert_eq!(report.checks.len(),4);
+  let q=p.reorder_channels_multi(&[1,0,2,3]).unwrap();
+  assert_eq!(q.reorder_channels_multi(&[1,0,2,3]).unwrap().tags[b"A2B1"],t);
+  // A changed interpolation ordering can affect predictions; the save
+  // path must still reject a mapping that exceeds its native tolerance.
  }
  #[test]fn reject_overlapping_or_truncated_stages(){
   let t=unequal();let mut v=t.clone();v[28..32].copy_from_slice(&32u32.to_be_bytes());assert!(Layout::parse(&v).is_err());
