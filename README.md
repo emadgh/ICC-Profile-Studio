@@ -85,3 +85,5 @@ Beta.28.1 reorganizes Profiling Lab into four task tabs, loads embedded patches 
 ## Beta.31 — capability-aware multichannel preview
 
 Shared custom CMYK/nCLR rebuilding and bounded correction paths, structural/native capability report in Inspector, incompatible workspace warnings, and optional native single-ink swatches when embedded colorant coordinates are unavailable. Swatches are predicted, not physical measurements. ICC v4 complex mBA reverse stages can be sampled for bounded correction when device bounds and native pipelines are supported; output reverse tables are resampled, not lossless. Unsupported mpet and alternate D2B/B2D editing remain rejected. Real-profile QA and Windows CI pending. See [MULTICHANNEL_QA.md](MULTICHANNEL_QA.md).
+
+Beta.32 adds persisted synthetic multichannel rebuild regressions, complex reverse LUT smoothing tests, consistent channel swatch provenance, recipe capability preflight and a subset-selectable real profile validation harness. See MULTICHANNEL_QA.md. CI and external profile validation pending.
