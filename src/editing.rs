@@ -57,7 +57,7 @@ fn permute_reverse(l:&mut Lut,order:&[usize]){
  l.out_curves=order.iter().map(|&i|l.out_curves[i].clone()).collect();
  let n=l.outputs;let mut old=vec![0.;n];for p in l.clut.chunks_exact_mut(n){old.copy_from_slice(p);for j in 0..n{p[j]=old[order[j]]}}
 }
-fn supported_tags(p:&Profile)->R<()>{
+pub(crate) fn supported_tags(p:&Profile)->R<()>{
  // Fail closed for alternate transforms, named colors, calibration and vendor
  // metadata whose channel order is not understood. Do not silently drop them.
  const ALLOWED:&[[u8;4]]=&[*b"A2B0",*b"A2B1",*b"A2B2",*b"B2A0",*b"B2A1",*b"B2A2",*b"desc",*b"cprt",*b"wtpt",*b"bkpt",*b"chad",*b"dmnd",*b"dmdd",*b"tech",*b"vued",*b"view",*b"clrt",*b"clro",*b"gamt",*b"pre0",*b"pre1",*b"pre2"];

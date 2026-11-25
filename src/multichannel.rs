@@ -1,4 +1,4 @@
-//! Constrained printer profile rebuilding for nCLR output profiles.
+//! Constrained printer profile rebuilding for CMYK and nCLR output profiles.
 //! Invert the original media-relative native forward pipeline. All three
 //! reverse intents share the regenerated separation (as in Custom CMYK).
 //! A2B and device channel identity stay intact; not a new characterization.
@@ -6,7 +6,7 @@ use crate::{Profile,Lut,R,print_space,editing};
 use lcms2::{Tag,TagSignature};
 
 pub fn channel_count(p:&Profile)->R<usize>{
- if &p.header[12..16]!=b"prtr"||p.cmyk()||p.pcs()!="Lab "||!matches!(p.version_major(),2|4){return Err("Requires nCLR output ICC v2/v4 with Lab PCS".into())}
+ if &p.header[12..16]!=b"prtr"||p.pcs()!="Lab "||!matches!(p.version_major(),2|4){return Err("Requires CMYK/nCLR output ICC v2/v4 with Lab PCS".into())}
  if p.tags.keys().any(|k|k.starts_with(b"D2B")||k.starts_with(b"B2D")){return Err("Alternate D2B/B2D pipelines are not supported".into())}
  let n=print_space::format(&p.header[16..20])?.channels;
  let a=p.tags.get(b"A2B1").ok_or("Missing A2B1")?;
@@ -26,7 +26,7 @@ fn constrain(x:&mut [f64],caps:&[f64],tac:f64){
 #[derive(Debug,Clone)]
 pub struct Verified{pub channels:Vec<f64>,pub tac:f64,pub sampled_channels:Vec<f64>,pub sampled_tac:f64,pub samples:usize}
 pub fn verify(p:&Profile,caps:&[f64],tac:f64)->R<Verified>{
- let n=if p.cmyk(){crate::editing::editable_channel_count(p)?}else{channel_count(p)?};settings(n,caps,tac,9)?;
+ let n=channel_count(p)?;settings(n,caps,tac,9)?;
  let b=print_space::bounds(p)?;
  if !b.exact_node_tac||b.channels.iter().zip(caps).any(|(&v,&c)|v>c+1e-10)||b.tac>tac+1e-10{return Err("Cannot certify rebuilt channel/TAC bounds".into())}
  let native=lcms2::Profile::new_icc(&p.bytes()?).map_err(|e|e.to_string())?;
@@ -54,8 +54,7 @@ pub fn rebuild(p:&Profile,caps:&[f64],tac:f64,grid:usize,progress:impl Fn(String
  let native=lcms2::Profile::new_icc(&p.bytes()?).map_err(|e|e.to_string())?;
  let Tag::Pipeline(forward)=native.read_tag(TagSignature::AToB1Tag)else{return Err("Cannot decode native A2B1".into())};
  if forward.input_channels() as usize!=n||forward.output_channels()!=3{return Err("Unexpected native forward dimensions".into())}
- let Tag::Pipeline(reverse)=native.read_tag(TagSignature::BToA1Tag)else{return Err("Requires native B2A1 for initial separation seed".into())};
- if reverse.input_channels()!=3||reverse.output_channels() as usize!=n{return Err("Unexpected native reverse dimensions".into())}
+ let reverse=match native.read_tag(TagSignature::BToA1Tag){Tag::Pipeline(q) if q.input_channels()==3&&q.output_channels() as usize==n=>Some(q),_ if p.cmyk()=>None,_=>return Err("Requires compatible native B2A1 for initial separation seed".into())};
  let scale=if p.version_major()==2{[100.*65535./65280.,255.*65535./65280.,255.*65535./65280.]}else{[100.,255.,255.]};
  let eval=|x:&[f64]|->R<[f64;3]>{
   let mut input=[0f32;15];for(j,&v)in x.iter().enumerate(){input[j]=v as f32;}
@@ -82,7 +81,7 @@ pub fn rebuild(p:&Profile,caps:&[f64],tac:f64,grid:usize,progress:impl Fn(String
   progress(format!("Multichannel inversion: slice {}/{} · {} channels",l+1,grid,n));
   for a in 0..grid{for b in 0..grid{
    let target=[l as f64/den,a as f64/den,b as f64/den];
-   reverse.eval(&target.map(|v|v as f32),&mut seed[..n]);
+   seed[..n].fill(0.);if let Some(reverse)=&reverse{reverse.eval(&target.map(|v|v as f32),&mut seed[..n]);}
    if seed[..n].iter().any(|v|!v.is_finite()){return Err("Invalid source separation".into())}
    let mut best:Vec<_>=seed[..n].iter().map(|&v|f64::from(v)).collect();constrain(&mut best,caps,tac);
    let mut cost=dist(eval(&best)?,target);

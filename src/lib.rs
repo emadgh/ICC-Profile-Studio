@@ -1,6 +1,7 @@
 mod icc_curve;
 pub mod advanced_lut;
 pub mod multichannel;
+pub mod capabilities;
 pub mod rtl;
 pub mod ui_geometry;
 pub mod print_space;

@@ -1,6 +1,6 @@
 # ICC Profile Studio
 
-Vendor-independent, portable Windows x64 application for ICC/ICM inspection, color analysis, editing and construction. GPUI only. Scope: CMYK and multichannel printer output profiles and print DeviceLinks. Advanced tools currently primarily support four-channel CMYK/Lab LUTs. Broader multichannel support is planned.
+Vendor-independent, portable Windows x64 application for ICC/ICM inspection, color analysis, editing and construction. GPUI only. Scope: CMYK and multichannel printer output profiles and print DeviceLinks. CMYK and 2–15 channel nCLR output profiles are supported subject to per-tool structural and native preflight. Existing-profile editing is not N-color fitting.
 
 ## Workflow
 
@@ -81,3 +81,7 @@ Beta.27.1 fixes GPUI precise step button ID typing and consolidates CGATS export
 Beta.28 stabilizes ICC parsing and saving, CGATS metadata validation, locked builds and ZIP verification (version, AMD64 PE, SHA256, build provenance). CI uploads a single ZIP for seven days. See RELEASE_QA.md for outstanding Windows/RTL, RIP, actual measurement, licensing and update checks. No stable release claimed.
 
 Beta.28.1 reorganizes Profiling Lab into four task tabs, loads embedded patches automatically or shows explicitly predicted virtual patches, preserves the active page across reference changes, retains the candidate when switching reference on Comparison, and adds aligned side-by-side / overlay comparison plots and compact optimizer cards. Comparison curves use blue reference and orange candidate (different stroke widths); physical channel identity is never inferred. Shared optimizer weights and tolerance remain editable in both tabs. CI #89 failed before compilation because Cargo.lock was absent; the same-job lockfile preparation fixes this and packages the generated lockfile with its checksum. Dependency resolution is not pinned across builds until Cargo.lock is committed. Interactive UI and Windows validation remain pending.
+
+## Beta.31 — capability-aware multichannel preview
+
+Shared custom CMYK/nCLR rebuilding and bounded correction paths, structural/native capability report in Inspector, incompatible workspace warnings, and optional native single-ink swatches when embedded colorant coordinates are unavailable. Swatches are predicted, not physical measurements. ICC v4 complex mBA reverse stages can be sampled for bounded correction when device bounds and native pipelines are supported; output reverse tables are resampled, not lossless. Unsupported mpet and alternate D2B/B2D editing remain rejected. Real-profile QA and Windows CI pending. See [MULTICHANNEL_QA.md](MULTICHANNEL_QA.md).

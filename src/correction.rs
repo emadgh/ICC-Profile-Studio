@@ -401,8 +401,8 @@ impl Profile{
  /// CMYK/nCLR v4 Lab correction, with independent reverse intents and certified ink limits.
  /// Black generation requires an explicit physical channel index. A2B stays byte-identical.
  pub fn bounded_correction_multi(&self,op:DynamicCorrection,grid:usize,tac_percent:f64)->R<Self>{
-  let n=if self.cmyk(){crate::editing::editable_channel_count(self)?}else{crate::multichannel::channel_count(self)?};
-  if self.pcs()!="Lab "||self.version_major()!=4||![17,33].contains(&grid)||!tac_percent.is_finite()||!(0.0..=n as f64*100.).contains(&tac_percent){return Err("Requires nCLR ICC v4 Lab, grid 17/33 and valid TAC".into())}
+  let n=crate::multichannel::channel_count(self)?;
+  if self.pcs()!="Lab "||self.version_major()!=4||!(if self.cmyk(){[17,33,49,65].contains(&grid)}else{[17,33].contains(&grid)})||!tac_percent.is_finite()||!(0.0..=n as f64*100.).contains(&tac_percent){return Err("Requires compatible CMYK/nCLR ICC v4 Lab, supported grid and valid TAC".into())}
   match &op{
    DynamicCorrection::Points(p)=>{if p.len()!=n{return Err("Point curve count must match channels".into())}for &row in p{validate_points([row;4])?;}},
    DynamicCorrection::Regions{regions,count}=>{if *count>MAX_REGIONS{return Err("Too many correction regions".into())}validate_regions(&regions[..*count])?;},
@@ -420,9 +420,8 @@ impl Profile{
   let mut input=vec![0f32;n];
   for (key,sig) in [(b"B2A0",TagSignature::BToA0Tag),(b"B2A1",TagSignature::BToA1Tag),(b"B2A2",TagSignature::BToA2Tag)]{
    let raw=self.tags.get(key).ok_or("All three B2A intents are required")?;
-   if !raw.starts_with(b"mBA "){return Err("Correction requires simple v4 mBA LUTs".into())}
-   let old=Lut::parse(raw)?;
-   if old.inputs!=3||old.outputs!=n{return Err("Unexpected B2A dimensions".into())}
+   if !raw.starts_with(b"mBA "){return Err("Correction requires supported v4 mBA LUTs".into())}
+   // The source reverse envelope was certified by print_space::bounds; native evaluation supports complex PCS stages.
    let Tag::Pipeline(pipe)=native.read_tag(sig)else{return Err("LittleCMS could not decode B2A".into())};
    if pipe.input_channels()!=3||pipe.output_channels() as usize!=n{return Err("Unexpected native pipeline dimensions".into())}
    let mut result=vec![0f32;n];let mut values=Vec::with_capacity(grid.pow(3)*n);let mut node=vec![0.;n];

@@ -38,7 +38,7 @@ pub fn run(j:Job,progress:impl Fn(String))->R<String>{
  let caps=j.caps.map(|v|v/100.);
  if j.mode==Mode::Argyll && (reference.version_major()!=2||!reference.cmyk()||caps[..3].iter().any(|v|*v!=1.)){return Err("Argyll revfix requires ICC v2 CMYK and K-only limits. Use Custom for ICC v4 or other channels.".into())}
  let mut output=match j.mode{
-  Mode::Custom=>reference.custom_rebuild(caps,j.tac/100.,j.grid,&progress)?,
+  Mode::Custom=>crate::multichannel::rebuild(&reference,&caps,j.tac/100.,j.grid,&progress)?,
   Mode::Argyll=>{
    let exe=engine(&progress)?;
    let dir=tempfile::tempdir().map_err(|e|e.to_string())?;
