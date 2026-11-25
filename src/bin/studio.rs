@@ -113,7 +113,7 @@ impl Studio {
  fn ink_names(&self)->Vec<String>{self.display_profile.as_ref().map(|p|if self.embedded_names{p.channels()}else{p.standard_channels()}).unwrap_or_default()}
  fn ink_name(&self,i:usize)->String{self.ink_names().get(i).cloned().map(|n|if self.embedded_names{color_convert_rust::rtl::visual(&n)}else{tr(&n)}).unwrap_or_else(||format!("CH {}",i+1))}
  fn ink_color(&self,i:usize)->u32{visible_ink(self.display_profile.as_ref().map(|p|if self.embedded_names&&!(p.version_major()==4&&p.colorants().get(i).is_some_and(Option::is_some)){self.predicted_inks.get(i).copied().unwrap_or_else(||p.channel_swatch(i,true))}else{p.channel_swatch(i,self.embedded_names)}).unwrap_or(0x858585))}
- fn page_reason(&self,page:Page)->Option<&str>{let c=self.capability.as_ref()?;let t=match page{Page::Rebuilder=>Tool::Rebuild,Page::Reorder=>Tool::Reorder,Page::Correction|Page::Smoothing|Page::Black=>Tool::Correction,Page::Comparison|Page::Gamut|Page::Gradient=>Tool::Analysis,Page::Version=>Tool::Version,_=>return None};c.reason(t)}
+ fn page_reason(&self,page:Page)->Option<&str>{let c=self.capability.as_ref()?;let t=match page{Page::Rebuilder=>Tool::Rebuild,Page::Reorder=>Tool::Reorder,Page::Correction|Page::Smoothing|Page::Black=>Tool::Correction,Page::Comparison|Page::Gamut|Page::Gradient=>Tool::Analysis,Page::Version=>Tool::Version,Page::DeviceLink=>Tool::DeviceLink,_=>return None};c.reason(t)}
 
  fn numeric_slider(&self,id:(&'static str,usize),value:f64,lo:f64,hi:f64,step:f64,set:impl Fn(&mut Self,f64)+Copy+'static,cx:&mut Context<Self>)->impl IntoElement{
   let bounds=std::rc::Rc::new(std::cell::Cell::new(None::<Bounds<Pixels>>));
@@ -403,6 +403,7 @@ impl Studio {
   let point_mode=points&&self.curve_mode==1;
   p=p.child(div().flex().gap_1().flex_wrap().child(seg("tone-gamma","Gamma curves",!point_mode).on_click(cx.listener(|v,_,_,cx|{v.curve_mode=0;v.curve_drag=None;cx.notify();})))
    .when(points,|p|p.child(seg("tone-points","Bounded multipoint curves",point_mode).on_click(cx.listener(|v,_,_,cx|{v.curve_mode=1;v.curve_drag=None;cx.notify();})))));
+  if let Some(reason)=self.capability.as_ref().and_then(|c|c.reason(if point_mode{Tool::Correction}else{Tool::Gamma})){return p.child(div().text_color(rgb(0xfbbf24)).child(reason.to_owned()));}
   if point_mode{return p.child(self.point_curves_page(cx));}
   p.child(self.curve_cards(false,cx))
    .child(button("reset-all-gamma","Reset all curves").on_click(cx.listener(|v,_,_,cx|{if !v.busy{v.gamma.fill(1.);cx.notify();}})))
@@ -823,6 +824,7 @@ impl Studio {
   let mut p=div().flex().flex_col().gap_3().child(heading("Ink / Cost Optimizer","Find a bounded device recipe for a D50 Lab target."))
    .child(div().flex().gap_1().flex_wrap().children(["Single color recipe","Whole-profile optimization"].into_iter().enumerate().map(|(i,label)|seg(("optimizer-tab",i),label,self.recipe_tab==i).on_click(cx.listener(move|v,_,_,cx|{v.recipe_tab=i;cx.notify();})))));
   if self.recipe_tab==1{
+   if let Some(reason)=self.capability.as_ref().and_then(|c|c.reason(Tool::Correction)){return p.child(div().text_color(rgb(0xfbbf24)).child(reason.to_owned()));}
   if !self.display_profile.as_ref().is_some_and(|p|p.version_major()==4&&p.pcs()=="Lab "&&(p.cmyk()||color_convert_rust::multichannel::channel_count(p).is_ok())){return p.child(tr("Whole-profile optimization requires a compatible ICC v4 Lab profile."))}
   return p.child(div().text_lg().child(tr("Whole-profile ink optimization (ICC v4 / mBA)")))
    .child(self.optimizer_constraints(&caps,tac,cx))
@@ -1056,6 +1058,7 @@ impl Studio {
   let dynamic=self.display_profile.as_ref().is_some_and(|p|!p.cmyk());
   let (caps,tac)=(self.caps.clone(),self.tac);
   if self.lab_tab==1{
+   if let Some(reason)=self.capability.as_ref().and_then(|c|c.reason(Tool::Target)){return p.child(div().text_color(rgb(0xfbbf24)).child(reason.to_owned()));}
    let count=color_convert_rust::profiling_target::recipes(&caps,tac,self.lab_levels).map(|v|v.len()).unwrap_or(0);
    return p   .child(tr("Record device, substrate, ink configuration and measurement conditions externally. Use identical geometry and D50 Lab for both charts."))
    .child(div().text_lg().child(tr("Generate device test chart")))
@@ -1091,6 +1094,7 @@ impl Studio {
   if let Some(r)=&self.measurement_result{p=p.child(format!("{} patches | Mean ΔE {:.3} | P95 {:.3} | Max {:.3} ({}) | Mean ΔLab (after−before) {:.3?}",r.count,r.mean,r.p95,r.max,r.worst,r.bias));}
   return p;
   }
+  if let Some(reason)=self.capability.as_ref().and_then(|c|c.reason(Tool::Fit)){return p.child(div().text_color(rgb(0xfbbf24)).child(reason.to_owned()));}
   if dynamic{return p.child(tr("N-color ICC fitting is not supported by Argyll colprof. Export measured data for a compatible profiling engine; no ICC is fabricated."));}
   p.child(div().text_lg().child(tr("Profile measured printing condition (Argyll colprof)")))
    .child(tr("Supply an actual CMYK .ti3 file from a measurement workflow. Builds a new ICC with explicit TAC and Argyll default black generation. Validate it before production. No automatic compensation or matching is assumed."))
@@ -1375,7 +1379,7 @@ impl Studio {
      .child(seg(("rebuild-minus",i),"−1",false).on_click(cx.listener(move|v,_,_,cx|{if !v.busy{let c=&mut v.caps[i];*c=(*c-1.).max(0.);cx.notify();}})))
      .child(self.numeric_slider(("rebuild-cap",i),cap,0.,100.,1.,move|v,x|{v.caps[i]=x},cx))
      .child(seg(("rebuild-plus",i),"+1",false).on_click(cx.listener(move|v,_,_,cx|{if !v.busy{let c=&mut v.caps[i];*c=(*c+1.).min(100.);cx.notify();}})))
-     .children([0usize,10,25,50,100].into_iter().map(|n|seg(("rebuild-preset",i*101+n),format!("{n}%"),cap==n as f64).on_click(cx.listener(move|v,_,_,cx|{if !v.busy{v.caps[i]=n as f64cx.notify();}}))))));
+     .children([0usize,10,25,50,100].into_iter().map(|n|seg(("rebuild-preset",i*101+n),format!("{n}%"),cap==n as f64).on_click(cx.listener(move|v,_,_,cx|{if !v.busy{v.caps[i]=n as f64;cx.notify();}}))))));
   }
   p=p.child(div().text_xs().text_color(rgb(0xa1a1aa)).child(tr("Channel bars use independent 0–100% scales. TAC constrains combined ink, not each individual maximum.")));
   if !dynamic&&self.display_profile.as_ref().is_some_and(|p|p.cmyk()){
