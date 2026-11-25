@@ -14,6 +14,7 @@ fn rational(tag:u16,v:u32)->Entry{Entry{tag,typ:5,count:1,bytes:[v.to_le_bytes()
 pub(crate) fn write<W:Write>(mut w:W,width:u32,height:u32,n:usize,cmyk:bool,dpi:u32,mut row:impl FnMut(u32,&mut [u16]))->R<()>{
  if !(2..=15).contains(&n)||cmyk&&n!=4||width==0||height==0||!(50..=1200).contains(&dpi)||u64::from(width)*u64::from(height)>24_000_000{return Err("Invalid separated TIFF dimensions, channels or DPI".into())}
  let row_bytes=u64::from(width)*n as u64*2;
+ if row_bytes>8_388_608{return Err("Scanline exceeds 8 MiB limit".into())}
  let strip_rows=(1_048_576/row_bytes).clamp(1,32) as u32;
  let strips=height.div_ceil(strip_rows) as usize;
  let counts=(0..strips).map(|i|((height-i as u32*strip_rows).min(strip_rows) as u64*row_bytes) as u32).collect::<Vec<_>>();
@@ -74,7 +75,7 @@ pub(crate) fn write<W:Write>(mut w:W,width:u32,height:u32,n:usize,cmyk:bool,dpi:
   let len=count as usize*size;let start=if len<=4{p+8}else{u32v(b,p+8) as usize};(count,b[start..start+len].to_vec())
  }
  #[test]fn independent_ifd_and_strip_check(){
-  for n in [2,3,4,6,8,15]{
+  for n in 2..=15{
    for cmyk in [false,true].into_iter().filter(|v|!*v||n==4){
     let mut b=Vec::new();
     write(&mut b,3,35,n,cmyk,300,|y,r|{for (i,v) in r.iter_mut().enumerate(){*v=if i%n==n-1{0}else{(y*100+i as u32) as u16};}}).unwrap();
