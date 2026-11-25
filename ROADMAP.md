@@ -239,3 +239,6 @@ Lean, vendor-independent GPUI application for CMYK and multichannel output ICCs 
 
 ## beta.39 — local 3D Lab lattice (CI pending)
 - Beta.38 merged after CI #104. Bounded 27-node Lab lattice, three-axis adjacency, explicit missing nodes, per-point guard, eight cell-center interpolation checks, work budget, UI slices. FOGRA55 narrow neutral cube Python mirror improves max jump 18 → 1.6076 pp and center max DE00 1.0851 → .2833, with all nodes/centers within tolerance. Not full PCS or production LUT. Next: wider dark/saturated coverage, explicit gamut mapping, scalable forward sampling and reverse-lattice strategy; fail closed before ICC generation.
+
+## beta.40 — forward CLUT sampling diagnostics (CI pending)
+- Beta.39 merged after CI #105. Add bounded anisotropic grid, raw Lab16 size, grouped holdout, missing-node/corner rejection, common-subset comparison, UI per-ink resolution and coverage. Independent actual FOGRA55 Python fold 0: 3^7 grid covers 742/867 holdouts, mean DE00 1.296; 5^4×2^3 covers 743/867, mean 1.704. Different subsets, neither complete. No ICC serialization or PCS normalization. Next: explicit gamut mapping and full-domain support policy; validate native interpolation and PCS before experimental export.

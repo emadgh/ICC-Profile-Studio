@@ -101,3 +101,5 @@ Beta.37 adds experimental measurement-based N-color inverse recipe search and fo
 Beta.38 adds experimental continuity-regularized inverse ramp comparison in Profiling Lab / Patch explorer. It penalizes neighboring ink differences while enforcing existing TAC/caps, coverage distance and per-point predicted color tolerance. Adjustable continuity weight, independent baseline vs refined ink bars, objective and error diagnostics. No ICC generation. See NCOLOR_MODEL_QA.md.
 
 Beta.39 adds experimental 3×3×3 local Lab lattice audit with per-axis spans, independent and neighbor-regularized recipes, per-axis ink jumps, incomplete-node reporting, and cell-center model checks. No ICC is generated. See NCOLOR_MODEL_QA.md.
+
+Beta.40 adds an experimental forward CLUT audit in Profiling Lab / Patch explorer: independent per-ink grid sizes, checked raw Lab16 payload estimate, grouped fold-0 holdout, direct vs multilinear interpolation errors on common samples, and explicit missing-corner coverage. The 8,192-node diagnostic budget does not support 14–15 dimensions even at two points per axis. No ICC generated. See NCOLOR_MODEL_QA.md.

@@ -115,3 +115,16 @@ Independent Python/NumPy/skimage mirror rerun on supplied Ref_FOGRA55.zip / FOGR
 | Joint objective | 142.734046 | 5.204566 |
 
 4,860 distinct refinement trials in independent mirror; no closed-channel or TAC violations by construction. This narrow cube is deliberately chosen to establish local behavior and cannot represent dark or saturated areas or entire PCS. Same reference dataset fits and evaluates model; no independent physical measurement. Python diagnostics, not compiled Rust real-file execution. Real-data regression is opt-in; synthetic topology/limits tests are ordinary CI. Next: broaden coverage sampling, evaluate forward/ reverse full-lattice cost and continuity, explicit gamut mapping for out-of-gamut targets before ICC serialization.
+
+## beta.40 — bounded anisotropic forward CLUT diagnostic
+A configurable per-ink grid (2–33 samples per axis, 2–15 channel input), checked product, max 8,192 nodes and 500 million estimated channel-distance operations. This budget rejects even 2^14 or 2^15; it is a diagnostic limit, not an ICC standard limit. Raw payload estimate is 6 bytes/node for three 16-bit Lab components, excludes header, curves, mask and other tags. Uniformity flag describes grid dimensions only, not legacy mft2 serialization eligibility. Hard ridge sampled in the full 0–100% device domain, not inverse caps or TAC. Nodes beyond nearest-recipe distance threshold are absent. The interpolation reference uses positive-weight corners only, last axis fastest, Lab16 full-range normalized encoding, and no unsupported-corner substitution. It is NOT native CMM interpolation, ICC media-relative PCS conversion, or a serialized tag.
+
+Independent Python/NumPy/skimage calculation using operator-supplied Ref_FOGRA55.zip / FOGRA55.txt, grouped 4,272 recipes, fold 0: 3,405 training, 867 holdout. Fit ONLY training rows; max normalized recipe distance .4. No files redistributed. Raw payload and error reported on supported subsets; coverage is essential to interpreting error.
+
+| Grid (CMYKOGV order) | Nodes | Supported nodes | Raw bytes | Interpolated holdout count | Mean / P95 / Max DE00 | Direct model mean on same holdouts |
+|---|---:|---:|---:|---:|---|---:|
+| 3×3×3×3×3×3×3 | 2187 | 1237 | 13122 | 742 | 1.295872 / 2.572715 / 6.318467 | 1.053203 |
+| 5×5×5×5×2×2×2 | 5000 | 3300 | 30000 | 743 | 1.704474 / 4.353256 / 7.597168 | 1.100251 |
+| 3×3×3×3×2×2×2 | 648 | 415 | 3888 | 706 | 1.843227 / 4.631433 / 7.633624 | 1.103331 |
+
+Direct model on 861/867 distance-supported holdouts: mean 1.226860, P95 3.284877, max 7.503415. Uniform 3-grid has lower error than the 5/2 anisotropic grid on their respective supported subsets; these are not identical subsets and do not prove universal superiority. None has complete full-domain node coverage. No absent nodes filled; no ICC generated. Python reference only, not compiled Rust results. Opt-in FOGRA55 asserts coverage and mean errors, ordinary tests check sizes, order, missing corners and held-out synthetic recipes. Next: explicit gamut/target mapping and model support policy, scalable full-domain forward model, native CMM validation before generating experimental ICC.
