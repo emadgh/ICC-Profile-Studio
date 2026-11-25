@@ -214,3 +214,10 @@ Lean, vendor-independent GPUI application for CMYK and multichannel output ICCs 
 - Native roundtrip batches 4096 pixels; scratch buffer scales with channel count and batch size rather than total sample count. Preserve full result array and surface generation. Test batch boundaries and empty inputs.
 - Restore stored gamut sampling quality (9/17/33), keeping the 33 default. Lower grids are explicitly preview/analysis approximations and never alter export LUT resolution. Localize new controls in five languages.
 - Add opt-in release benchmark, cancellation/no-output tests and persistence regression. Actual elapsed time, peak process memory, interactive responsiveness and real-profile benchmarks remain pending. Future: background raster jobs, bounded reference/candidate cache, additional cancellation and modularize Studio workspaces.
+
+## beta.34 — native legacy LUT16 bounded correction (CI pending)
+- beta.33 merged after successful Windows CI #97.
+- Add bounded points, regions and smoothing for v2 CMYK/nCLR Lab mft2, preserving A2B, ICC version, device axes, explicit TAC and independent B2A intents. Use raw LUT16 PCS coordinates and explicit 65280/65535 nominal Lab conversion for selective regions; extended endpoints are not selectively adjusted.
+- Separate v2-compatible correction capability from v4-only black generation and whole-profile optimization. Keep unsupported LUT8, alternate D2B/B2D, uncertifiable envelopes rejected.
+- Localize updated capability labels. Add synthetic 7CLR tests and opt-in real FOGRA55 smoothing regression. Independent native diagnostic on supplied file passed sampled TAC; Rust real-file and Windows interactive tests not executed.
+- ISO28178 import is in separate PR #15, not assumed merged. Further work: legacy optimization, channel mapping/vendor tag policy, additional real profiles, DeviceLink and profiling research.
