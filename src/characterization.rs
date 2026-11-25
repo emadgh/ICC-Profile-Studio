@@ -142,7 +142,7 @@ pub fn extract(p:&Profile)->R<Chart>{
   let result=(||->R<Chart>{
    if !t.starts_with(b"text")||t.len()<8{return Err("Unsupported targ tag encoding".into())}
    let s=std::str::from_utf8(&t[8..]).map_err(|e|e.to_string())?.trim_end_matches('\0');
-   let mut c=crate::characterization_cgats::read(s,n,p.cmyk())?;
+   let mut c=crate::characterization_cgats::read_with_names(s,n,p.cmyk(),Some(&p.channels()))?;
    c.source="Embedded targ / CGATS".into();Ok(c)
   })();
   match result{Ok(mut c)=>{predict(p,&mut c)?;prepare_measurements(&mut c);return Ok(c)},Err(e)=>errors.push(format!("targ: {e}"))}
@@ -153,7 +153,7 @@ pub fn import_cgats(p:&Profile,path:&Path)->R<Chart>{
  let n=crate::print_space::format(&p.header[16..20])?.channels;
  if std::fs::metadata(path).map_err(|e|e.to_string())?.len()>MAX_XML{return Err("CGATS exceeds 32 MiB".into())}
  let s=std::fs::read_to_string(path).map_err(|e|e.to_string())?;
- let mut c=crate::characterization_cgats::read(&s,n,p.cmyk())?;
+ let mut c=crate::characterization_cgats::read_with_names(&s,n,p.cmyk(),Some(&p.channels()))?;
  predict(p,&mut c)?;prepare_measurements(&mut c);Ok(c)
 }
 /// Prefer the actual embedded target; a failed or absent target falls back
