@@ -23,13 +23,15 @@ pub fn sample_with_intent(path:&Path,grid:usize,intent:Intent)->Result<Cloud,Str
  let p=Profile::new_icc(&std::fs::read(path).map_err(|e|e.to_string())?).map_err(|e|e.to_string())?;
  let native=crate::print_space::Roundtrip::new(&p,intent)?;
  let white=CIEXYZ{X:0.9642,Y:1.,Z:0.8249};
+ crate::analysis_job::phase("Preparing Lab targets",0)?;
  let values:Vec<[f64;3]>=targets(grid).into_iter().filter_map(|v|{
   let t=CIELab{L:v[0],a:v[1],b:v[2]}.to_xyz(&white);
   let xyz=[t.X,t.Y,t.Z];
   xyz.iter().all(|v|v.is_finite()&&*v>=0.&&*v<2.).then_some(xyz)
  }).collect();
  if values.is_empty(){return Err("No valid PCS targets".into())}
- crate::analysis_job::check()?;let result=native.apply(&values)?;
+ crate::analysis_job::phase("Sampling Lab targets",values.len().div_ceil(4096))?;
+ let mut result=Vec::with_capacity(values.len());for batch in values.chunks(4096){result.extend(native.apply(batch)?);crate::analysis_job::advance()?;}
  let mut points=Vec::with_capacity(result.len());let mut errors=Vec::with_capacity(result.len());
  for (v,target) in result.into_iter().zip(&values){
   let l=CIEXYZ{X:v[0],Y:v[1],Z:v[2]}.to_lab(&white);
@@ -60,13 +62,14 @@ pub fn sample_with_intent(path:&Path,grid:usize,intent:Intent)->Result<Cloud,Str
   }
  }}}
  if !sample_xyz.is_empty(){
-  let actual=native.apply(&sample_xyz)?;
+  crate::analysis_job::phase("Sampling tolerance field",sample_xyz.len().div_ceil(4096))?;
+  let mut actual=Vec::with_capacity(sample_xyz.len());for batch in sample_xyz.chunks(4096){actual.extend(native.apply(batch)?);crate::analysis_job::advance()?;}
   for ((i,lab),v) in sample_indices.into_iter().zip(target_lab).zip(actual){
    let l=CIEXYZ{X:v[0],Y:v[1],Z:v[2]}.to_lab(&white);
    let e=l.cie2000_delta_e(&lab,1.,1.,1.);if e.is_finite()&&e>=0.{field[i]=e.min(20.);}
   }
  }
- crate::analysis_job::check()?;let surface=crate::gamut_surface::extract(&field,n,lo,hi,crate::gamut_surface::TOLERANCE);
+ crate::analysis_job::check()?;let surface=crate::gamut_surface::extract_controlled(&field,n,lo,hi,crate::gamut_surface::TOLERANCE)?;
  crate::analysis_job::check()?;Ok(Cloud{points,sampled:values.len(),errors,surface})
 }
 #[derive(Debug,Clone,Copy,PartialEq,Eq)]
@@ -81,9 +84,8 @@ pub fn overlay(reference:&Path,candidate:Option<&Path>,grid:usize)->Overlay{
  overlay_with_intents(reference,candidate,grid,Intent::RelativeColorimetric,Intent::RelativeColorimetric)
 }
 pub fn overlay_with_intents(reference:&Path,candidate:Option<&Path>,grid:usize,reference_intent:Intent,candidate_intent:Intent)->Overlay{
- let _=crate::analysis_job::phase("Sampling profile gamut",if candidate.is_some(){2}else{1});
- let reference=sample_with_intent(reference,grid,reference_intent);let _=crate::analysis_job::advance();
- let candidate=candidate.map(|p|{let result=sample_with_intent(p,grid,candidate_intent);let _=crate::analysis_job::advance();result});
+ let reference=sample_with_intent(reference,grid,reference_intent);
+ let candidate=candidate.map(|p|sample_with_intent(p,grid,candidate_intent));
  Overlay{reference,candidate}
 }
 /// Equal Lab scaling, orthographic projection. x=a*, y=b*, z=L*-50.
