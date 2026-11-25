@@ -514,6 +514,75 @@ pub fn audit_lab_lattice(chart:&Chart,channels:usize,s:LatticeSettings)->R<Latti
  let nodes=(0..27).map(|i|{let index=lattice_coord(i);let target=lattice_target(&s,index);LatticeNode{index,target,baseline:baseline[i].as_ref().map(|p|lattice_point(p,target)),refined:points[i].as_ref().map(|p|lattice_point(p,target))}}).collect();
  Ok(LatticeAudit{settings:s,nodes,baseline:before,refined:after,initial_objective,objective,seed_evaluations,refinement_evaluations:cache.len(),estimated_channel_distance_ops:estimate})
 }
+// Diagnostic forward CLUT, with explicit missing nodes. This is not an
+// ICC tag writer: multilinear interpolation is an independent reference,
+// not a promise of native CMM interpolation or media-relative PCS semantics.
+const FORWARD_MAX_NODES:usize=8192;
+const FORWARD_WORK_LIMIT:u64=500_000_000;
+#[derive(Clone,Debug)]
+pub struct ForwardGridPlan{pub grid:Vec<usize>,pub nodes:usize,pub raw_bytes:usize,pub uniform_mft2:bool}
+pub fn forward_grid_plan(grid:&[usize])->R<ForwardGridPlan>{
+ if !(2..=15).contains(&grid.len())||grid.iter().any(|g|!(2..=33).contains(g)){return Err("Invalid forward grid dimensions".into())}
+ let nodes=grid.iter().try_fold(1usize,|n,&g|n.checked_mul(g)).ok_or("Forward grid size overflow")?;
+ if nodes>FORWARD_MAX_NODES{return Err("Forward grid exceeds 8192-node diagnostic budget".into())}
+ Ok(ForwardGridPlan{grid:grid.to_vec(),nodes,raw_bytes:nodes*6,uniform_mft2:grid.iter().all(|&g|g==grid[0])})
+}
+#[derive(Clone,Debug)]
+pub struct ForwardGridAudit{
+ pub plan:ForwardGridPlan,pub measurement:String,pub fold:u32,pub training:usize,pub holdout:usize,
+ pub max_distance:f64,pub supported_nodes:usize,pub direct_supported:usize,pub table_supported:usize,
+ pub direct_error:Option<ErrorStats>,pub table_error:Option<ErrorStats>,pub direct_common_error:Option<ErrorStats>,
+ pub interpolation_error:Option<ErrorStats>,pub max_node_quantization_de:f64,pub estimated_distance_ops:u64,
+}
+fn lab16(v:[f64;3])->[u16;3]{
+ [(v[0]/100.*65535.).round() as u16,((v[1]+128.)/255.*65535.).round() as u16,((v[2]+128.)/255.*65535.).round() as u16]
+}
+fn decode_lab16(v:[u16;3])->[f64;3]{[f64::from(v[0])/65535.*100.,f64::from(v[1])/65535.*255.-128.,f64::from(v[2])/65535.*255.-128.]}
+fn forward_node(mut i:usize,grid:&[usize])->Vec<u32>{
+ let mut key=vec![0;grid.len()];
+ for j in (0..grid.len()).rev(){let g=grid[j];let c=i%g;i/=g;
+  key[j]=((c as f64/(g-1) as f64)*SCALE*100.).round() as u32;
+ }key
+}
+fn forward_interpolate(grid:&[usize],table:&[Option<[u16;3]>],q:&[u32])->Option<[f64;3]>{
+ // Last input axis fastest; only strictly positive-weight corners required.
+ let mut corners=vec![(0usize,1f64)];
+ for (&g,&v) in grid.iter().zip(q){
+  let pos=f64::from(v)/(SCALE*100.)*(g-1) as f64;
+  let lo=(pos.floor() as usize).min(g-1);let hi=(lo+1).min(g-1);let frac=pos-lo as f64;
+  let mut next=Vec::with_capacity(corners.len()*2);
+  for (index,w) in corners{if frac<1.{next.push((index*g+lo,w*(1.-frac)));}if hi!=lo&&frac>0.{next.push((index*g+hi,w*frac));}}
+  corners=next;
+ }
+ let mut lab=[0.;3];for (i,w) in corners{let v=decode_lab16(table[i]?);for j in 0..3{lab[j]+=w*v[j];}}Some(lab)
+}
+pub fn audit_forward_grid(chart:&Chart,grid:&[usize],holdout_fold:u32,max_distance:f64)->R<ForwardGridAudit>{
+ let plan=forward_grid_plan(grid)?;
+ if holdout_fold>=5||!max_distance.is_finite()||!(0.01..=1.).contains(&max_distance){return Err("Invalid forward grid fold or distance".into())}
+ let (measurement,samples)=grouped(chart,grid.len())?;
+ let (test,train):(Vec<_>,Vec<_>)=samples.iter().partition(|p|fold(&p.key)==holdout_fold);
+ if train.len()<LOCAL_K||test.len()<2{return Err("Forward grid needs 32 training and two holdout recipes".into())}
+ let work=(plan.nodes+test.len()) as u64*train.len() as u64*grid.len() as u64;
+ if work>FORWARD_WORK_LIMIT{return Err("Forward grid exceeds distance-work budget".into())}
+ let mut table=Vec::with_capacity(plan.nodes);let mut supported_nodes=0;let mut max_node_quantization_de=0f64;
+ for i in 0..plan.nodes{
+  let q=forward_node(i,grid);let (_,_,lab,d)=local_prediction(&train,&q)?;
+  if d>max_distance+1e-12{table.push(None);continue}
+  let encoded=lab16(lab);max_node_quantization_de=max_node_quantization_de.max(de(lab,decode_lab16(encoded)));
+  table.push(Some(encoded));supported_nodes+=1;
+ }
+ let mut direct=Vec::new();let mut interpolated=Vec::new();let mut common=Vec::new();let mut interpolation=Vec::new();
+ for p in &test{
+  let (_,_,lab,d)=local_prediction(&train,&p.key)?;
+  if d>max_distance+1e-12{continue}
+  let error=de(lab,p.lab);direct.push(error);
+  if let Some(v)=forward_interpolate(grid,&table,&p.key){
+   interpolated.push(de(v,p.lab));common.push(error);interpolation.push(de(v,lab));
+  }
+ }
+ Ok(ForwardGridAudit{plan,measurement,fold:holdout_fold,training:train.len(),holdout:test.len(),max_distance,supported_nodes,direct_supported:direct.len(),table_supported:interpolated.len(),
+ direct_error:optional_stats(direct)?,table_error:optional_stats(interpolated)?,direct_common_error:optional_stats(common)?,interpolation_error:optional_stats(interpolation)?,max_node_quantization_de,estimated_distance_ops:work})
+}
 /// An audit of sampled jumps near exact reference recipes and held-out
 /// errors. Tapered model is a candidate only; the inverse solver still uses
 /// the beta.36 hard-neighborhood ridge. Distances are not uncertainty bounds.
@@ -602,6 +671,22 @@ pub fn audit_continuity(chart:&Chart,channels:usize)->R<ContinuityAudit>{
   let z=regularize_inverse_ramp(&chart,3,[70.,20.,0.],settings.clone(),0.).unwrap();assert_eq!(z.evaluations,0);assert_eq!(z.objective,z.initial_objective);assert!((z.max_channel_jump_pp-z.baseline.max_channel_jump_pp).abs()<1e-9);
   assert!(regularize_inverse_ramp(&chart,3,[70.,20.,0.],settings,f64::NAN).is_err());
  }
+ #[test]fn forward_grid_checked_sizes_order_and_missing_corners(){
+  let p=forward_grid_plan(&[3,5,2]).unwrap();assert_eq!(p.nodes,30);assert_eq!(p.raw_bytes,180);assert!(!p.uniform_mft2);
+  assert!(forward_grid_plan(&[33;15]).is_err());assert!(forward_grid_plan(&[2;14]).is_err());assert!(forward_grid_plan(&[1,3]).is_err());
+  assert_eq!(forward_node(0,&[3,5,2]),vec![0;3]);assert_eq!(forward_node(1,&[3,5,2]),vec![0,0,1000000]);assert_eq!(forward_node(29,&[3,5,2]),vec![1000000;3]);
+  let mut table=vec![Some(lab16([50.,0.,0.]));4];table[3]=None;
+  assert!(forward_interpolate(&[2,2],&table,&[500000,500000]).is_none());
+  let exact=forward_interpolate(&[2,2],&table,&[0,0]).unwrap();assert!(de(exact,[50.,0.,0.])<0.01);
+ }
+ #[test]fn forward_grid_holdout_and_coverage(){
+  let mut t=String::from("CTI3\nILLUMINANT D50\nOBSERVER 2\nMEASUREMENT_CONDITION M1\nBEGIN_DATA_FORMAT\nSAMPLE_ID CH1 CH2 LAB_L LAB_A LAB_B\nEND_DATA_FORMAT\nBEGIN_DATA\n");
+  for i in 0..=10{for j in 0..=10{t.push_str(&format!("p-{i}-{j} {} {} {} {} 0\n",i*10,j*10,90-i*4,j*5));}}
+  t.push_str("END_DATA\n");let c=crate::characterization_cgats::read(&t,2,false).unwrap();
+  let r=audit_forward_grid(&c,&[3,5],0,0.4).unwrap();
+  assert_eq!(r.training+r.holdout,121);assert_eq!(r.supported_nodes,15);assert_eq!(r.table_supported,r.holdout);assert!(r.table_error.unwrap().mean<2.);
+  assert!(r.max_node_quantization_de<0.01);
+ }
  #[test]fn lattice_topology_and_missing_metrics(){
   let edges=(0..27).map(|i|lattice_neighbors(i).into_iter().filter(|&(_,j)|j>i).count()).sum::<usize>();assert_eq!(edges,54);
   for i in 0..27{assert_eq!(lattice_index(lattice_coord(i)),i);}
@@ -651,6 +736,9 @@ pub fn audit_continuity(chart:&Chart,channels:usize)->R<ContinuityAudit>{
   println!("{ramp:#?}");assert_eq!(ramp.points.len(),5);
   for p in &ramp.points{assert_eq!(p.inks_percent[3],0.);assert!(p.tac_percent<=300.0000001);assert!(p.delta_e<=p.initial_delta_e);}
   assert_eq!(ramp.adjacent_max_channel_pp.len(),4);assert_eq!(ramp.within_tolerance_count,5);
+  for (grid,nodes,supported,count,mean) in [(vec![3;7],2187,1237,742,1.2958723),(vec![5,5,5,5,2,2,2],5000,3300,743,1.7044737),(vec![3,3,3,3,2,2,2],648,415,706,1.8432275)]{
+   let a=audit_forward_grid(&c,&grid,0,0.4).unwrap();println!("{a:#?}");assert_eq!(a.plan.nodes,nodes);assert_eq!(a.supported_nodes,supported);assert_eq!(a.direct_supported,861);assert_eq!(a.table_supported,count);assert!((a.table_error.unwrap().mean-mean).abs()<0.02);
+  }
   let lattice=audit_lab_lattice(&c,7,LatticeSettings{center:[50.,0.,0.],half_span:[1.;3],inverse:ramp.settings.clone(),lambda:0.02}).unwrap();
   assert_eq!(lattice.refined.supported_nodes,27);assert_eq!(lattice.refined.within_tolerance,27);assert_eq!(lattice.refined.complete_cells,8);assert_eq!(lattice.refined.supported_centers,8);assert_eq!(lattice.refined.centers_within_tolerance,8);
   println!("lattice baseline {:?} / refined {:?}",lattice.baseline,lattice.refined);
