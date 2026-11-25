@@ -884,9 +884,9 @@ impl Studio {
   p=p.child(format!("{} · {} patches · {} pages · {} spectra",c.source,c.patches.len(),pages.len(),c.patches.iter().filter(|v|v.spectrum.is_some()).count()))
    .child(tr("Original layout is retained only when present. Spectral estimates are not directly stored Lab values."))
    .child(div().flex().gap_1().flex_wrap()
-    .child(seg("target-predicted","ICC predicted",!self.characterization_measured).on_click(cx.listener(|v,_,_,cx|{v.characterization_measured=false;v.characterization_heat=false;cx.notify();})))
-    .child(seg("target-measured","D50/2° measurement",self.characterization_measured).on_click(cx.listener(|v,_,_,cx|{v.characterization_measured=true;v.characterization_heat=false;cx.notify();})))
-    .child(seg("target-heat","ΔE00 heatmap",self.characterization_heat).on_click(cx.listener(|v,_,_,cx|{v.characterization_heat=true;v.characterization_measured=false;cx.notify();}))))
+    .child(seg("target-predicted",tr("ICC predicted"),!self.characterization_measured&&!self.characterization_heat).on_click(cx.listener(|v,_,_,cx|{v.characterization_measured=false;v.characterization_heat=false;cx.notify();})))
+    .child(seg("target-measured",tr("D50/2° measurement"),self.characterization_measured).on_click(cx.listener(|v,_,_,cx|{v.characterization_measured=true;v.characterization_heat=false;cx.notify();})))
+    .child(seg("target-heat",tr("ΔE00 heatmap"),self.characterization_heat).on_click(cx.listener(|v,_,_,cx|{v.characterization_heat=true;v.characterization_measured=false;cx.notify();}))))
    .child(tr("Measured view uses declared D50/2° Lab or a legacy spectral estimate; missing values appear gray. M0 is not M1."))
    .child(tr("Confirm only if measurement mode, reference white, backing and print condition are comparable. This is fit to characterization data, not independent validation."))
    .child(button("target-compare-absolute","Confirm comparable conditions and calculate ΔE00").on_click(cx.listener(|v,_,_,cx|{
@@ -901,7 +901,7 @@ impl Studio {
   let filter=self.characterization_filter;
   p=p.child(div().text_lg().child(tr("Patch filters")))
    .child(div().flex().flex_wrap().gap_1()
-    .child(seg("target-all-ch","All channels",filter.channel.is_none()).on_click(cx.listener(|v,_,_,cx|{v.characterization_filter.channel=None;v.characterization_revision=v.characterization_revision.wrapping_add(1);cx.notify();})))
+    .child(seg("target-all-ch",tr("All channels"),filter.channel.is_none()).on_click(cx.listener(|v,_,_,cx|{v.characterization_filter.channel=None;v.characterization_revision=v.characterization_revision.wrapping_add(1);cx.notify();})))
     .children((0..c.patches.first().map(|p|p.inks.len()).unwrap_or(0)).map(|j|seg(("target-filter-ch",j),self.ink_name(j),filter.channel==Some(j)).on_click(cx.listener(move|v,_,_,cx|{v.characterization_filter.channel=Some(j);v.characterization_revision=v.characterization_revision.wrapping_add(1);cx.notify();})))));
   if filter.channel.is_some(){
    p=p.child(div().flex().items_center().gap_2().child(format!("Minimum ink {:.0}%",filter.minimum)).child(self.numeric_slider(("target-min",0),filter.minimum,0.,100.,1.,|v,x|{v.characterization_filter.minimum=x.min(v.characterization_filter.maximum);v.characterization_revision=v.characterization_revision.wrapping_add(1);},cx)))
@@ -910,7 +910,7 @@ impl Studio {
   let maximum=c.patches.first().map(|p|p.inks.len() as f64*100.).unwrap_or(400.);
   p=p.child(div().flex().items_center().gap_2().child(format!("TAC ≤ {:.0}%",filter.tac_max.min(maximum))).child(self.numeric_slider(("target-tac",0),filter.tac_max.min(maximum),0.,maximum,5.,|v,x|{v.characterization_filter.tac_max=x;v.characterization_revision=v.characterization_revision.wrapping_add(1);},cx)))
    .child(div().flex().flex_wrap().gap_1().children([None,Some(1.),Some(2.),Some(5.)].into_iter().enumerate().map(|(i,min)|seg(("target-de-filter",i),min.map(|d|format!("ΔE ≥ {d}")).unwrap_or("Any error".into()),filter.delta_min==min).on_click(cx.listener(move|v,_,_,cx|{v.characterization_filter.delta_min=min;v.characterization_revision=v.characterization_revision.wrapping_add(1);cx.notify();})))))
-   .child(button("target-reset-filters","Reset filters").on_click(cx.listener(|v,_,_,cx|{v.characterization_filter=target_tools::Filter::default();v.characterization_revision=v.characterization_revision.wrapping_add(1);cx.notify();})))
+   .child(button("target-reset-filters",tr("Reset filters")).on_click(cx.listener(|v,_,_,cx|{v.characterization_filter=target_tools::Filter::default();v.characterization_revision=v.characterization_revision.wrapping_add(1);cx.notify();})))
    .child(format!("{} / {} patches match filters · exports retain the full table/page",c.patches.iter().filter(|p|filter.matches(p)).count(),c.patches.len()));
   if self.characterization_heat{
    p=p.child(div().flex().flex_wrap().gap_2().children([(0x278c69,"≤1"),(0x84a94f,"1–2"),(0xe2aa39,"2–5"),(0xd45545,">5"),(0x555555,"No ΔE")].into_iter().map(|(color,label)|div().flex().items_center().gap_1().child(swatch(color,12.)).child(label))));
@@ -942,7 +942,7 @@ impl Studio {
      .child(div().flex().items_end().gap_1().h(px(80.)).children(s.iter().map(|v|div().flex_1().h(px((75.*v/peak) as f32)).bg(rgb(0xe87935)))));
    }
   }
-  p=p.child(seg("target-cloud-toggle","Paired 3D Lab cloud",self.characterization_cloud).on_click(cx.listener(|v,_,_,cx|{v.characterization_cloud=!v.characterization_cloud;cx.notify();})));
+  p=p.child(seg("target-cloud-toggle",tr("Paired 3D Lab cloud"),self.characterization_cloud).on_click(cx.listener(|v,_,_,cx|{v.characterization_cloud=!v.characterization_cloud;cx.notify();})));
   if self.characterization_cloud{
    let overlay=target_tools::paired_cloud(c,filter);
    p=p.child(tr("Matched target patches: measured D50/2° estimates or declared Lab (blue) and absolute ICC predictions (amber). Not a full gamut boundary."))
@@ -954,7 +954,7 @@ impl Studio {
      .child(seg("target-cloud-icc","ICC",self.characterization_view.candidate).on_click(cx.listener(|v,_,_,cx|{v.characterization_view.candidate=!v.characterization_view.candidate;cx.notify();}))))
     .child(gamut_view::plot(Some(&overlay),self.characterization_revision,self.characterization_view,&mut self.characterization_cache.borrow_mut(),420.));
   }
-  p=p.child(button("target-cgats-export","Export measured CGATS").on_click(cx.listener(|v,_,_,cx|{
+  p=p.child(button("target-cgats-export",tr("Export measured CGATS")).on_click(cx.listener(|v,_,_,cx|{
    if v.busy{return}let (Some(c),Some(profile))=(&v.characterization,&v.display_profile)else{return};
    if let Some(path)=rfd::FileDialog::new().add_filter("CGATS",&["cgats"]).set_file_name("characterization.cgats").save_file(){
     v.status=match target_tools::export_cgats(c,&path,profile.cmyk()){Ok(())=>format!("Saved {}",path.display()),Err(e)=>e};cx.notify();
@@ -963,7 +963,7 @@ impl Studio {
   if self.display_profile.as_ref().is_some_and(|p|p.cmyk()){
    p=p.child(tr("CMYK TIFF uses 8 mm patches, 2 mm gaps, selected DPI and Rebuilder ink limits. Original physical size is unknown. Export is untagged; verify safe limits and disable RIP color conversion before printing."))
     .child(format!("Current limits {:?} · TAC {:.0}% · {} DPI",self.caps,self.tac,self.chart_dpi))
-    .child(button("target-tiff-export","Confirm limits and export page CMYK16 TIFF").on_click(cx.listener(|v,_,_,cx|{
+    .child(button("target-tiff-export",tr("Confirm limits and export page CMYK16 TIFF")).on_click(cx.listener(|v,_,_,cx|{
      if v.busy{return}let (Some(c),Some(profile))=(&v.characterization,&v.display_profile)else{return};
      let Some(path)=rfd::FileDialog::new().add_filter("TIFF",&["tif"]).set_file_name("characterization_page.tif").save_file()else{return};
      let (c,profile,page,dpi,caps,tac)=(c.clone(),profile.clone(),v.characterization_page,v.chart_dpi,v.caps,v.tac);
