@@ -43,9 +43,10 @@ pub fn export_cgats(c:&Chart,path:&Path,cmyk:bool)->R<()>{
  let grid=first.start_nm.zip(first.step_nm).zip(first.spectrum.as_ref().map(Vec::len));
  let spec=grid.filter(|&((start,step),count)|step>0&&(2..=1024).contains(&count)&&start.checked_add(step.saturating_mul(count as u32-1)).is_some_and(|v|v<=2500)&&c.patches.iter().all(|p|p.start_nm==Some(start)&&p.step_nm==Some(step)&&p.spectrum.as_ref().is_some_and(|s|s.len()==count&&s.iter().all(|x|x.is_finite()&&*x>=0.))));
  if c.patches.iter().any(|p|p.spectrum.is_some())&&spec.is_none(){return Err("Mixed spectral grids; use CSV to preserve all records".into())}
+ if !lab&&c.patches.iter().any(|p|p.measured_lab.is_some()){return Err("Stored Lab has mixed or undeclared conditions; use CSV to retain it".into())}
  if !lab&&spec.is_none(){return Err("No consistent original measured Lab or spectral table; use CSV for mixed or predicted data".into())}
  if !consistent_mode{return Err("Mixed or unspecified measurement mode; export CSV instead".into())}
- let fields=if cmyk{vec!["CMYK_C".into(),"CMYK_M".into(),"CMYK_Y".into(),"CMYK_K".into()]}else{(1..=n).map(|i|format!("CH{i}")).collect()};
+ let fields:Vec<String>=if cmyk{vec!["CMYK_C".into(),"CMYK_M".into(),"CMYK_Y".into(),"CMYK_K".into()]}else{(1..=n).map(|i|format!("CH{i}")).collect()};
  let mut header=vec!["SAMPLE_ID".to_owned()];header.extend(fields);
  if lab{header.extend(["LAB_L","LAB_A","LAB_B"].map(str::to_owned));}
  if let Some(((start,step),count))=spec{header.extend((0..count).map(|i|format!("SPEC_{}",start+i as u32*step)));}
