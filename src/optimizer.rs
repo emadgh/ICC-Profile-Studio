@@ -136,7 +136,7 @@ pub fn find_multi(path:&Path,target:[f64;3],mut s:MultiSettings)->R<MultiReport>
  }
  for j in 0..n{for i in 0..=16{let mut v=vec![0.;n];v[j]=s.caps[j]*i as f64/16.;project(&mut v,&s);candidates.push(v);}}
  eval(candidates,&mut closest,&mut cheap)?;
- for step in [10.,5.,2.,1.,0.5,0.25]{
+ for step in [10.,5.,2.,1.,0.5,0.25]{crate::analysis_job::checkpoint()?;
   for _ in 0..3{
    let mut next=Vec::new();
    for seed in [closest.as_ref(),cheap.as_ref()].into_iter().flatten(){
