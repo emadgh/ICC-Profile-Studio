@@ -68,3 +68,6 @@ update is implied by CI success.
 
 ### beta.36 acceptance (pending)
 Verify all five folds, pooled counts, local ridge error bars, active-channel histogram, optional stress report (not available for insufficient data), clear-on-import, worker/UI responsiveness, five languages. Run opt-in FOGRA55 reference assertions. No ICC output or production accuracy claims.
+
+### beta.37 acceptance (pending)
+Verify inverse solver with closed channels, zero and fractional caps/TAC, impossible-to-match targets (report not reached, not proven impossible), unsupported coverage, deterministic repeat, local sensitivity and settings snapshots. Run forward continuity audit and five-point L* ramp; verify all rows, adjacent changes, stale result warning, source/chart resets and five languages. Real FOGRA55 Rust test opt-in with ICC_FOGRA55_DATA. Python mirror is diagnostic only. No ICC serialization or production approval.

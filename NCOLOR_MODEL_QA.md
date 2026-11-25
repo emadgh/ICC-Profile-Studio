@@ -45,3 +45,33 @@ Reopened the operator-supplied FOGRA55.txt from Ref_FOGRA55.zip. Independent Pyt
 | Local ridge | 1.2086 | 3.2173 | 11.6811 |
 
 Active ink count 0..7: [1,119,308,1406,2025,339,73,1]. Stress split trains on 3,859 recipes with <5 active inks, tests 413 with >=5. NN mean/P95/max 6.9297/13.0597/22.9100; IDW8 6.1718/11.0556/15.1818; local ridge 3.4681/6.8795/19.7700. Local ridge has worse worst-case stress error than IDW8 despite better mean. No prediction continuity guarantee when neighborhood changes, no spectral or independent print validation. All figures are actual independent Python calculations, not Rust execution. Opt-in Rust test now asserts pooled and stress mean within 0.01 of reference. No ICC export.
+
+## beta.37: constrained inverse, forward continuity and reverse ramp
+The inverse uses the original hard-neighborhood ridge, 3 deterministic starts, measured/projected seed recipes, integer 0.0001 percentage-point coordinates, floored per-channel caps and TAC, coordinate/transfer search, max 1,200 uncached search evaluations, plus local sensitivity probes. Distance ceiling is a heuristic; tolerance means model prediction, not print approval. No original ICC pipeline or ICC generation. A missed tolerance does not prove the target is impossible.
+
+Reopened operator-supplied FOGRA55.txt (4,884 rows / 4,272 grouped recipes). Independent Python/NumPy + skimage CIEDE2000 mirror, 128 evenly spaced lexicographic anchors, all feasible single-axis moves within 0–100%; 1,237 probes per step. These are full-data anchor perturbations, not holdout errors or proof of global continuity. Tapered candidate uses 32 neighbors, 33rd neighbor squared distance R², weights proportional to (1-d²/R²)^2/(d²+0.01), ridge 0.002 on slopes; exact-anchor blend with alpha=(max(0,1-d/min(0.02,d_second)))². Reject degenerate kernel. Candidate is NOT substituted into inverse solver.
+
+| Step (percentage points) | Hard mean | Hard P95 | Hard max | Tapered mean | Tapered P95 | Tapered max |
+|---|---:|---:|---:|---:|---:|---:|
+| 0.01 | 0.446686 | 0.887893 | 1.359250 | 0.002321 | 0.006775 | 0.010810 |
+| 0.10 | 0.449340 | 0.895853 | 1.393576 | 0.022913 | 0.065532 | 0.110940 |
+| 0.50 | 0.471706 | 0.937082 | 1.585634 | 0.112060 | 0.277419 | 0.608007 |
+
+| Held-out evaluation | Count | Hard mean/P95/max | Tapered mean/P95/max |
+|---|---:|---:|---:|
+| Grouped five-fold | 4272 | 1.208607 / 3.217346 / 11.681106 | 1.084994 / 3.046417 / 9.478160 |
+| >=5 active inks stress | 413 | 3.468146 / 6.879548 / 19.770024 | 3.485905 / 9.386173 / 13.781778 |
+
+The tapered model reduces anchor jumps and pooled errors, but stress P95 is worse. Do not pick a production model using the same test corpus. No claim of continuous mapping globally, spectral accuracy or physical print validation.
+
+Independent inverse ramp mirror, hard ridge, center Lab(50,0,0), K cap 0%, other caps 100%, TAC <=300%, distance <=0.4, tolerance 2:
+
+| L* | C | M | Y | K | O | G | V | TAC | Predicted DE00 | Max adjacent ink change (pp) |
+|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| 48 | 61 | 50.5 | 54 | 0 | 0 | 0 | 0 | 165.5 | 0.177032 | — |
+| 49 | 60 | 49.19 | 52.69 | 0 | 0 | 5 | 11.5 | 178.38 | 0.118670 | 11.5 |
+| 50 | 58.5 | 48 | 51.5 | 0 | 0 | 0 | 9 | 167 | 0.214549 | 5 |
+| 51 | 57 | 46.24 | 50.24 | 0 | 0 | 5 | 11 | 169.48 | 0.216062 | 5 |
+| 52 | 56 | 45 | 49.5 | 0 | 0 | 0 | 4.5 | 155 | 0.098557 | 6.5 |
+
+All five satisfy predicted tolerance but adjacent single-ink jumps reach 11.5 pp. This is the inverse ambiguity that must be regularized before reverse LUT construction. Subsequent work should use neighbor-aware separation with a bounded color error tradeoff, and test both forward and inverse lattice continuity. Numbers above are independent Python diagnostics, NOT compiled Rust execution. New opt-in real-data assertions accompany existing FOGRA55 test. No source data redistributed, no ICC generated.

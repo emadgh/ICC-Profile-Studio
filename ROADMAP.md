@@ -230,3 +230,6 @@ Lean, vendor-independent GPUI application for CMYK and multichannel output ICCs 
 ## beta.36 — local regularized regression and validation (CI pending)
 - Native CMY merged after CI #100; beta.35 PR #19 pending. Beta.36 is stacked on #19, not ready for independent merge until #19 lands.
 - Local affine ridge using 32 neighbors; deterministic five-fold pooled error and separate high-active-ink stress holdout, coverage histogram, per-fold metrics. Fixed parameters; no independent tuning set. FOGRA55 reference confirms lower pooled mean but stress maximum still high. Next: continuity/coverage diagnostics and constrained inversion before ICC serialization.
+
+## beta.37 — experimental inverse and continuity gates (CI pending)
+- Beta.36 merged after CI #102. Add constrained single-recipe inverse solver, integer limits, model coverage and sensitivity diagnostics, five-point inverse lightness ramp audit. Add comparison-only tapered local kernel and grouped forward audit. Native FOGRA55 reference diagnostics expose both anchor jumps and inverse recipe jumps despite low color error. Tapered candidate improves pooled mean but worsens sparse-region P95. Retain original hard ridge in inverse; no ICC generation. Next: continuity-regularized inverse, forward model selection/coverage and verified experimental LUT generation only after gates. See NCOLOR_MODEL_QA.md.
