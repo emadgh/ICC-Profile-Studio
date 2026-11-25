@@ -65,12 +65,25 @@ pub fn run(j:Job,progress:impl Fn(String))->R<String>{
 }
 
 pub fn run_multichannel(source:&Path,destination:&Path,caps:&[f64],tac:f64,grid:usize,progress:impl Fn(String))->R<String>{
- let reference=Profile::read(source)?;
+ run_multichannel_controlled(source,destination,caps,tac,grid,&crate::multichannel::RebuildControl::default(),progress)
+}
+pub fn run_multichannel_controlled(source:&Path,destination:&Path,caps:&[f64],tac:f64,grid:usize,control:&crate::multichannel::RebuildControl,progress:impl Fn(String))->R<String>{
+ control.check()?;let reference=Profile::read(source)?;
  if destination.exists(){return Err("Choose a new output filename; reference is never overwritten".into())}
  let limits:Vec<_>=caps.iter().map(|v|v/100.).collect();
- let mut output=crate::multichannel::rebuild(&reference,&limits,tac/100.,grid,&progress)?;
- progress("Verifying all output intents…".into());
- let result=crate::multichannel::verify(&output,&limits,tac/100.)?;
- output.describe(&destination.file_stem().unwrap_or_default().to_string_lossy());output.save_new(destination)?;
+ let (mut output,result)=crate::multichannel::rebuild_verified(&reference,&limits,tac/100.,grid,control,&progress)?;
+ output.describe(&destination.file_stem().unwrap_or_default().to_string_lossy());
+ control.begin_publish()?;output.save_new(destination)?;
  Ok(format!("Saved: {}\nVerified channel ceilings: {}%\nTAC bound {:.3}% · {} native samples · sampled TAC {:.3}%. All intents rebuilt from relative A2B1; validate actual output.",destination.display(),result.channels.iter().map(|v|format!("{:.3}",100.*v)).collect::<Vec<_>>().join(" / "),100.*result.tac,result.samples,100.*result.sampled_tac))
+}
+
+#[cfg(test)]mod controlled_tests{
+ use super::*;
+ #[test]fn cancellation_does_not_publish(){
+  let d=tempfile::tempdir().unwrap();let source=d.path().join("source.icc");let dest=d.path().join("out.icc");
+  crate::print_space::fixture(6).save_new(&source).unwrap();let before=fs::read(&source).unwrap();
+  let c=crate::multichannel::RebuildControl::default();
+  let e=run_multichannel_controlled(&source,&dest,&[100.;6],200.,9,&c,|_|{c.cancel();}).unwrap_err();
+  assert_eq!(e,"Rebuild cancelled");assert!(!dest.exists());assert_eq!(fs::read(&source).unwrap(),before);
+ }
 }
