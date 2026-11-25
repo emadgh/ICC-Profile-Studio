@@ -418,3 +418,27 @@ const ROWS:&[[&str;5]]=&[
 ["Multichannel bounds are conservative; editing support depends on the LUT structure.","حدود چندکاناله محافظه‌کارانه‌اند؛ امکان ویرایش به ساختار LUT وابسته است.","Limiti multicanale conservativi; la modifica dipende dalla struttura LUT.","حدود متعددة القنوات تحفظية؛ دعم التحرير يعتمد على بنية LUT.","Многоканальные пределы консервативны; редактирование зависит от структуры LUT."],
 ];
 #[cfg(test)]mod tests{use super::*;#[test]fn five_languages_and_fallback(){for l in Language::ALL{set_active(l);assert!(!tr("Settings").is_empty());assert_eq!(tr("A2B1"),"A2B1");}set_active(Language::Fa);assert_eq!(tr("Settings"),crate::rtl::visual("تنظیمات"));assert!(Language::Ar.rtl());}}
+
+#[cfg(test)]
+mod coverage_tests {
+ use super::*;
+ #[test]
+ fn dictionary_has_unique_nonempty_rows() {
+  let mut seen=std::collections::BTreeSet::new();
+  for row in ROWS {
+   assert!(seen.insert(row[0]),"duplicate translation: {}",row[0]);
+   assert!(row.iter().all(|s|!s.trim().is_empty()),"empty translation: {}",row[0]);
+  }
+ }
+ #[test]
+ fn literal_studio_translation_calls_are_covered() {
+  let source=include_str!("bin/studio.rs");
+  for tail in source.split("tr(\"").skip(1) {
+   if let Some((key,_))=tail.split_once("\"") {
+    if !key.contains('\\') {
+     assert!(ROWS.iter().any(|row|row[0]==key),"missing UI translation: {key}");
+    }
+   }
+  }
+ }
+}
