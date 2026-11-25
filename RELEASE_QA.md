@@ -51,3 +51,9 @@ update is implied by CI success.
 - Test synthetic regression matrix in CI, then run the opt-in real/reference corpus harness for each available count. Record successful and skipped operations separately; do not treat profile inventory as edit validation.
 - Inspect embedded versus predicted channel colors in every workspace and test all language settings. Verify preview is not started when analysis is unsupported.
 - Confirm 10% channel cap and zero channels after reopen, independently verify RIP mapping and four-intent color drift before printing.
+
+### beta.33 performance acceptance (pending)
+- Compare sparse and full search outputs; measure wall time on the same licensed 3–15-channel corpus, grid, caps, TAC, hardware and build. Report peak process RAM separately from scratch-buffer estimates.
+- Cancel Custom rebuild before the first slice, mid-inversion and before publication. Confirm the original is unchanged, no output is created and controls recover. If publication wins the race, do not claim successful cancellation. Argyll revfix is not cancellable here.
+- Switch Fast/Balanced/High gamut quality with the same profiles; confirm both compared profiles use the same target grid, saved preferences restore it, and output ICC resolution is unaffected. Check 2D/3D zoom, orbit, fullscreen and RTL.
+- Run `cargo test --lib --no-default-features --release sparse_rebuild_benchmark -- --ignored --nocapture` for the synthetic microbenchmark. No elapsed-time target is asserted in CI.
