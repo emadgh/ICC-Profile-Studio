@@ -94,9 +94,16 @@ impl Profile{
   let mut out=self.clone();let mut forward=0;let mut reverse=0;
   for key in [b"A2B0",b"A2B1",b"A2B2",b"B2A0",b"B2A1",b"B2A2"]{
    let Some(t)=self.tags.get(key)else{continue};
-   let f=key[0]==b'A';let (mut lut,kind)=checked_lut(t,f,n)?;
-   if f{permute_forward(&mut lut,order);forward+=1}else{permute_reverse(&mut lut,order);reverse+=1}
-   out.tags.insert(*key,encode(&lut,&kind)?);
+   let f=key[0]==b'A';
+   let encoded=if t.starts_with(b"mAB ")||t.starts_with(b"mBA "){
+    crate::advanced_lut::reorder(t,f,order)?
+   }else{
+    let (mut lut,kind)=checked_lut(t,f,n)?;
+    if f{permute_forward(&mut lut,order)}else{permute_reverse(&mut lut,order)}
+    encode(&lut,&kind)?
+   };
+   if f{forward+=1}else{reverse+=1}
+   out.tags.insert(*key,encoded);
   }
   if forward==0||reverse==0||!out.tags.contains_key(b"A2B0")||!out.tags.contains_key(b"B2A0"){return Err("Both A2B0 and B2A0 are required".into())}
   if let Some(t)=self.tags.get(b"clrt"){
