@@ -397,12 +397,30 @@ fn black_dynamic_node(base:&[f64],caps:&[f64],tac:f64,k:usize,s:BlackGeneration,
  }
  Ok(best)
 }
+// Raw LUT16 PCS uses 0xff00 for nominal ICC v2 Lab endpoints.
+const LEGACY_LAB:f64=65280./65535.;
+fn correction_input(raw:[f64;3],legacy:bool,regions:&[Selective])->[f32;3]{
+ let factor=if legacy{LEGACY_LAB}else{1.};
+ if regions.is_empty()||raw.iter().any(|&x|x>factor){return raw.map(|v|v as f32)}
+ let lab=[raw[0]/factor*100.,raw[1]/factor*255.-128.,raw[2]/factor*255.-128.];
+ let c=corrected_regions(lab,regions);
+ [c[0]/100.,(c[1]+128.)/255.,(c[2]+128.)/255.].map(|v|(v.clamp(0.,1.)*factor) as f32)
+}
+pub(crate) fn correction_kind(p:&Profile)->R<&'static [u8;4]>{
+ crate::multichannel::channel_count(p)?;
+ let kind=if p.version_major()==2{b"mft2"}else{b"mBA "};
+ if p.version_major()==2&&!p.tags.get(b"A2B1").is_some_and(|v|v.starts_with(b"mft2")){return Err("ICC v2 correction requires LUT16 (mft2) A2B1".into())}
+ for k in [b"B2A0",b"B2A1",b"B2A2"]{if !p.tags.get(k).is_some_and(|v|v.starts_with(kind)){return Err("Correction requires all three reverse LUTs: v2 mft2 or v4 mBA".into())}}
+ Ok(kind)
+}
 impl Profile{
- /// CMYK/nCLR v4 Lab correction, with independent reverse intents and certified ink limits.
+ /// CMYK/nCLR v2 LUT16 or v4 Lab correction, with independent reverse intents and certified ink limits.
  /// Black generation requires an explicit physical channel index. A2B stays byte-identical.
  pub fn bounded_correction_multi(&self,op:DynamicCorrection,grid:usize,tac_percent:f64)->R<Self>{
   let n=crate::multichannel::channel_count(self)?;
-  if self.pcs()!="Lab "||self.version_major()!=4||!(if self.cmyk(){[17,33,49,65].contains(&grid)}else{[17,33].contains(&grid)})||!tac_percent.is_finite()||!(0.0..=n as f64*100.).contains(&tac_percent){return Err("Requires compatible CMYK/nCLR ICC v4 Lab, supported grid and valid TAC".into())}
+  let kind=correction_kind(self)?;let legacy=self.version_major()==2;
+  if !(if self.cmyk(){[17,33,49,65].contains(&grid)}else{[17,33].contains(&grid)})||!tac_percent.is_finite()||!(0.0..=n as f64*100.).contains(&tac_percent){return Err("Requires supported grid and valid TAC".into())}
+  if legacy&&matches!(&op,DynamicCorrection::Optimize{..}|DynamicCorrection::Black{..}){return Err("Whole-profile optimization and black generation require ICC v4 Lab".into())}
   match &op{
    DynamicCorrection::Points(p)=>{if p.len()!=n{return Err("Point curve count must match channels".into())}for &row in p{validate_points([row;4])?;}},
    DynamicCorrection::Regions{regions,count}=>{if *count>MAX_REGIONS{return Err("Too many correction regions".into())}validate_regions(&regions[..*count])?;},
@@ -419,16 +437,15 @@ impl Profile{
   let mut out=self.clone();
   let mut input=vec![0f32;n];
   for (key,sig) in [(b"B2A0",TagSignature::BToA0Tag),(b"B2A1",TagSignature::BToA1Tag),(b"B2A2",TagSignature::BToA2Tag)]{
-   let raw=self.tags.get(key).ok_or("All three B2A intents are required")?;
-   if !raw.starts_with(b"mBA "){return Err("Correction requires supported v4 mBA LUTs".into())}
+   // Encoding checked by correction_kind.
    // The source reverse envelope was certified by print_space::bounds; native evaluation supports complex PCS stages.
    let Tag::Pipeline(pipe)=native.read_tag(sig)else{return Err("LittleCMS could not decode B2A".into())};
    if pipe.input_channels()!=3||pipe.output_channels() as usize!=n{return Err("Unexpected native pipeline dimensions".into())}
    let mut result=vec![0f32;n];let mut values=Vec::with_capacity(grid.pow(3)*n);let mut node=vec![0.;n];
    for l in 0..grid{for a in 0..grid{for b in 0..grid{
-    let lab=lab_at(l,a,b,grid);
-    let lab=match &op{DynamicCorrection::Regions{regions,count}=>corrected_regions(lab,&regions[..*count]),_=>lab};
-    pipe.eval(&normalized(lab),&mut result);
+    let den=(grid-1) as f64;let raw=[l as f64/den,a as f64/den,b as f64/den];
+    let regions=match &op{DynamicCorrection::Regions{regions,count}=>&regions[..*count],_=>&[]};
+    pipe.eval(&correction_input(raw,legacy,regions),&mut result);
     if result.iter().any(|v|!v.is_finite()||*v< -0.00002||*v>1.00002){return Err("Invalid native source separation".into())}
     if let DynamicCorrection::Black{channel,settings,..}=&op{
      let p=forward.as_ref().ok_or("Missing A2B1")?;
@@ -466,7 +483,7 @@ impl Profile{
     for v in row{*v=(*v*65535.+1e-8).floor()/65535.;}
    }
    let lut=Lut{inputs:3,outputs:n,grid,in_curves:vec![vec![0.,1.];3],out_curves:vec![vec![0.,1.];n],clut:values};
-   out.tags.insert(*key,crate::editing::encode(&lut,b"mBA ")?);
+   out.tags.insert(*key,crate::editing::encode(&lut,kind)?);
   }
   out.clean_stale();crate::multichannel::verify(&out,&caps,tac)?;Ok(out)
  }
@@ -474,6 +491,33 @@ impl Profile{
 #[cfg(test)]
 mod dynamic_tests{
  use super::*;
+ #[test]fn legacy_lab_coordinates_and_extended_range(){
+  let raw=[0.5*LEGACY_LAB,0.6*LEGACY_LAB,0.4*LEGACY_LAB];
+  let mut r=Selective::default();r.center=315.;r.light=10.;r.width=180.;
+  let expected=corrected_regions([50.,25.,-26.],&[r]);
+  let actual=correction_input(raw,true,&[r]);
+  let want=[expected[0]/100.,(expected[1]+128.)/255.,(expected[2]+128.)/255.].map(|v|(v.clamp(0.,1.)*LEGACY_LAB) as f32);
+  for j in 0..3{assert!((actual[j]-want[j]).abs()<1e-6);}
+  assert_eq!(correction_input([1.,0.5,0.5],true,&[r]),[1.,0.5,0.5]);
+  assert_eq!(correction_input(raw,true,&[]),raw.map(|v|v as f32));
+ }
+ #[test]fn legacy_seven_channel_corrections_preserve_encoding_and_intents(){
+  let p=crate::versioning::test_legacy_fixture(7);
+  let before=crate::print_space::bounds(&p).unwrap();
+  let mut points=vec![[0.,0.25,0.5,0.75,1.];7];points[0]=[0.,0.4,0.65,0.8,1.];
+  let mut regions=[Selective::default();MAX_REGIONS];regions[0].light=5.;
+  for op in [DynamicCorrection::Points(points),DynamicCorrection::Smooth{strength:0.2,passes:2},DynamicCorrection::Regions{regions,count:1}]{
+   let q=p.bounded_correction_multi(op,17,60.).unwrap();
+   assert_eq!(q.version_major(),2);assert_eq!(q.space(),"7CLR");
+   for k in [b"A2B0",b"A2B1",b"A2B2"]{assert_eq!(p.tags[k],q.tags[k]);}
+   for k in [b"B2A0",b"B2A1",b"B2A2"]{assert!(q.tags[k].starts_with(b"mft2"));}
+   let v=crate::multichannel::verify(&q,&before.channels,0.6).unwrap();assert_eq!(v.channels[6],0.);
+   let native=lcms2::Profile::new_icc(&q.bytes().unwrap()).unwrap();
+   for intent in [lcms2::Intent::Perceptual,lcms2::Intent::RelativeColorimetric,lcms2::Intent::Saturation,lcms2::Intent::AbsoluteColorimetric]{assert_eq!(crate::print_space::sample_rgb(&native,&[[255,255,255],[0,0,0],[125,60,80]],intent).unwrap()[6],0.);}
+  }
+  assert!(p.bounded_correction_multi(DynamicCorrection::Black{channel:3,settings:BlackGeneration::default(),caps:vec![100.;7]},17,60.).is_err());
+  let mut bad=p.clone();bad.tags.remove(b"B2A2");assert!(correction_kind(&bad).is_err());
+ }
  #[test]fn nclr_points_preserve_forward_caps_and_tac(){
   let p=crate::print_space::fixture(6);
   let mut points=vec![[0.,0.25,0.5,0.75,1.];6];points[0]=[0.,0.6,0.8,0.9,1.];
