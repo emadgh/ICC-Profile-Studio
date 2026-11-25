@@ -233,3 +233,6 @@ Lean, vendor-independent GPUI application for CMYK and multichannel output ICCs 
 
 ## beta.37 — experimental inverse and continuity gates (CI pending)
 - Beta.36 merged after CI #102. Add constrained single-recipe inverse solver, integer limits, model coverage and sensitivity diagnostics, five-point inverse lightness ramp audit. Add comparison-only tapered local kernel and grouped forward audit. Native FOGRA55 reference diagnostics expose both anchor jumps and inverse recipe jumps despite low color error. Tapered candidate improves pooled mean but worsens sparse-region P95. Retain original hard ridge in inverse; no ICC generation. Next: continuity-regularized inverse, forward model selection/coverage and verified experimental LUT generation only after gates. See NCOLOR_MODEL_QA.md.
+
+## beta.38 — continuity-regularized inverse ramp (CI pending)
+- Beta.37 merged after CI #103. Joint five-point refinement with bounded search, pointwise error guards and existing hard ink limits. Real FOGRA55 Python mirror reduces maximum adjacent ink jump 11.5 → 1.3274 pp for L48–52, but L18–22 remains 18.7902 pp at lambda .02 (15.8632 pp at .10). No guarantee of global continuity, no ICC generation. Next: coupled continuation beyond five points and independent model/coverage gates before bounded 3D lattice and ICC serialization.
