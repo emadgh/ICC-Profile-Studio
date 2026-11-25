@@ -181,6 +181,7 @@ pub enum Edit{Tone([f64;4]),Reorder([usize;4]),ToneMulti(Vec<f64>),ReorderMulti(
 pub fn edit_file(source:&Path,destination:&Path,edit:Edit)->R<String>{
  let p=Profile::read(source)?;
  let reorder=match &edit{Edit::Reorder(o)=>Some(o.to_vec()),Edit::ReorderMulti(o)=>Some(o.clone()),_=>None};
+ let optimized_weights=match &edit{Edit::CorrectionMulti(crate::correction::DynamicCorrection::Optimize{weights,..},_,_)=>Some(weights.clone()),Edit::Correction(crate::correction::Operation::Optimize{weights,..},_,_)=>Some(weights.to_vec()),_=>None};
  let multi_edit=matches!(&edit,Edit::ToneMulti(_)|Edit::ReorderMulti(_)|Edit::CorrectionMulti(..));
  let (mut out,name)=match edit{
   Edit::Tone(g)=>(p.tone_gamma(g)?,None),
@@ -189,7 +190,7 @@ pub fn edit_file(source:&Path,destination:&Path,edit:Edit)->R<String>{
   Edit::CorrectionMulti(op,grid,tac)=>(p.bounded_correction_multi(op,grid,tac)?,None),
   Edit::Correction(op,grid,tac)=>(p.bounded_correction(op,grid,tac)?,None),
   Edit::Reorder(o)=>(p.reorder_channels(o)?,None),
-  Edit::Rename(n)=>{if n.trim().is_empty()||n.len()>240{return Err("Profile name must contain 1–240 UTF-8 bytes".into())}(p,Some(n))}
+  Edit::Rename(n)=>{if n.trim().is_empty()||n.len()>240{return Err("Profile name must contain 1–240 UTF-8 bytes".into())}(p.clone(),Some(n))}
  };
  let description=name.unwrap_or_else(||destination.file_stem().unwrap_or_default().to_string_lossy().into_owned());
  out.describe(&description);
@@ -208,9 +209,22 @@ pub fn edit_file(source:&Path,destination:&Path,edit:Edit)->R<String>{
   }
  }
  let report=if let Some(order)=reorder{Some(verify_reorder(&p,&out,&order)?)}else{None};
+ let optimization_report=if let Some(weights)=optimized_weights{
+  use lcms2::CIELabExt;
+  let original=lcms2::Profile::new_icc(&p.bytes()?).map_err(|e|e.to_string())?;
+  let mut samples=Vec::with_capacity(729);for r in 0..9{for g in 0..9{for b in 0..9{samples.push([r,g,b].map(|v|(v*255/8) as u8));}}}
+  let (a,la)=crate::comparison::simulate(&original,&samples,lcms2::Intent::RelativeColorimetric)?;
+  let (b,lb)=crate::comparison::simulate(&parsed,&samples,lcms2::Intent::RelativeColorimetric)?;
+  let mut before=0.;let mut after=0.;let mut tac_before=0.;let mut tac_after=0.;let mut de=0f64;
+  for (x,y) in a.iter().zip(&b){before+=x.iter().zip(&weights).map(|(x,w)|x*w).sum::<f64>();after+=y.iter().zip(&weights).map(|(x,w)|x*w).sum::<f64>();tac_before+=x.iter().sum::<f64>();tac_after+=y.iter().sum::<f64>();}
+  for (x,y) in la.iter().zip(&lb){let d=x.cie2000_delta_e(y,1.,1.,1.);if !d.is_finite(){return Err("Invalid optimized sample Delta E".into())}de=de.max(d);}
+  let n=samples.len() as f64;
+  Some(format!(" | 729 relative sRGB samples | Mean cost index {:.2} → {:.2} | Mean TAC {:.2}% → {:.2}% | Max sampled ΔE00 {:.3}",before/n,after/n,tac_before/n,tac_after/n,de))
+ }else{None};
  out.save_new(destination)?;
  let mut message=format!("Saved edited ICC: {}",destination.display());
  if let Some(r)=report{let max=|f:fn(&ReorderCheck)->f64|r.checks.iter().map(f).fold(0.,f64::max);message.push_str(&format!(" | 4 intents, {} device / {} PCS samples per intent | Max ΔE00 {:.4} | ink Δ {:.4} pp | TAC Δ {:.4} pp",r.forward_samples,r.reverse_samples,max(|x|x.max_de),max(|x|x.max_ink_pp),max(|x|x.max_tac_pp)));}
+ if let Some(r)=optimization_report{message.push_str(&r);}
  Ok(message)
 }
 #[cfg(test)]
