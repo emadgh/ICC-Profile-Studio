@@ -77,3 +77,6 @@ Compare independent and refined ramps in Profiling Lab. Check lambda=0 identical
 
 ### beta.39 acceptance (pending)
 Run 3D lattice audit in Profiling Lab. Check 27 nodes, 18 edges per axis for complete cube, eight complete cell centers, missing nodes not zero-filled, invalid spans/PCS/budget rejection, lambda=0 identity, caps/TAC and pointwise tolerance, stale results and L* slice navigation, five languages. Opt-in real FOGRA55 test; no claims of whole-cell or global gamut coverage, no ICC output.
+
+### beta.40 acceptance (pending)
+Verify per-ink grid controls, preset, product overflow and node/work budget, chart resets and stale reports, full-domain warning, no unsupported-corner fill, shared holdout coverage and model comparison, five languages. Synthetic ordinary tests; optional FOGRA55 reference assertions. Raw table size excludes ICC overhead. No ICC export or claim of CMM equivalence.
