@@ -321,7 +321,7 @@ fn smooth_dynamic(values:&mut Vec<f64>,g:usize,n:usize,strength:f64,passes:usize
 // appearance remains within tolerance of the original, unmodified node.
 fn optimize_dynamic_node(base:&[f64],caps:&[f64],tac:f64,weights:&[f64],tol:f64,mut predict:impl FnMut(&[f64])->R<CIELab>)->R<Vec<f64>>{
  let n=base.len();let target=predict(base)?;
- let mut best:Vec<f64>=base.iter().map(|&v|(v.clamp(0.,1.)*65535.).floor()/65535.).collect();
+ let mut best:Vec<f64>=base.iter().map(|&v|(v.clamp(0.,1.)*65535.+1e-8).floor()/65535.).collect();
  if best.iter().zip(caps).any(|(&x,&c)|x>c+1e-10)||best.iter().sum::<f64>()>tac+1e-10{return Err("Source separation exceeds requested limits; rebuild before ink optimization".into())}
  let de=predict(&best)?.cie2000_delta_e(&target,1.,1.,1.);
  if !de.is_finite()||de>tol{return Err("Baseline quantization exceeds color tolerance".into())}
@@ -357,8 +357,8 @@ impl Profile{
  /// nCLR v4 Lab correction, with independent reverse intents and certified limits.
  /// No assumed black channel. Source forward LUTs stay byte-identical.
  pub fn bounded_correction_multi(&self,op:DynamicCorrection,grid:usize,tac_percent:f64)->R<Self>{
-  let n=crate::multichannel::channel_count(self)?;
-  if self.version_major()!=4||![17,33].contains(&grid)||!tac_percent.is_finite()||!(0.0..=n as f64*100.).contains(&tac_percent){return Err("Requires nCLR ICC v4 Lab, grid 17/33 and valid TAC".into())}
+  let n=if self.cmyk(){crate::editing::editable_channel_count(self)?}else{crate::multichannel::channel_count(self)?};
+  if self.pcs()!="Lab "||self.version_major()!=4||![17,33].contains(&grid)||!tac_percent.is_finite()||!(0.0..=n as f64*100.).contains(&tac_percent){return Err("Requires nCLR ICC v4 Lab, grid 17/33 and valid TAC".into())}
   match &op{
    DynamicCorrection::Points(p)=>{if p.len()!=n{return Err("Point curve count must match channels".into())}for &row in p{validate_points([row;4])?;}},
    DynamicCorrection::Regions{regions,count}=>{if *count>MAX_REGIONS{return Err("Too many correction regions".into())}validate_regions(&regions[..*count])?;},
@@ -408,7 +408,7 @@ impl Profile{
    for row in values.chunks_exact_mut(n){
     for (j,v) in row.iter_mut().enumerate(){*v=v.clamp(0.,caps[j]);}
     let sum=row.iter().sum::<f64>();if sum>tac&&sum>0.{for v in row.iter_mut(){*v*=tac/sum;}}
-    for v in row{*v=(*v*65535.).floor()/65535.;}
+    for v in row{*v=(*v*65535.+1e-8).floor()/65535.;}
    }
    let lut=Lut{inputs:3,outputs:n,grid,in_curves:vec![vec![0.,1.];3],out_curves:vec![vec![0.,1.];n],clut:values};
    out.tags.insert(*key,crate::editing::encode(&lut,b"mBA ")?);
