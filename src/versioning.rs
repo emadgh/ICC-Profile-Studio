@@ -213,6 +213,7 @@ pub fn convert_file(source:&Path,destination:&Path,target:u8,allow_omit:bool,max
  let report=check(&p,&out,target,omitted,max_de,max_ink,relative_absolute_only)?;
  out.save_new(destination)?;Ok(report)
 }
+#[cfg(test)]pub(crate) fn test_legacy_fixture(n:usize)->Profile{build(&crate::print_space::fixture(n),2,false).unwrap().0}
 #[cfg(test)]mod tests{
  use super::*;
  #[test]fn real_lut_type_conversion_and_zero_k(){
