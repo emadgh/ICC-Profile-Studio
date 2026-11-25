@@ -1,7 +1,7 @@
 //! Lossless structural access to ICC v4 mAB/mBA with unequal CLUT axes,
 //! sampled/gamma/parametric curves and PCS-side M/matrix stages. No curve
 //! approximation is performed by the channel permutation path.
-use crate::{Profile,R,u16at,u32at};
+use crate::{Profile,R,u16at,u32at,put16,put32,icc_curve::Curve};
 use std::ops::Range;
 const LIMIT:usize=16_000_000;
 #[derive(Clone,Debug)]
@@ -9,8 +9,10 @@ struct Curves{ranges:Vec<Range<usize>>,parametric:usize,gamma:usize}
 #[derive(Clone,Debug)]
 struct Layout{forward:bool,inputs:usize,outputs:usize,axes:Vec<usize>,precision:usize,clut:Range<usize>,a:Option<Curves>,b:Option<Curves>,m:Option<Curves>,matrix:Option<Range<usize>>}
 #[derive(Clone,Debug)]
+pub struct CurveSummary{pub channel:usize,pub kind:String,pub minimum:f64,pub maximum:f64,pub monotonic:bool}
+#[derive(Clone,Debug)]
 pub struct Structure{
- pub tag:String,pub kind:String,pub inputs:usize,pub outputs:usize,pub axes:Vec<usize>,pub precision_bits:usize,pub sampled_curves:usize,pub gamma_curves:usize,pub parametric_curves:usize,pub matrix:bool,pub m_curves:bool,pub structural_reorder:bool,pub strict_sampled_bounds:bool
+ pub tag:String,pub kind:String,pub inputs:usize,pub outputs:usize,pub axes:Vec<usize>,pub precision_bits:usize,pub sampled_curves:usize,pub gamma_curves:usize,pub parametric_curves:usize,pub matrix:bool,pub m_curves:bool,pub structural_reorder:bool,pub strict_sampled_bounds:bool,pub device_curves:Vec<(usize,R<CurveSummary>)>
 }
 fn region(t:&[u8],start:usize,len:usize)->R<Range<usize>>{
  let end=start.checked_add(len).ok_or("LUT region overflow")?;
@@ -67,15 +69,24 @@ fn describe(key:&[u8;4],t:&[u8])->R<Structure>{
  if l.forward!=(key[0]==b'A'){return Err("Transform tag direction and LUT type disagree".into())}
  let mut sampled=0;let mut gamma=0;let mut parametric=0;
  for c in [&l.a,&l.b,&l.m].into_iter().flatten(){gamma+=c.gamma;parametric+=c.parametric;sampled+=c.ranges.len()-c.gamma-c.parametric;}
- let strict_sampled_bounds=!l.forward&&l.device_curves().is_none_or(|c|c.gamma==0&&c.parametric==0);
- Ok(Structure{tag:String::from_utf8_lossy(key).into_owned(),kind:String::from_utf8_lossy(&t[..4]).into_owned(),inputs:l.inputs,outputs:l.outputs,axes:l.axes,precision_bits:l.precision*8,sampled_curves:sampled,gamma_curves:gamma,parametric_curves:parametric,matrix:l.matrix.is_some(),m_curves:l.m.is_some(),structural_reorder:true,strict_sampled_bounds})
+ let device_curves=l.device_curves().map(|c|c.ranges.iter().enumerate().map(|(j,r)|{
+  let record=&t[r.clone()];
+  let result=Curve::read(record).and_then(|curve|{
+   let bounds=curve.range(0.,1.)?;
+   let kind=if record.starts_with(b"para"){format!("para {}",u16at(record,8)?)}else if u32at(record,8)?==1{"gamma".into()}else{"curv".into()};
+   Ok(CurveSummary{channel:j,kind,minimum:bounds.min,maximum:bounds.max,monotonic:bounds.monotonic})
+  });
+  (j,result)
+ }).collect::<Vec<_>>()).unwrap_or_default();
+ let strict_sampled_bounds=!l.forward&&device_curves.iter().all(|(_,r)|r.is_ok());
+ Ok(Structure{tag:String::from_utf8_lossy(key).into_owned(),kind:String::from_utf8_lossy(&t[..4]).into_owned(),inputs:l.inputs,outputs:l.outputs,axes:l.axes,precision_bits:l.precision*8,sampled_curves:sampled,gamma_curves:gamma,parametric_curves:parametric,matrix:l.matrix.is_some(),m_curves:l.m.is_some(),structural_reorder:true,strict_sampled_bounds,device_curves})
 }
 pub fn inspect(p:&Profile)->Vec<(String,R<Structure>)>{
  [b"A2B0",b"A2B1",b"A2B2",b"B2A0",b"B2A1",b"B2A2"].into_iter().filter_map(|k|p.tags.get(k).map(|t|{
   let key=String::from_utf8_lossy(k).into_owned();
   let r=if t.starts_with(b"mAB ")||t.starts_with(b"mBA "){describe(k,t)}
   else if t.starts_with(b"mft1")||t.starts_with(b"mft2"){
-   crate::Lut::parse(t).map(|l|Structure{tag:key.clone(),kind:String::from_utf8_lossy(&t[..4]).into_owned(),inputs:l.inputs,outputs:l.outputs,axes:vec![l.grid;l.inputs],precision_bits:if t.starts_with(b"mft1"){8}else{16},sampled_curves:l.inputs+l.outputs,gamma_curves:0,parametric_curves:0,matrix:false,m_curves:false,structural_reorder:true,strict_sampled_bounds:k[0]==b'B'})
+   crate::Lut::parse(t).map(|l|Structure{tag:key.clone(),kind:String::from_utf8_lossy(&t[..4]).into_owned(),inputs:l.inputs,outputs:l.outputs,axes:vec![l.grid;l.inputs],precision_bits:if t.starts_with(b"mft1"){8}else{16},sampled_curves:l.inputs+l.outputs,gamma_curves:0,parametric_curves:0,matrix:false,m_curves:false,structural_reorder:true,strict_sampled_bounds:k[0]==b'B',device_curves:vec![]})
   }else{Err("Unsupported transform encoding".into())};
   (key,r)
  })).collect()
@@ -110,24 +121,43 @@ pub(crate) fn reorder(t:&[u8],forward:bool,order:&[usize])->R<Vec<u8>>{
  }
  Ok(out)
 }
-/// A reverse CLUT and its sampled device-side post curves. PCS-side curves,
-/// matrix, and M stages precede the CLUT in mBA; they cannot expand the
-/// envelope of its output nodes. Parametric/gamma output bounds are deferred.
-pub(crate) fn reverse_envelope(t:&[u8],n:usize)->R<(Vec<f64>,Vec<Vec<f64>>)>{
+/// Reverse CLUT and exact device-side curve representations. PCS stages
+/// precede the CLUT and cannot expand its normalized output envelope.
+pub(crate) fn reverse_envelope(t:&[u8],n:usize)->R<(Vec<f64>,Vec<Curve>)>{
  let l=Layout::parse(t)?;
  if l.forward||l.inputs!=3||l.outputs!=n{return Err("Unexpected reverse LUT dimensions".into())}
- let post=if let Some(c)=l.device_curves(){
-  if c.gamma!=0||c.parametric!=0{return Err("Analytic post-curve bounds not yet supported".into())}
-  let mut post=Vec::with_capacity(n);
-  for r in &c.ranges{
-   let count=u32at(t,r.start+8)? as usize;
-   if count==0{post.push(vec![0.,1.]);}
-   else{post.push(t[r.start+12..r.start+12+2*count].chunks_exact(2).map(|x|u16::from_be_bytes([x[0],x[1]]) as f64/65535.).collect());}
-  }
-  post
- }else{vec![vec![0.,1.];n]};
+ let c=l.device_curves().ok_or("Missing device output curves")?;
+ let post=c.ranges.iter().map(|r|Curve::read(&t[r.clone()])).collect::<R<Vec<_>>>()?;
  let values=if l.precision==1{t[l.clut].iter().map(|&x|x as f64/255.).collect()}else{t[l.clut].chunks_exact(2).map(|x|u16::from_be_bytes([x[0],x[1]]) as f64/65535.).collect()};
  Ok((values,post))
+}
+/// Compose gamma only on the device-side post-CLUT curves. Leave PCS
+/// stages and CLUT bytes intact. Unchanged channels retain original records.
+pub(crate) fn gamma_edit(t:&[u8],gamma:&[f64])->R<Vec<u8>>{
+ let l=Layout::parse(t)?;
+ if l.forward||l.inputs!=3||l.outputs!=gamma.len(){return Err("Unexpected gamma LUT dimensions".into())}
+ let c=l.device_curves().ok_or("Missing device output curves")?;
+ let start=c.ranges.first().ok_or("Missing device curve")?.start;
+ let end=c.ranges.last().ok_or("Missing device curve")?.end;
+ let mut records=Vec::new();
+ for (r,&g) in c.ranges.iter().zip(gamma){
+  let raw=&t[r.clone()];
+  if g==1.{records.extend_from_slice(raw);continue}
+  let curve=Curve::read(raw)?;
+  let (table,_)=curve.gamma_table(g,16385,0.005)?;
+  records.extend(b"curv\0\0\0\0");put32(&mut records,table.len() as u32);
+  for v in table{put16(&mut records,v);}
+  while records.len()%4!=0{records.push(0);}
+ }
+ let delta=records.len() as i64-(end-start) as i64;
+ let mut out=Vec::with_capacity((t.len() as i64+delta) as usize);
+ out.extend_from_slice(&t[..start]);out.extend_from_slice(&records);out.extend_from_slice(&t[end..]);
+ for off in [12,16,20,24,28]{
+  let old=u32at(t,off)? as usize;
+  if old>=end{let new=u32::try_from(old as i64+delta).map_err(|_|"Curve offset overflow")?;out[off..off+4].copy_from_slice(&new.to_be_bytes());}
+ }
+ Layout::parse(&out)?;
+ Ok(out)
 }
 #[cfg(test)]
 mod tests{
