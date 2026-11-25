@@ -2,13 +2,13 @@
 //! ICC-predicted Lab must remain distinct. CxF3 target/measurement adapter.
 use crate::{Profile,R};
 use std::{collections::BTreeMap,io::Read,path::Path};
-use lcms2::{Profile as Native,Transform,Intent,Flags,PixelFormat,CIEXYZ,CIEXYZExt};
+use lcms2::{Profile as Native,Transform,Intent,Flags,PixelFormat,CIEXYZ,CIEXYZExt,CIELab,CIELabExt};
 const MAX_XML:u64=32*1024*1024;
 #[derive(Clone,Debug)]
 pub struct Patch{
  pub id:String,pub page:usize,pub row:usize,pub column:usize,pub inks:Vec<f64>,
  pub spectrum:Option<Vec<f64>>,pub start_nm:Option<u32>,pub step_nm:Option<u32>,pub measurement:String,
- pub predicted_lab:[f64;3],pub measured_lab:Option<[f64;3]>
+ pub predicted_lab:[f64;3],pub measured_lab:Option<[f64;3]>,pub absolute_lab:Option<[f64;3]>,pub comparison_lab:Option<[f64;3]>,pub delta_e:Option<f64>,pub measurement_basis:String
 }
 #[derive(Clone,Debug)]
 pub struct Chart{pub source:String,pub original_layout:bool,pub patches:Vec<Patch>}
@@ -47,7 +47,7 @@ fn cxf(t:&[u8],n:usize)->R<Chart>{
    let inks=values(dev,&["Cyan","Magenta","Yellow","Black"])?;
    if inks.iter().any(|&v|!(0.0..=100.).contains(&v)){return Err("CxF device percentage outside range".into())}
    let key=(page,row,col,id.clone());
-   if target.insert(key,Patch{id,page,row,column:col,inks,spectrum:None,start_nm:None,step_nm:None,measurement:String::new(),predicted_lab:[0.;3],measured_lab:None}).is_some(){return Err("Duplicate CxF target location".into())}
+   if target.insert(key,Patch{id,page,row,column:col,inks,spectrum:None,start_nm:None,step_nm:None,measurement:String::new(),predicted_lab:[0.;3],measured_lab:None,absolute_lab:None,comparison_lab:None,delta_e:None,measurement_basis:String::new()}).is_some(){return Err("Duplicate CxF target location".into())}
   }else if kind=="M0_Measurement"||kind=="Measurement"{
    let key=location(obj)?;
    let Some(s)=obj.descendants().find(|x|name(*x,"ReflectanceSpectrum"))else{continue};
@@ -80,30 +80,95 @@ fn predict(p:&Profile,chart:&mut Chart)->R<()>{
  let white=CIEXYZ{X:0.9642,Y:1.,Z:0.8249};
  for (p,x) in chart.patches.iter_mut().zip(out){let l=CIEXYZ{X:x[0],Y:x[1],Z:x[2]}.to_lab(&white);
   if [l.L,l.a,l.b].iter().any(|v|!v.is_finite()){return Err("Invalid predicted Lab".into())}p.predicted_lab=[l.L,l.a,l.b];
- }Ok(())
+ }
+ // Absolute prediction uses the same D50 perfect-diffuser reference as
+ // spectral/absolute measurements. Keep relative preview unchanged.
+ if let Ok(t)=Transform::<u8,[f64;3]>::new_multiprofile(&[&native,&xyz],f.pixel,PixelFormat::XYZ_DBL,Intent::AbsoluteColorimetric,Flags::NO_OPTIMIZE){
+  let mut absolute=vec![[0.;3];chart.patches.len()];t.transform_pixels(&data,&mut absolute);
+  for (patch,v) in chart.patches.iter_mut().zip(absolute){
+   let l=CIEXYZ{X:v[0],Y:v[1],Z:v[2]}.to_lab(&white);
+   if [l.L,l.a,l.b].iter().all(|v|v.is_finite()){patch.absolute_lab=Some([l.L,l.a,l.b]);}
+  }
+ }
+ Ok(())
+}
+fn prepare_measurements(c:&mut Chart){
+ for p in &mut c.patches{
+  if p.measurement_basis=="Declared D50/2°"{
+   p.comparison_lab=p.measured_lab;
+  }
+  if p.comparison_lab.is_none(){
+   if let (Some(s),Some(start),Some(step))=(&p.spectrum,p.start_nm,p.step_nm){
+    if let Ok(l)=crate::spectral_colorimetry::lab(s,start,step){
+     p.comparison_lab=Some(l);p.measurement_basis="Spectral estimate: legacy D50/2° (T.42), original measurement mode retained".into();
+    }
+   }
+  }
+ }
+}
+#[derive(Clone,Debug)]
+pub struct Fit{pub count:usize,pub mean:f64,pub p95:f64,pub max:f64}
+/// Only call after operator explicitly confirms comparable measurement
+/// conditions and absolute reference. This is characterization fit,
+// not independent validation and not proof of M0/M1 equivalence.
+pub fn compare_absolute(c:&mut Chart)->R<Fit>{
+ let mut ds=Vec::new();
+ for p in &mut c.patches{
+  p.delta_e=None;
+  if let (Some(m),Some(a))=(p.comparison_lab,p.absolute_lab){
+   let to=|v:[f64;3]|CIELab{L:v[0],a:v[1],b:v[2]};
+   let d=to(m).cie2000_delta_e(&to(a),1.,1.,1.);
+   if !d.is_finite()||d<0.{return Err("Invalid characterization Delta E".into())}
+   p.delta_e=Some(d);ds.push(d);
+  }
+ }
+ if ds.is_empty(){return Err("No comparable absolute D50/2° pairs; measured Lab conditions or spectral grid may be unsupported".into())}
+ ds.sort_by(f64::total_cmp);let count=ds.len();let p95=ds[((count as f64*0.95).ceil() as usize).saturating_sub(1)];
+ Ok(Fit{count,mean:ds.iter().sum::<f64>()/count as f64,p95,max:ds[count-1]})
 }
 pub fn extract(p:&Profile)->R<Chart>{
  let n=crate::print_space::format(&p.header[16..20])?.channels;
- let t=p.tags.get(b"CxF ").ok_or("No supported embedded CxF target; use predicted chart or import measured data")?;
- let mut c=cxf(t,n)?;predict(p,&mut c)?;Ok(c)
+ let mut errors=Vec::new();
+ if let Some(t)=p.tags.get(b"CxF "){
+  match cxf(t,n){Ok(mut c)=>{predict(p,&mut c)?;prepare_measurements(&mut c);return Ok(c)},Err(e)=>errors.push(format!("CxF: {e}"))}
+ }
+ if let Some(t)=p.tags.get(b"targ"){
+  let result=(||->R<Chart>{
+   if !t.starts_with(b"text")||t.len()<8{return Err("Unsupported targ tag encoding".into())}
+   let s=std::str::from_utf8(&t[8..]).map_err(|e|e.to_string())?.trim_end_matches('\0');
+   let mut c=crate::characterization_cgats::read(s,n,p.cmyk())?;
+   c.source="Embedded targ / CGATS".into();Ok(c)
+  })();
+  match result{Ok(mut c)=>{predict(p,&mut c)?;prepare_measurements(&mut c);return Ok(c)},Err(e)=>errors.push(format!("targ: {e}"))}
+ }
+ Err(if errors.is_empty(){"No supported embedded target; generate a virtual chart or import CGATS".into()}else{errors.join("; ")})
+}
+pub fn import_cgats(p:&Profile,path:&Path)->R<Chart>{
+ let n=crate::print_space::format(&p.header[16..20])?.channels;
+ if std::fs::metadata(path).map_err(|e|e.to_string())?.len()>MAX_XML{return Err("CGATS exceeds 32 MiB".into())}
+ let s=std::fs::read_to_string(path).map_err(|e|e.to_string())?;
+ let mut c=crate::characterization_cgats::read(&s,n,p.cmyk())?;
+ predict(p,&mut c)?;prepare_measurements(&mut c);Ok(c)
 }
 pub fn virtual_chart(p:&Profile)->R<Chart>{
  let n=crate::print_space::format(&p.header[16..20])?.channels;
  let mut rows=vec![vec![0.;n]];
  for j in 0..n{for i in 1..=10{let mut v=vec![0.;n];v[j]=i as f64*10.;rows.push(v);}}
  for j in 0..n{for k in j+1..n{for a in [25.,50.,75.,100.]{for b in [25.,50.,75.,100.]{let mut v=vec![0.;n];v[j]=a;v[k]=b;rows.push(v);}}}}
- let mut c=Chart{source:"ICC-predicted virtual target (not measured)".into(),original_layout:false,patches:rows.into_iter().enumerate().map(|(i,inks)|Patch{id:(i+1).to_string(),page:1+i/400,row:(i%400)/20,column:i%20,inks,spectrum:None,start_nm:None,step_nm:None,measurement:String::new(),predicted_lab:[0.;3],measured_lab:None}).collect()};
+ let mut c=Chart{source:"ICC-predicted virtual target (not measured)".into(),original_layout:false,patches:rows.into_iter().enumerate().map(|(i,inks)|Patch{id:(i+1).to_string(),page:1+i/400,row:(i%400)/20,column:i%20,inks,spectrum:None,start_nm:None,step_nm:None,measurement:String::new(),predicted_lab:[0.;3],measured_lab:None,absolute_lab:None,comparison_lab:None,delta_e:None,measurement_basis:String::new()}).collect()};
  predict(p,&mut c)?;Ok(c)
 }
 pub fn export_csv(c:&Chart,path:&Path)->R<()>{
  let file=std::fs::OpenOptions::new().write(true).create_new(true).open(path).map_err(|e|e.to_string())?;
  let mut w=csv::Writer::from_writer(file);
  let n=c.patches.first().map(|p|p.inks.len()).unwrap_or(0);
- let mut header=["Source","SampleID","Page","Row","Column","Measurement","Start_nm","Step_nm","Reflectance","Predicted_L","Predicted_a","Predicted_b"].map(str::to_owned).to_vec();
+ let mut header=["Source","SampleID","Page","Row","Column","Measurement","Start_nm","Step_nm","Reflectance","Predicted_L","Predicted_a","Predicted_b","Absolute_L","Absolute_a","Absolute_b","Stored_Measured_L","Stored_Measured_a","Stored_Measured_b","Comparison_L","Comparison_a","Comparison_b","Measurement_Basis","DeltaE00"].map(str::to_owned).to_vec();
  header.extend((0..n).map(|j|format!("CH{}",j+1)));w.write_record(header).map_err(|e|e.to_string())?;
  for p in &c.patches{
   let mut r=vec![c.source.clone(),p.id.clone(),p.page.to_string(),p.row.to_string(),p.column.to_string(),p.measurement.clone(),p.start_nm.map(|x|x.to_string()).unwrap_or_default(),p.step_nm.map(|x|x.to_string()).unwrap_or_default(),p.spectrum.as_ref().map(|v|v.iter().map(|x|x.to_string()).collect::<Vec<_>>().join(" ")).unwrap_or_default()];
-  r.extend(p.predicted_lab.iter().map(|x|x.to_string()));r.extend(p.inks.iter().map(|x|x.to_string()));w.write_record(r).map_err(|e|e.to_string())?;
+  r.extend(p.predicted_lab.iter().map(|x|x.to_string()));
+  for l in [p.absolute_lab,p.measured_lab,p.comparison_lab]{r.extend(l.map(|v|v.map(|x|x.to_string())).unwrap_or_else(||[String::new(),String::new(),String::new()]));}
+  r.push(p.measurement_basis.clone());r.push(p.delta_e.map(|x|x.to_string()).unwrap_or_default());r.extend(p.inks.iter().map(|x|x.to_string()));w.write_record(r).map_err(|e|e.to_string())?;
  }w.flush().map_err(|e|e.to_string())
 }
 #[cfg(test)]
