@@ -76,12 +76,20 @@ impl Profile{
   let mut out=self.clone();let mut count=0;
   for key in [b"B2A0",b"B2A1",b"B2A2"]{
    let Some(t)=self.tags.get(key)else{continue};
+   if t.starts_with(b"mBA "){
+    out.tags.insert(*key,crate::advanced_lut::gamma_edit(t,gamma)?);count+=1;continue
+   }
    let (mut lut,kind)=checked_lut(t,false,n)?;
    // 4096 samples per output curve; original curves are sampled first.
    for j in 0..n{let old=&lut.out_curves[j];lut.out_curves[j]=(0..4096).map(|i|interp(old,i as f64/4095.).powf(gamma[j])).collect();}
    out.tags.insert(*key,encode(&lut,&kind)?);count+=1;
   }
   if count==0||!out.tags.contains_key(b"B2A0"){return Err("Missing B2A0 output transform".into())}
+  // Never reopen an ink certified closed in the original profile.
+  if self.version_major()==4{
+   let old=crate::print_space::bounds(self)?;let new=crate::print_space::bounds(&out)?;
+   for j in 0..n{if old.channels[j]==0.&&new.channels[j]!=0.{return Err(format!("Gamma edit reopened closed channel {}",j+1))}}
+  }
   out.clean_stale();Ok(out)
  }
  /// order[new_index] = old_index. Both transform directions are permuted.
