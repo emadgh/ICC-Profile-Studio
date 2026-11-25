@@ -490,9 +490,9 @@ pub fn audit_lab_lattice(chart:&Chart,channels:usize,s:LatticeSettings)->R<Latti
  let mut cache:BTreeMap<(usize,Vec<u32>),Option<Candidate>>=BTreeMap::new();
  if s.lambda>0.{
   crate::analysis_job::phase("Refining lattice",108)?;
-  for sweep in 0..4{for visit in 0..27{crate::analysis_job::advance()?;
+  for sweep in 0..4{for visit in 0..27{crate::analysis_job::check()?;
    let i=if sweep%2==0{visit}else{26-visit};
-   let Some(base)=&baseline[i]else{continue};
+   let Some(base)=&baseline[i]else{crate::analysis_job::advance()?;continue};
    let target=lattice_target(&s,lattice_coord(i));
    for step in [5.,2.,1.,0.5].map(units){
     let Some(current)=&points[i]else{continue};let q=current.key.clone();
@@ -511,6 +511,7 @@ pub fn audit_lab_lattice(chart:&Chart,channels:usize,s:LatticeSettings)->R<Latti
     }
     points[i]=Some(best);
    }
+   crate::analysis_job::advance()?;
   }}
  }
  let objective=lattice_obj(&points,s.lambda);if objective>initial_objective+1e-8{return Err("Lattice objective increased".into())}
