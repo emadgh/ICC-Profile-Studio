@@ -99,8 +99,14 @@ fn prepare_measurements(c:&mut Chart){
   }
   if p.comparison_lab.is_none(){
    if let (Some(s),Some(start),Some(step))=(&p.spectrum,p.start_nm,p.step_nm){
-    if let Ok(l)=crate::spectral_colorimetry::lab(s,start,step){
-     p.comparison_lab=Some(l);p.measurement_basis="Spectral estimate: legacy D50/2° (T.42), original measurement mode retained".into();
+    use crate::cie_spectral::{self,Illuminant,Observer};
+    if cie_spectral::available(){
+     if let Ok(r)=cie_spectral::calculate(s,start,step,Illuminant::D50,Observer::Two){
+      p.comparison_lab=Some(r.lab);
+      p.measurement_basis=format!("Spectral estimate: CIE D50/2° 1 nm integration; {}endpoints; original measurement mode retained",if r.endpoint_extended{"extended "}else{"measured "});
+     }
+    }else if let Ok(l)=crate::spectral_colorimetry::lab(s,start,step){
+     p.comparison_lab=Some(l);p.measurement_basis="Spectral estimate: legacy D50/2° (T.42); official tables unavailable".into();
     }
    }
   }
