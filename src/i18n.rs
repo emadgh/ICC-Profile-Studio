@@ -441,6 +441,22 @@ const ROWS:&[[&str;5]]=&[
 ["Bounded curves / correction / smoothing","منحنی محدود / اصلاح / هموارسازی","Curve limitate / correzione / smoothing","منحنيات محدودة / تصحيح / تنعيم","Ограниченные кривые / коррекция / сглаживание"],
 ["Black generation / whole-profile optimization","تولید مشکی / بهینه‌سازی کل پروفایل","Generazione nero / ottimizzazione completa","توليد الأسود / تحسين الملف بالكامل","Генерация чёрного / оптимизация профиля"],
 ["Piecewise-linear correction; independent B2A intents, source caps and explicit TAC. ICC v2 LUT16 or v4 mBA.","اصلاح خطی قطعه‌ای با B2A مستقل، سقف منبع و TAC مشخص. ICC v2 LUT16 یا v4 mBA.","Correzione lineare a tratti; intenti B2A indipendenti, limiti originali e TAC esplicito. ICC v2 LUT16 o v4 mBA.","تصحيح خطي مقطعي؛ نوايا B2A مستقلة وحدود المصدر وTAC صريح. ICC v2 LUT16 أو v4 mBA.","Кусочно-линейная коррекция; независимые B2A, исходные пределы и TAC. ICC v2 LUT16 или v4 mBA."],
+["Experimental N-color forward model","مدل آزمایشی پیشرو چندکاناله","Modello diretto N-color sperimentale","نموذج أمامي تجريبي متعدد الألوان","Экспериментальная прямая N-цветная модель"],
+["Compare measured Lab predictions on held-out ink recipes. No ICC is generated.","پیش‌بینی Lab را برای ترکیب‌های مرکب کنارگذاشته‌شده مقایسه کنید. ICC تولید نمی‌شود.","Confronta le previsioni Lab su ricette escluse dall'addestramento. Nessun ICC generato.","قارن تنبؤات Lab على وصفات حبر مستبعدة من التدريب. لا يتم إنشاء ICC.","Сравните прогнозы Lab на отложенных рецептах. ICC не создаётся."],
+["Evaluate N-color baseline","ارزیابی مدل پایه چندکاناله","Valuta modello base N-color","تقييم النموذج الأساسي متعدد الألوان","Оценить базовую N-цветную модель"],
+["Evaluating N-color baseline…","در حال ارزیابی مدل پایه…","Valutazione modello base…","جارٍ تقييم النموذج الأساسي…","Оценка базовой модели…"],
+["N-color baseline evaluated","ارزیابی مدل پایه انجام شد","Modello base valutato","اكتمل تقييم النموذج الأساسي","Базовая модель оценена"],
+["Unique recipes","ترکیب‌های یکتا","Ricette uniche","وصفات فريدة","Уникальные рецепты"],
+["Training recipes","ترکیب‌های آموزش","Ricette di addestramento","وصفات التدريب","Обучающие рецепты"],
+["Holdout recipes","ترکیب‌های آزمون","Ricette di verifica","وصفات الاختبار","Отложенные рецепты"],
+["Duplicate rows","ردیف‌های تکراری","Righe duplicate","صفوف مكررة","Повторные строки"],
+["Mean ΔE00","میانگین ΔE00","Media ΔE00","متوسط ΔE00","Среднее ΔE00"],
+["P95 ΔE00","صدک ۹۵ ΔE00","95° percentile ΔE00","المئين 95 ΔE00","95-й процентиль ΔE00"],
+["Max ΔE00","بیشینه ΔE00","Massimo ΔE00","أقصى ΔE00","Максимум ΔE00"],
+["Nearest neighbor","نزدیک‌ترین همسایه","Vicino più prossimo","أقرب جار","Ближайший сосед"],
+["Inverse distance (8 neighbors)","وزن‌دهی معکوس فاصله (۸ همسایه)","Distanza inversa (8 vicini)","المسافة العكسية (8 جيران)","Обратное расстояние (8 соседей)"],
+["Nearest recipe distance (P95 / max)","فاصله نزدیک‌ترین ترکیب (صدک ۹۵ / بیشینه)","Distanza ricetta più vicina (P95 / max)","مسافة أقرب وصفة (المئين 95 / أقصى)","Расстояние до ближайшего рецепта (P95 / макс.)"],
+["One grouped holdout fold; not independent print validation. High error or sparse coverage requires more measurements or a better model.","یک بخش آزمون گروه‌بندی‌شده؛ نه اعتبارسنجی مستقل چاپ. خطای بالا یا پوشش کم به اندازه‌گیری بیشتر یا مدل بهتر نیاز دارد.","Una partizione di verifica per gruppi, non una validazione di stampa indipendente. Errori elevati o copertura scarsa richiedono più misure o un modello migliore.","جزء اختبار واحد مجمّع، وليس تحققاً مستقلاً للطباعة. الخطأ المرتفع أو التغطية الضعيفة يتطلب قياسات إضافية أو نموذجاً أفضل.","Одна групповая отложенная выборка, не независимая проверка печати. Высокая ошибка или низкое покрытие требуют дополнительных измерений или лучшей модели."],
 ];
 #[cfg(test)]mod tests{use super::*;#[test]fn five_languages_and_fallback(){for l in Language::ALL{set_active(l);assert!(!tr("Settings").is_empty());assert_eq!(tr("A2B1"),"A2B1");}set_active(Language::Fa);assert_eq!(tr("Settings"),crate::rtl::visual("تنظیمات"));assert!(Language::Ar.rtl());}}
 
