@@ -46,3 +46,8 @@ update is implied by CI success.
 - [ ] Startup check is nonblocking; newer compatible public Studio beta displays a once-per-version prompt and sidebar shortcut. Later dismisses prompt but retains shortcut. Manual check, unavailable network/private release, checksum failure, verified download and explicit restart behavior.
 - [ ] Confirm native title, Alt+Tab/taskbar label, Task Manager Processes display and executable Properties. Windows may retain cached pinned shortcut names; Details tab normally shows the executable filename.
 - [ ] Check all five redesigned pages with CMYK and nCLR, narrow windows, RTL, sliders, drag controls, and candidate exports. Compare same input/settings against prior validated builds.
+
+### beta.32 multichannel acceptance (pending)
+- Test synthetic regression matrix in CI, then run the opt-in real/reference corpus harness for each available count. Record successful and skipped operations separately; do not treat profile inventory as edit validation.
+- Inspect embedded versus predicted channel colors in every workspace and test all language settings. Verify preview is not started when analysis is unsupported.
+- Confirm 10% channel cap and zero channels after reopen, independently verify RIP mapping and four-intent color drift before printing.
