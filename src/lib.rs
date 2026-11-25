@@ -13,6 +13,7 @@ pub mod preferences;
 pub mod reports;
 pub mod optimizer;
 pub mod lab;
+pub mod characterization;
 pub mod device_link;
 mod chart_tiff;
 pub mod correction;
