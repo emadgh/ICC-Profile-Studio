@@ -58,15 +58,15 @@ pub fn lab_rgb(v:[f32;3])->[u8;3]{
  let rgb=[3.1338561*x-1.6168667*y-0.4906146*z,-0.9787684*x+1.9161415*y+0.0334540*z,0.0719453*x-0.2289914*y+1.4052427*z];
  rgb.map(|v|{let v=v.clamp(0.,1.);let s=if v<=0.0031308{12.92*v}else{1.055*v.powf(1./2.4)-0.055};(255.*s).round() as u8})
 }
-fn triangles(c:&Cloud)->Vec<[[f32;3];3]>{c.surface.as_ref().map(|s|s.triangles.clone()).unwrap_or_default()}
+fn triangles(c:&Cloud)->&[[[f32;3];3]]{c.surface.as_ref().map(|s|s.triangles.as_slice()).unwrap_or(&[])}
 fn slice_segment(t:[[f32;3];3],light:f32)->Option<[[f32;3];2]>{
- let mut points=Vec::new();
+ let mut points=[[0.;3];3];let mut n=0;
  for (a,b) in [(t[0],t[1]),(t[1],t[2]),(t[2],t[0])]{
   if (a[0]<=light&&b[0]>light)||(b[0]<=light&&a[0]>light){
-   let f=(light-a[0])/(b[0]-a[0]);points.push([light,a[1]+(b[1]-a[1])*f,a[2]+(b[2]-a[2])*f]);
+   let f=(light-a[0])/(b[0]-a[0]);points[n]=[light,a[1]+(b[1]-a[1])*f,a[2]+(b[2]-a[2])*f];n+=1;
   }
  }
- if points.len()==2{Some([points[0],points[1]])}else{None}
+ if n==2{Some([points[0],points[1]])}else{None}
 }
 struct Layer{depth:Vec<f32>,color:Vec<[u8;3]>}
 impl Layer{
@@ -110,14 +110,14 @@ impl Layer{
 // constant L* rings and vertical hue meridians. No internal triangle edges.
 // At cusps and disconnected regions this is not an all-quad topology.
 fn plane_segment(t:[[f32;3];3],value:impl Fn([f32;3])->f32)->Option<[[f32;3];2]>{
- let mut p=Vec::new();
+ let mut p=[[0.;3];3];let mut n=0;
  for (a,b) in [(t[0],t[1]),(t[1],t[2]),(t[2],t[0])]{
   let (u,v)=(value(a),value(b));
   if (u<=0.&&v>0.)||(v<=0.&&u>0.){
-   let f=u/(u-v);p.push(std::array::from_fn(|j|a[j]+(b[j]-a[j])*f));
+   let f=u/(u-v);p[n]=std::array::from_fn(|j|a[j]+(b[j]-a[j])*f);n+=1;
   }
  }
- if p.len()==2{Some([p[0],p[1]])}else{None}
+ if n==2{Some([p[0],p[1]])}else{None}
 }
 fn quad_grid(mesh:&[[[f32;3];3]])->Vec<[[f32;3];2]>{
  let mut out=Vec::new();
@@ -248,27 +248,27 @@ pub fn render(data:Option<&Overlay>,o:ViewOptions)->Rendered{
   let Some(c)=cloud else{continue};let (solid,wire)=o.style(i);styles[i]=(solid,wire);let tint=if i==0{BEFORE}else{AFTER};
   let color=|lab:[f32;3]|if o.profile_colors{lab_rgb(lab)}else{tint};
   let screen=|v:[f32;3]|{let q=projected(v,o);let xy=at(q);[xy[0],xy[1],if o.three_d{q[2]}else{v[0]}]};
-  let points:Vec<_>=c.points.iter().copied().filter(|v|v.iter().all(|v|v.is_finite())&&in_slice(*v,o)).collect();
-  visible[i]=points.len();let mut layer=Layer::new();
-  let mesh=if solid||wire||o.floor_contour&&o.three_d{triangles(c)}else{Vec::new()};
+  let points=||c.points.iter().copied().filter(|v|v.iter().all(|v|v.is_finite())&&in_slice(*v,o));
+  visible[i]=points().count();let mut layer=Layer::new();
+  let mesh=if solid||wire||o.floor_contour&&o.three_d{triangles(c)}else{&[]};
   // One union projection per visible profile. A disconnected footprint may
   // still have several components, but there are no stacked L* contours.
   if o.three_d&&o.floor_contour&&!mesh.is_empty(){
    let mut floor=Layer::new();
-   for &t in &mesh{
+   for &t in mesh{
     let q=t.map(|v|{let xy=p([0.,v[1],v[2]]);[xy[0],xy[1],v[0]]});
     floor.triangle(q,t.map(color));
    }
    paint_outline(&mut img,&floor,205);
   }
-  let mesh=if solid||wire{mesh}else{Vec::new()};
+  let mesh=if solid||wire{mesh}else{&[]};
   if !mesh.is_empty(){
    if !o.three_d&&o.slice{
-    let segments:Vec<_>=mesh.iter().filter_map(|&t|slice_segment(t,o.light)).collect();
     if solid||wire{
-     let segs:Vec<_>=segments.iter().map(|s|s.map(screen)).collect();
+     let segs:Vec<_>=mesh.iter().filter_map(|&t|slice_segment(t,o.light)).map(|s|s.map(screen)).collect();
+     let mut xs=Vec::new();
      for y in 0..SIZE as i32{
-      let fy=y as f32+0.5;let mut xs=Vec::new();
+      let fy=y as f32+0.5;xs.clear();
       for [a,b] in &segs{if (a[1]<=fy&&b[1]>fy)||(b[1]<=fy&&a[1]>fy){xs.push(a[0]+(b[0]-a[0])*(fy-a[1])/(b[1]-a[1]));}}
       xs.sort_by(f32::total_cmp);
       for pair in xs.chunks_exact(2){for x in (pair[0].ceil() as i32).max(0)..=(pair[1].floor() as i32).min(SIZE as i32-1){
@@ -281,15 +281,15 @@ pub fn render(data:Option<&Overlay>,o:ViewOptions)->Rendered{
    }else if !o.three_d{
     // Project union of surface triangles, retaining nonconvex silhouettes
     // and holes rather than drawing all triangulation edges.
-    for &t in &mesh{layer.triangle(t.map(screen),t.map(color));}
+    for &t in mesh{layer.triangle(t.map(screen),t.map(color));}
     outline_only[i]=wire&&!solid;
    }else{
-    if solid{for &t in &mesh{layer.triangle(t.map(screen),t.map(color));}}
-    if wire{for [a,b] in quad_grid(&mesh){layer.wire(screen(a),screen(b),color(a),color(b),solid);}}
+    if solid{for &t in mesh{layer.triangle(t.map(screen),t.map(color));}}
+    if wire{for [a,b] in quad_grid(mesh){layer.wire(screen(a),screen(b),color(a),color(b),solid);}}
    }
   }else{
    // Explicitly reported by UI as points fallback if no surface is found.
-   for v in points{let p=screen(v);let c=color(v);for dx in -3..=3{for dy in -3..=3{if dx*dx+dy*dy<=9{layer.pixel(p[0].round() as i32+dx,p[1].round() as i32+dy,p[2],c);}}}}
+   for v in points(){let p=screen(v);let c=color(v);for dx in -3..=3{for dy in -3..=3{if dx*dx+dy*dy<=9{layer.pixel(p[0].round() as i32+dx,p[1].round() as i32+dy,p[2],c);}}}}
   }
   layers[i]=Some(layer);
  }
@@ -355,6 +355,14 @@ pub fn render(data:Option<&Overlay>,o:ViewOptions)->Rendered{
   let o=ViewOptions{three_d:false,candidate:false,profile_colors:false,solid:true,..Default::default()};
   let result=render(Some(&d),o);
   assert_eq!(result.image.get_pixel(SIZE/2,SIZE/2).0,BEFORE);
+ }
+ #[test]fn intersections_and_borrowed_mesh(){
+  let t=[[20.,0.,0.],[80.,10.,0.],[80.,0.,10.]];
+  assert_eq!(slice_segment(t,50.),plane_segment(t,|v|v[0]-50.));
+  assert!(slice_segment(t,10.).is_none());assert!(plane_segment(t,|v|v[0]-90.).is_none());
+  let mut d=example();let c=d.reference.as_mut().unwrap();
+  c.surface=Some(crate::gamut_surface::Surface{triangles:vec![t],resolution:25,volume:0.});
+  assert_eq!(triangles(c).as_ptr(),c.surface.as_ref().unwrap().triangles.as_ptr());
  }
  #[test]fn slice_crosses_triangle(){let r=slice_segment([[20.,0.,0.],[80.,10.,0.],[80.,0.,10.]],50.).unwrap();assert_eq!(r,[[50.,5.,0.],[50.,0.,5.]]);}
  #[test]fn both_wire_preserves_rgb_ratios(){
