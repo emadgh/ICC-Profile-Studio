@@ -546,6 +546,16 @@ const ROWS:&[[&str;5]]=&[
 ["Max Lab16 quantization ΔE00","بیشینه ΔE00 کوانتیزه Lab16","Max ΔE00 quantizzazione Lab16","أقصى ΔE00 لتكميم Lab16","Макс. ΔE00 квантования Lab16"],
 ["Estimated distance operations","عملیات تخمینی فاصله","Operazioni distanza stimate","عمليات المسافة المقدرة","Оценка операций расстояния"],
 ["Unsupported corners are never filled. Diagnostic interpolation is not native CMM interpolation or ICC PCS normalization.","گوشه‌های فاقد پوشش پر نمی‌شوند. درون‌یابی تشخیصی معادل درون‌یابی بومی CMM یا نرمال‌سازی PCS نیست.","Gli angoli non supportati non vengono riempiti. L'interpolazione diagnostica non è quella nativa CMM né la normalizzazione PCS ICC.","لا تملأ الزوايا غير المدعومة. الاستيفاء التشخيصي ليس استيفاء CMM الأصلي أو تطبيع PCS.","Неподдерживаемые углы не заполняются. Диагностическая интерполяция не равна нативной CMM-интерполяции или нормализации PCS."],
+["Perceptual","ادراکی","Percettivo","إدراكي","Перцепционный"],
+["Relative","نسبی","Relativo","نسبي","Относительный"],
+["Saturation","اشباع","Saturazione","تشبع","Насыщенность"],
+["Absolute","مطلق","Assoluto","مطلق","Абсолютный"],
+["Reference intent","Intent مرجع","Intento riferimento","هدف التصيير المرجعي","Интент эталона"],
+["Candidate intent","Intent پروفایل مقایسه","Intento candidato","هدف تصيير المرشح","Интент кандидата"],
+["Gamut rendering intent","Rendering Intent گاموت","Intento di rendering gamut","هدف تصيير النطاق","Интент рендеринга охвата"],
+["Separate intents","Intentهای جداگانه","Intenti separati","أهداف تصيير منفصلة","Раздельные интенты"],
+["Different intents: coverage changes include rendering intent differences.","Intentها متفاوت‌اند؛ تغییر پوشش شامل اثر تفاوت Intent نیز هست.","Intenti diversi: le variazioni di copertura includono le differenze di rendering.","أهداف مختلفة: تغيرات التغطية تشمل اختلافات التصيير.","Разные интенты: изменение охвата включает различия интентов."],
+["Requested intents apply to both round-trip legs. Native CMM may use standard intent fallback.","Intent انتخابی در هر دو مسیر رفت و برگشت اعمال می‌شود. CMM ممکن است از جایگزینی استاندارد Intent استفاده کند.","Gli intenti richiesti valgono per entrambi i percorsi. Il CMM può usare il fallback standard.","تطبق الأهداف المطلوبة على مساري الذهاب والعودة. قد يستخدم CMM البديل القياسي.","Запрошенные интенты действуют в обе стороны. CMM может использовать стандартный резервный интент."],
 ];
 #[cfg(test)]mod tests{use super::*;#[test]fn five_languages_and_fallback(){for l in Language::ALL{set_active(l);assert!(!tr("Settings").is_empty());assert_eq!(tr("A2B1"),"A2B1");}set_active(Language::Fa);assert_eq!(tr("Settings"),crate::rtl::visual("تنظیمات"));assert!(Language::Ar.rtl());}}
 
