@@ -62,24 +62,25 @@ pub fn bounds(p:&crate::Profile)->R<Bounds>{
   }else{
    let l=crate::Lut::parse(t)?;
    if l.inputs!=3||l.outputs!=n{return Err("Unexpected output LUT dimensions".into())}
-   (l.clut,l.out_curves)
+   (l.clut,l.out_curves.into_iter().map(crate::icc_curve::Curve::Sampled).collect::<Vec<_>>())
   };
   for j in 0..n{
    let (mut lo,mut hi)=(1f64,0f64);
    for v in clut.chunks_exact(n){lo=lo.min(v[j]);hi=hi.max(v[j]);}
-   b.channels[j]=b.channels[j].max(crate::validation::interval_peak(&out_curves[j],lo,hi));
+   b.channels[j]=b.channels[j].max(out_curves[j].range(lo,hi)?.max);
   }
-  if out_curves.iter().all(|v|v.len()==2){
-   let t=clut.chunks_exact(n).map(|v|(0..n).map(|j|crate::interp(&out_curves[j],v[j])).sum::<f64>()).fold(0.,f64::max);
+  if out_curves.iter().all(|v|v.affine()){
+   let mut t=0f64;
+   for v in clut.chunks_exact(n){let mut sum=0.;for j in 0..n{sum+=out_curves[j].eval(v[j])?;}t=t.max(sum);}
    b.tac=b.tac.max(t);
   }else{
    b.exact_node_tac=false;
    // A valid global bound, potentially more conservative than per-cell
    // bounds. Do not call it a sampled or attainable maximum.
-   let t=(0..n).map(|j|{
+   let mut t=0.;for j in 0..n{
     let (mut lo,mut hi)=(1f64,0f64);for v in clut.chunks_exact(n){lo=lo.min(v[j]);hi=hi.max(v[j]);}
-    crate::validation::interval_peak(&out_curves[j],lo,hi)
-   }).sum::<f64>();b.tac=b.tac.max(t);
+    t+=out_curves[j].range(lo,hi)?.max;
+   }b.tac=b.tac.max(t);
   }
  }
  Ok(b)
