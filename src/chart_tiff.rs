@@ -11,7 +11,7 @@ pub fn write_cmyk_tiff(path:&Path,w:u32,h:u32,pixels:&[[u16;4]],icc:&[u8],dpi:u3
  let mut e=TiffEncoder::new(BufWriter::new(File::create(path).map_err(err)?)).map_err(err)?;
  let mut img=e.new_image::<CMYK16>(w,h).map_err(err)?;
  img.resolution(ResolutionUnit::Inch,Rational{n:dpi,d:1});
- img.encoder().write_tag(Tag::IccProfile,icc).map_err(err)?;
+ if !icc.is_empty(){img.encoder().write_tag(Tag::IccProfile,icc).map_err(err)?;}
  // Strip-based writing avoids allocating another full flattened image.
  img.rows_per_strip(16).map_err(err)?;
  let mut offset=0;
