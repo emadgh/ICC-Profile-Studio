@@ -17,6 +17,7 @@ pub mod characterization;
 pub mod characterization_tools;
 mod characterization_cgats;
 mod spectral_colorimetry;
+pub mod cie_spectral;
 pub mod device_link;
 mod chart_tiff;
 pub mod correction;
