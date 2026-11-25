@@ -430,6 +430,14 @@ const ROWS:&[[&str;5]]=&[
 ["DeviceLink Generator (source)","ساخت DeviceLink (مبدأ)","Generatore DeviceLink (origine)","إنشاء DeviceLink (المصدر)","Генератор DeviceLink (источник)"],
 ["Profiling Lab / print target","آزمایشگاه پروفایل / چارت چاپ","Laboratorio / target di stampa","مختبر الملف / هدف الطباعة","Лаборатория / печатная мишень"],
 ["Build ICC from measurements","ساخت ICC از اندازه‌گیری‌ها","Crea ICC da misure","إنشاء ICC من القياسات","Создание ICC по измерениям"],
+["Gamut sampling quality","کیفیت نمونه‌برداری گاموت","Qualità campionamento gamut","جودة أخذ عينات النطاق","Качество выборки охвата"],
+["Fast","سریع","Rapido","سريع","Быстро"],
+["Balanced","متعادل","Bilanciato","متوازن","Сбалансировано"],
+["High","بالا","Alta","عالية","Высокое"],
+["Lower sampling quality reduces preview cost, not the output ICC resolution.","کیفیت پایین‌تر هزینه پردازش پیش‌نمایش را کاهش می‌دهد، نه وضوح ICC خروجی را.","Una qualità inferiore riduce il costo dell'anteprima, non la risoluzione ICC in uscita.","الجودة الأقل تقلل تكلفة المعاينة لا دقة ICC الناتج.","Низкое качество уменьшает затраты на предпросмотр, а не разрешение выходного ICC."],
+["Cancelling…","در حال لغو…","Annullamento…","جارٍ الإلغاء…","Отмена…"],
+["Cancel rebuild","لغو بازسازی","Annulla ricostruzione","إلغاء إعادة البناء","Отменить перестроение"],
+["Rebuild cancelled","بازسازی لغو شد","Ricostruzione annullata","أُلغيت إعادة البناء","Перестроение отменено"],
 ];
 #[cfg(test)]mod tests{use super::*;#[test]fn five_languages_and_fallback(){for l in Language::ALL{set_active(l);assert!(!tr("Settings").is_empty());assert_eq!(tr("A2B1"),"A2B1");}set_active(Language::Fa);assert_eq!(tr("Settings"),crate::rtl::visual("تنظیمات"));assert!(Language::Ar.rtl());}}
 
