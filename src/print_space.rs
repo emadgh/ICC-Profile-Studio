@@ -29,9 +29,12 @@ impl Roundtrip{
   Ok(Self{format,separation,appearance})
  }
  pub fn apply(&self,xyz:&[[f64;3]])->R<Vec<[f64;3]>>{
-  let count=xyz.len().checked_mul(self.format.channels*2).ok_or("Device buffer overflow")?;
-  let mut device=vec![0u8;count];let mut result=vec![[0.;3];xyz.len()];
-  self.separation.transform_pixels(xyz,&mut device);self.appearance.transform_pixels(&device,&mut result);
+  const BATCH:usize=4096;
+  let stride=self.format.channels*2;
+  let mut device=vec![0u8;xyz.len().min(BATCH)*stride];let mut result=vec![[0.;3];xyz.len()];
+  for (input,output) in xyz.chunks(BATCH).zip(result.chunks_mut(BATCH)){
+   let buffer=&mut device[..input.len()*stride];self.separation.transform_pixels(input,buffer);self.appearance.transform_pixels(buffer,output);
+  }
   if result.iter().flatten().any(|v|!v.is_finite()){return Err("Non-finite native PCS sample".into())}
   Ok(result)
  }
@@ -108,6 +111,15 @@ pub(crate) fn fixture(n:usize)->crate::Profile{
 #[cfg(test)]mod tests{
  use super::*;
  #[test]fn format_counts(){for n in 2..=15{let f=format(format!("{n:X}CLR").as_bytes()).unwrap();assert_eq!(f.channels,n);assert_eq!(f.pixel.bytes_per_pixel(),n*2);}assert!(format(b"RGB ").is_err());assert!(format(b"GRAY").is_err());}
+ #[test]fn roundtrip_batch_boundary_and_empty(){
+  let p=fixture(6);let native=Profile::new_icc(&p.bytes().unwrap()).unwrap();
+  let round=Roundtrip::new(&native,Intent::RelativeColorimetric).unwrap();
+  assert!(round.apply(&[]).unwrap().is_empty());
+  let values:Vec<_>=(0..8193).map(|i|[0.2+(i%31) as f64/100.,0.4,0.3]).collect();
+  let whole=round.apply(&values).unwrap();let mut split=Vec::new();
+  for chunk in values.chunks(127){split.extend(round.apply(chunk).unwrap());}
+  assert_eq!(whole,split);
+ }
  #[test]fn six_channel_native_and_bounds(){
   let p=fixture(6);let native=Profile::new_icc(&p.bytes().unwrap()).unwrap();
   let r=Roundtrip::new(&native,Intent::RelativeColorimetric).unwrap().apply(&[[0.2,0.3,0.2],[0.8,0.9,0.7]]).unwrap();assert_eq!(r.len(),2);assert_ne!(r[0],r[1]);
