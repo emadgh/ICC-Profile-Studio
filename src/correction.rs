@@ -501,6 +501,21 @@ mod dynamic_tests{
   assert_eq!(correction_input([1.,0.5,0.5],true,&[r]),[1.,0.5,0.5]);
   assert_eq!(correction_input(raw,true,&[]),raw.map(|v|v as f32));
  }
+ #[test]#[ignore="Requires locally supplied FOGRA55 ICC"]
+ fn fogra55_legacy_correction_real_profile(){
+  let path=std::path::PathBuf::from(std::env::var_os("ICC_FOGRA55_PATH").expect("Set ICC_FOGRA55_PATH"));
+  let original=std::fs::read(&path).unwrap();let p=Profile::read(&path).unwrap();
+  assert_eq!(p.version_major(),2);assert_eq!(p.space(),"7CLR");
+  let bounds=crate::print_space::bounds(&p).unwrap();
+  let q=p.bounded_correction_multi(DynamicCorrection::Smooth{strength:0.2,passes:2},17,300.).unwrap();
+  let d=tempfile::tempdir().unwrap();let dest=d.path().join("smoothed.icc");q.save_new(&dest).unwrap();let q=Profile::read(&dest).unwrap();
+  let v=crate::multichannel::verify(&q,&bounds.channels,3.).unwrap();println!("FOGRA55 smoothing: {:?}",v);
+  for k in [b"A2B0",b"A2B1",b"A2B2"]{assert_eq!(p.tags[k],q.tags[k]);}
+  for intent in [lcms2::Intent::Perceptual,lcms2::Intent::RelativeColorimetric,lcms2::Intent::Saturation,lcms2::Intent::AbsoluteColorimetric]{
+   let report=crate::comparison::compare(&path,&dest,17,intent).unwrap();println!("{intent:?}: Mean/P95/Max DE00 {:.4}/{:.4}/{:.4}, TAC {:.4}%",report.mean_de,report.p95_de,report.max_de,report.candidate.max_tac);
+  }
+  assert_eq!(std::fs::read(&path).unwrap(),original);
+ }
  #[test]fn legacy_seven_channel_corrections_preserve_encoding_and_intents(){
   let p=crate::versioning::test_legacy_fixture(7);
   let before=crate::print_space::bounds(&p).unwrap();
