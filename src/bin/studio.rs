@@ -1476,7 +1476,10 @@ impl Studio {
      if let Some(n)=total.filter(|n|*n>0){updates=updates.child(bar((downloaded as f64/n as f64).clamp(0.,1.),0xe87935,10.));}
     }
     UpdateStatus::Ready(info,_)=>updates=updates.child(format!("{}: {}",tr("Verified update ready"),info.version)).child(button("install-studio","Restart and install").on_click(cx.listener(|v,_,_,cx|{if v.busy{return}match v.updater.apply_ready(){Ok(true)=>cx.quit(),Ok(false)=>{v.status="No staged update".into();cx.notify();},Err(e)=>{v.status=e;cx.notify();}}}))),
-    UpdateStatus::Failed(e)=>updates=updates.child(div().text_color(rgb(0xfca5a5)).child(i18n::diagnostic(&e))),
+    UpdateStatus::Failed(e)=>{
+     updates=updates.child(div().text_color(rgb(0xfca5a5)).child(i18n::diagnostic(&e)));
+     if self.updater.can_retry_download(){updates=updates.child(button("retry-studio","Retry download").on_click(cx.listener(|v,_,_,cx|{if !v.busy&&v.updater.start_download(){v.update_poll(cx);cx.notify();}})));}
+    },
    }
   }
   #[cfg(not(windows))]{updates=updates.child(tr("Automatic updates are available on Windows only."));}
