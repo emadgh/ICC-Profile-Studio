@@ -55,13 +55,13 @@ fn ink_budget_dynamic(caps:&[f64],tac:f64)->Div{
  let max=caps.len() as f64*100.;let sum=caps.iter().sum::<f64>();let effective=sum.min(tac);
  div().flex().flex_col().gap_2().p_3().rounded_md().bg(rgb(0x282828))
   .child(div().text_lg().child(tr("Total ink coverage (TAC)")))
-  .child(format!("Sum of limits {sum:.0}% · TAC {tac:.0}%"))
+  .child(format!("{} {sum:.0}% · TAC {tac:.0}%",tr("Sum of limits")))
   .child(div().relative().w_full().h(px(22.)).bg(rgb(0x171717)).rounded_md().overflow_hidden()
    .child(div().absolute().left(px(0.)).top(px(0.)).h_full().w(relative((sum/max).clamp(0.,1.) as f32)).bg(rgb(0x484848)))
    .child(div().absolute().left(px(0.)).top(px(0.)).h_full().w(relative((effective/max).clamp(0.,1.) as f32)).bg(rgb(0xe87935)))
    .child(div().absolute().left(relative((tac/max).clamp(0.,1.) as f32)).top(px(0.)).w(px(2.)).h_full().bg(rgb(0xf1f1f1))))
   .child(div().flex().justify_between().text_xs().children((0..=4).map(|i|format!("{:.0}%",max*i as f64/4.))))
-  .child(format!("Requested combined ceiling ≤ {effective:.0}%"))
+  .child(format!("{} ≤ {effective:.0}%",tr("Requested combined ceiling")))
   .child(div().text_xs().child(tr("Live requested limits, not simulated separation.")))
 }
 
@@ -436,16 +436,22 @@ impl Studio {
  fn reorder_page(&self,cx:&mut Context<Self>)->Div{
   let mut p=div().flex().flex_col().gap_3().child(heading("Channel Reorder","New channel index → original physical ink."));
   if self.order.is_empty(){return p.child(tr("Open a supported printer profile first."))}
-  for start in (0..self.order.len()).step_by(4){
-   p=p.child(div().flex().gap_2().children((start..(start+4).min(self.order.len())).map(|i|div().flex_1().min_w(px(0.)).flex().flex_col().gap_1().child(swatch(self.ink_color(self.order[i]),48.)).child(div().text_xs().child(format!("{} → {}",i+1,self.ink_name(self.order[i])))))));
+  let unchanged=self.order.iter().enumerate().all(|(i,&j)|i==j);
+  p=p.child(div().flex().flex_col().gap_2().p_3().rounded_md().bg(rgb(0x282828))
+   .child(div().flex().items_center().justify_between().child(div().text_lg().child(tr("Original channel order"))).child(format!("{} {}",self.order.len(),tr("Channels"))))
+   .child(div().flex().flex_wrap().gap_2().children((0..self.order.len()).map(|i|div().flex().flex_col().gap_1().child(swatch(self.ink_color(i),36.)).child(div().text_xs().child(format!("{} · {}",i+1,self.ink_name(i))))))))
+   .child(div().flex().items_center().justify_between().gap_2().child(div().text_lg().child(tr("New channel order"))).child(button("reset-order","Reset mapping").on_click(cx.listener(|v,_,_,cx|{if !v.busy{v.order=(0..v.order.len()).collect();cx.notify();}}))));
+  for (i,&old) in self.order.iter().enumerate(){
+   p=p.child(div().flex().flex_wrap().items_center().gap_2().p_3().rounded_md().bg(rgb(if old==i{0x282828}else{0x392c22}))
+    .child(div().text_lg().child(format!("{}",i+1))).child(swatch(self.ink_color(old),26.))
+    .child(div().flex_1().min_w(px(0.)).flex().flex_col().gap_1().child(self.ink_name(old)).child(div().text_xs().text_color(rgb(0xa1a1aa)).child(format!("{} {}",tr("Original channel"),old+1))))
+    .child(seg(("order-up",i),"↑",false).on_click(cx.listener(move|v,_,_,cx|{if !v.busy&&i>0{v.order.swap(i,i-1);cx.notify();}})))
+    .child(seg(("order-down",i),"↓",false).on_click(cx.listener(move|v,_,_,cx|{if !v.busy&&i+1<v.order.len(){v.order.swap(i,i+1);cx.notify();}}))));
   }
-  for i in 0..self.order.len(){p=p.child(div().flex().items_center().gap_2().child(swatch(self.ink_color(self.order[i]),24.)).child(div().w(px(200.)).child(format!("{} → {}",i+1,self.ink_name(self.order[i]))))
-   .child(button(("order-up",i),"↑").on_click(cx.listener(move|this,_,_,cx|{if !this.busy&&i>0{this.order.swap(i,i-1);cx.notify();}})))
-   .child(button(("order-down",i),"↓").on_click(cx.listener(move|this,_,_,cx|{if !this.busy&&i+1<this.order.len(){this.order.swap(i,i+1);cx.notify();}}))));}
-  p.child(button("reset-order","Reset mapping").on_click(cx.listener(|this,_,_,cx|{if !this.busy{this.order=(0..this.order.len()).collect();cx.notify();}})))
+  p=p.child(div().text_sm().text_color(rgb(if unchanged{0xa1a1aa}else{0xfb923c})).child(tr(if unchanged{"Original mapping unchanged"}else{"Channel mapping changed"})))
    .child(tr("Changes both A2B input axes and B2A output channels. Unknown vendor tags or calibration data cause rejection. RIP channel order must match the new physical order."))
-   .child(tr("Before saving, all four rendering intents are sampled with LittleCMS. Maximum allowed ΔE00, channel deviation and TAC deviation: 0.5 each."))
-   .child(button("save-order","Save reordered ICC").on_click(cx.listener(|this,_,_,cx|this.save_edit(1,cx))))
+   .child(tr("Before saving, all four rendering intents are sampled with LittleCMS. Maximum allowed ΔE00, channel deviation and TAC deviation: 0.5 each."));
+  p.child(button("save-order","Save reordered ICC").bg(rgb(if unchanged{0x333333}else{0xc65f24})).on_click(cx.listener(|v,_,_,cx|{if v.order.iter().enumerate().any(|(i,&j)|i!=j){v.save_edit(1,cx);}})))
  }
  fn version_page(&self,cx:&mut Context<Self>)->Div{
   let mut p=div().flex().flex_col().gap_3().child(heading("ICC Version Conversion","Structural conversion of CMYK / nCLR Lab printer profiles, verified in LittleCMS."));
@@ -753,26 +759,26 @@ impl Studio {
   let mut p=div().flex().flex_col().gap_3().child(heading("LUT Smoothing","Bounded six-neighbor averaging in the B2A separation lattice."));
   let Some(profile)=&self.display_profile else{return p.child(tr("Open a compatible ICC v4 Lab printer profile."))};
   if profile.version_major()!=4||profile.pcs()!="Lab "||(!profile.cmyk()&&color_convert_rust::multichannel::channel_count(profile).is_err()){return p.child(tr("Bounded correction requires compatible ICC v4 Lab profiles."))}
-  p=p.child(div().flex().items_center().gap_2().child(format!("{}: {:.0}%",tr("Strength"),self.smoothing*100.))
+  p=p.child(div().flex().flex_col().gap_2().p_3().rounded_md().bg(rgb(0x282828)).child(div().text_lg().child(tr("Smoothing settings"))).child(div().flex().items_center().justify_between().child(tr("Strength")).child(div().text_2xl().child(format!("{:.0}%",self.smoothing*100.)))).child(bar(self.smoothing/0.5,0xe87935,12.)).child(div().flex().flex_wrap().items_center().gap_2().child(format!("{}: {:.0}%",tr("Strength"),self.smoothing*100.))
    .child(button("smooth-minus","−1").on_click(cx.listener(|this,_,_,cx|{if !this.busy{this.smoothing=(this.smoothing-0.01).max(0.05);cx.notify();}})))
    .child(self.numeric_slider(("smooth-slider",0),self.smoothing,0.05,0.5,0.01,|v,x|v.smoothing=x,cx)).child(button("smooth-plus","+1").on_click(cx.listener(|this,_,_,cx|{if !this.busy{this.smoothing=(this.smoothing+0.01).min(0.5);cx.notify();}}))))
-   .child(div().flex().gap_1().items_center().child(tr("Passes")).children([1usize,2,3,4,5].map(|n|button(("smooth-pass",n),if n==self.smoothing_passes{format!("{n} ✓")}else{n.to_string()}).on_click(cx.listener(move|this,_,_,cx|{if !this.busy{this.smoothing_passes=n;cx.notify();}})))));
+   .child(div().flex().flex_wrap().gap_1().items_center().child(tr("Passes")).children([1usize,2,3,4,5].map(|n|button(("smooth-pass",n),if n==self.smoothing_passes{format!("{n} ✓")}else{n.to_string()}).on_click(cx.listener(move|this,_,_,cx|{if !this.busy{this.smoothing_passes=n;cx.notify();}}))))) .child(div().text_xs().child(tr("Requested smoothing strength and passes, not measured improvement."))));
   p.child(self.correction_options(cx))
    .child(tr("Lattice boundaries are not averaged; initial resampling and ink constraints can still change them. Use Gradient Analyzer and Profile Comparison after saving to check the trade-off between smoothness and color accuracy."))
-   .child(button("save-smoothing","Generate smoothed ICC").on_click(cx.listener(|this,_,_,cx|this.save_edit(4,cx))))
+   .child(button("save-smoothing","Generate smoothed ICC").bg(rgb(0xc65f24)).on_click(cx.listener(|this,_,_,cx|this.save_edit(4,cx))))
  }
  fn link_page(&self,cx:&mut Context<Self>)->Div{
   let mut p=div().flex().flex_col().gap_3().child(heading("DeviceLink Generator","CMYK / nCLR → CMYK / nCLR · ICC v4.3"))
    .child(tr("Reference and candidate may have different channel counts. Source and destination ink orders are independent."));
-  p=p.child(div().flex().flex_col().gap_2().p_3().rounded_md().bg(rgb(0x282828))
-   .child(div().text_sm().child(tr("Source profile")))
+  p=p.child(div().flex().flex_wrap().gap_2().child(div().flex_1().min_w(px(180.)).flex().flex_col().gap_2().p_3().rounded_md().bg(rgb(0x282828))
+   .child(div().text_sm().text_color(rgb(0x60a5fa)).child(tr("Source profile")))
    .child(self.source.as_ref().map(|p|p.display().to_string()).unwrap_or_else(||tr("Not selected")))
-   .child(div().flex().flex_wrap().gap_1().child(button("link-source","Open ICC").on_click(cx.listener(|v,_,_,cx|{v.open(cx);cx.notify();}))))
-   .child(div().text_sm().child(tr("Destination profile")))
+   .child(div().flex().flex_wrap().gap_1().child(button("link-source","Open ICC").on_click(cx.listener(|v,_,_,cx|{v.open(cx);cx.notify();}))))).child(div().flex_1().min_w(px(180.)).flex().flex_col().gap_2().p_3().rounded_md().bg(rgb(0x282828))
+   .child(div().text_sm().text_color(rgb(0xfb923c)).child(tr("Destination profile")))
    .child(self.candidate.as_ref().map(|p|p.display().to_string()).unwrap_or_else(||tr("Not selected")))
    .child(div().flex().flex_wrap().gap_1().child(button("link-candidate","Select candidate ICC").on_click(cx.listener(|v,_,_,cx|{
     if !v.busy{if let Some(path)=rfd::FileDialog::new().add_filter("ICC profile",&["icc","icm"]).pick_file(){v.candidate=Some(path);v.preview=None;v.comparison=None;v.compare_error=None;v.gradient=None;v.gradient_detail=None;v.gradient_error=None;if v.preview_open{v.refresh_gamut(cx);}cx.notify();}}
-   }))).child(self.system_dropdown(Picker::Comparison,cx))));
+   }))).child(self.system_dropdown(Picker::Comparison,cx)))));
   p=p.child(div().flex().flex_wrap().gap_1().items_center().child(tr("Rendering intent"))
    .children([("Relative",lcms2::Intent::RelativeColorimetric),("Perceptual",lcms2::Intent::Perceptual),("Saturation",lcms2::Intent::Saturation),("Absolute",lcms2::Intent::AbsoluteColorimetric)].into_iter().enumerate().map(|(i,(label,intent))|seg(("link-intent",i),label,self.link_intent==intent).on_click(cx.listener(move|v,_,_,cx|{if !v.busy{v.link_intent=intent;cx.notify();}})))));
   p=p.child(div().flex().flex_wrap().gap_1().items_center().child(tr("CLUT grid"))
@@ -783,7 +789,7 @@ impl Studio {
    .child(self.numeric_slider(("link-tolerance",0),self.link_tolerance,0.1,10.,0.1,|v,x|v.link_tolerance=x,cx))
    .child(seg("link-tol-plus","+",false).on_click(cx.listener(|v,_,_,cx|{if !v.busy{v.link_tolerance=Scale{low:0.1,high:10.,step:0.1}.adjust(v.link_tolerance,1);cx.notify();}}))))
    .child(tr("The selected intent is baked into the link. No special black preservation, BPC, or certified physical ink-limit guarantee. Excessive sampled channel error prevents saving."));
-  p=p.child(button("save-link",if self.busy{"Working…"}else{"Generate DeviceLink"}).on_click(cx.listener(|v,_,_,cx|{
+  p=p.child(button("save-link",if self.busy{"Working…"}else{"Generate DeviceLink"}).bg(rgb(0xc65f24)).on_click(cx.listener(|v,_,_,cx|{
     if v.busy{return}let (Some(a),Some(b))=(v.source.clone(),v.candidate.clone())else{v.status="Select two printer profiles.".into();cx.notify();return};
     let Some(mut dest)=rfd::FileDialog::new().add_filter("ICC",&["icc"]).set_file_name("print_DeviceLink.icc").save_file()else{return};if dest.extension().is_none(){dest.set_extension("icc");}
     let settings=device_link::LinkSettings{grid:v.link_grid,max_ink_pp:v.link_tolerance,intent:v.link_intent};
