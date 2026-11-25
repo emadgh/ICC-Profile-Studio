@@ -64,11 +64,13 @@ pub fn export_cgats(c:&Chart,path:&Path,cmyk:bool)->R<()>{
  };write().map_err(|e|e.to_string())?;
  file.persist_noclobber(path).map_err(|e|e.to_string())?;Ok(())
 }
-/// Export an untagged CMYK16 recipe chart in newly chosen geometry.
-/// Not a measured scan, not the original physical patch size. Reject recipes
-/// outside explicit operator-supplied limits; never clip/change recipes.
-pub fn export_page_tiff(c:&Chart,p:&Profile,page:usize,path:&Path,dpi:u32,caps:[f64;4],tac:f64)->R<()>{
- if !p.cmyk()||!(50..=1200).contains(&dpi)||caps.iter().any(|x|!x.is_finite()||!(0.0..=100.).contains(x))||!tac.is_finite()||!(0.0..=400.).contains(&tac){return Err("CMYK TIFF requires valid explicit ink limits and DPI".into())}
+/// Export an untagged 16-bit separated recipe chart. Validate the full page
+/// before writing; the selected display filter does not alter the chart.
+pub fn export_page_tiff(c:&Chart,p:&Profile,page:usize,path:&Path,dpi:u32,caps:impl AsRef<[f64]>,tac:f64)->R<()>{
+ let caps=caps.as_ref();
+ if &p.header[12..16]!=b"prtr"{return Err("Requires a printer ICC profile".into())}
+ let n=crate::print_space::format(&p.header[16..20])?.channels;
+ if caps.len()!=n||!(50..=1200).contains(&dpi)||caps.iter().any(|x|!x.is_finite()||!(0.0..=100.).contains(x))||!tac.is_finite()||tac<0.||tac>100.*n as f64{return Err("TIFF requires explicit ink limits matching all physical channels and valid DPI".into())}
  let rows=c.patches.iter().filter(|p|p.page==page).collect::<Vec<_>>();
  if rows.is_empty(){return Err("Empty chart page".into())}
  let min_r=rows.iter().map(|p|p.row).min().unwrap();let min_c=rows.iter().map(|p|p.column).min().unwrap();
@@ -77,16 +79,24 @@ pub fn export_page_tiff(c:&Chart,p:&Profile,page:usize,path:&Path,dpi:u32,caps:[
  let side=(8.*dpi as f64/25.4).round().max(1.) as usize;let gap=(2.*dpi as f64/25.4).round().max(1.) as usize;
  let w=nc*(side+gap)+gap;let h=nr*(side+gap)+gap;
  if w*h>24_000_000{return Err("Chart exceeds 24 megapixels; lower DPI".into())}
- let mut seen=HashSet::new();let mut pixels=vec![[0u16;4];w*h];
+ let mut recipes=vec![None;nr*nc];
  for patch in rows{
-  if patch.inks.len()!=4||patch.inks.iter().zip(caps).any(|(&v,cap)|!v.is_finite()||v<0.||v>cap+1e-9)||patch.inks.iter().sum::<f64>()>tac+1e-9{return Err(format!("Patch {} exceeds configured ink limits; no clipping applied",patch.id))}
-  if !seen.insert((patch.row,patch.column)){return Err("Duplicate patch position".into())}
-  let v=std::array::from_fn(|j|((patch.inks[j]/100.*65535.).floor()) as u16);
-  let x=gap+(patch.column-min_c)*(side+gap);let y=gap+(patch.row-min_r)*(side+gap);
-  for yy in y..y+side{pixels[yy*w+x..yy*w+x+side].fill(v);}
+  if patch.inks.len()!=n||patch.inks.iter().zip(caps).any(|(&v,&cap)|!v.is_finite()||v<0.||v>100.||v>cap)||patch.inks.iter().sum::<f64>()>tac+1e-9{return Err(format!("Patch {} exceeds configured ink limits; no clipping applied",patch.id))}
+  let i=(patch.row-min_r)*nc+(patch.column-min_c);
+  if recipes[i].is_some(){return Err("Duplicate patch position".into())}
+  recipes[i]=Some(patch.inks.iter().map(|v|((v/100.*65535.).floor()) as u16).collect::<Vec<_>>());
  }
- let f=tempfile::NamedTempFile::new_in(path.parent().filter(|v|!v.as_os_str().is_empty()).unwrap_or(Path::new("."))).map_err(|e|e.to_string())?;
- crate::chart_tiff::write_cmyk_tiff(f.path(),w as u32,h as u32,&pixels,&[],dpi)?;
+ let mut f=tempfile::NamedTempFile::new_in(path.parent().filter(|v|!v.as_os_str().is_empty()).unwrap_or(Path::new("."))).map_err(|e|e.to_string())?;
+ crate::separated_tiff::write(std::io::BufWriter::new(f.as_file_mut()),w as u32,h as u32,n,p.cmyk(),dpi,|y,row|{
+  let y=y as usize;if y<gap{return}
+  let r=(y-gap)/(side+gap);if r>=nr||(y-gap)%(side+gap)>=side{return}
+  for col in 0..nc{
+   if let Some(v)=&recipes[r*nc+col]{
+    let x=gap+col*(side+gap);
+    for pixel in row[x*n..(x+side)*n].chunks_exact_mut(n){pixel.copy_from_slice(v);}
+   }
+  }
+ })?;
  f.persist_noclobber(path).map_err(|e|e.to_string())?;Ok(())
 }
 #[cfg(test)]mod tests{
@@ -94,5 +104,16 @@ pub fn export_page_tiff(c:&Chart,p:&Profile,page:usize,path:&Path,dpi:u32,caps:[
  fn chart()->Chart{Chart{source:"fixture".into(),original_layout:false,patches:vec![Patch{id:"p 1".into(),page:1,row:0,column:0,inks:vec![25.,50.,0.,0.],spectrum:Some(vec![0.5;36]),start_nm:Some(380),step_nm:Some(10),measurement:"M0".into(),predicted_lab:[90.,0.,0.],measured_lab:None,absolute_lab:Some([75.,0.,0.]),comparison_lab:Some([76.,0.,0.]),delta_e:Some(1.5),measurement_basis:"estimate".into()}]}}
  #[test]fn filter_and_paired_cloud(){let c=chart();let mut f=Filter::default();assert!(f.matches(&c.patches[0]));f.channel=Some(1);f.minimum=51.;assert!(!f.matches(&c.patches[0]));let o=paired_cloud(&c,Filter::default());assert_eq!(o.reference.unwrap().points,vec![[76.,0.,0.]]);assert_eq!(o.candidate.unwrap().unwrap().points,vec![[75.,0.,0.]]);}
  #[test]fn spectra_export_without_fake_lab(){let d=tempfile::tempdir().unwrap();let p=d.path().join("data.cgats");export_cgats(&chart(),&p,true).unwrap();let s=std::fs::read_to_string(&p).unwrap();assert!(!s.contains("LAB_L"));let c=crate::characterization_cgats::read(&s,4,true).unwrap();assert_eq!(c.patches[0].spectrum,Some(vec![0.5;36]));assert!(export_cgats(&chart(),&p,true).is_err());}
+ #[test]fn multichannel_page_validates_every_channel(){
+  let d=tempfile::tempdir().unwrap();let path=d.path().join("six.tif");
+  let p=crate::print_space::fixture(6);let mut c=chart();
+  c.patches[0].inks=vec![25.,50.,10.,0.,5.,0.];
+  assert!(export_page_tiff(&c,&p,1,&path,50,[100.;4],100.).is_err());
+  assert!(export_page_tiff(&c,&p,1,&path,50,[100.,100.,100.,100.,0.,0.],100.).is_err());
+  assert!(export_page_tiff(&c,&p,1,&path,50,[100.;6],80.).is_err());assert!(!path.exists());
+  export_page_tiff(&c,&p,1,&path,50,[100.,100.,100.,100.,100.,0.],100.).unwrap();
+  assert!(export_page_tiff(&c,&p,1,&path,50,[100.;6],100.).is_err());
+  let data=std::fs::read(&path).unwrap();assert_eq!(&data[..4],b"II\x2a\0");
+ }
  #[test]fn tiff_refuses_unsafe_ink_and_preserves_recipe(){let d=tempfile::tempdir().unwrap();let path=d.path().join("chart.tif");let p=crate::synthetic_cmyk_v4(true);assert!(export_page_tiff(&chart(),&p,1,&path,50,[100.,40.,100.,0.],100.).is_err());assert!(!path.exists());export_page_tiff(&chart(),&p,1,&path,50,[100.,100.,100.,0.],100.).unwrap();let mut dec=tiff::decoder::Decoder::new(std::fs::File::open(&path).unwrap()).unwrap();assert_eq!(dec.colortype().unwrap(),tiff::ColorType::CMYK(16));let tiff::decoder::DecodingResult::U16(v)=dec.read_image().unwrap()else{panic!("expected 16-bit")};assert!(v.chunks_exact(4).any(|p|p==[16383,32767,0,0]));}
 }

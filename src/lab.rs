@@ -1,4 +1,4 @@
-//! Ceramic profiling workflows: direct-device charts, measured comparisons,
+//! Printer profiling workflows: direct-device charts, measured comparisons,
  //! and official Argyll colprof integration. No synthetic measurements.
 use std::{fs,path::{Path,PathBuf},collections::BTreeMap};
 use lcms2::{CIELab,CIELabExt};
@@ -65,7 +65,7 @@ pub fn generate_chart(reference:&Path,root:&Path,levels:usize,caps:[f64;4],tac:f
  crate::chart_tiff::write_cmyk_tiff(&stage.path().join("chart.tif"),w,h,&pixels,&data,dpi)?;
  fs::write(stage.path().join("measurements.csv"),csv).map_err(|e|e.to_string())?;
  fs::write(stage.path().join("layout.csv"),layout).map_err(|e|e.to_string())?;
- fs::write(stage.path().join("README.txt"),format!("{} patches, 8 mm patches, 2 mm gaps at {} DPI. Direct device CMYK values; RIP must preserve channel values with no reconversion. Print under documented glaze/ink/firing conditions. Measure D50 Lab consistently and fill the blank L,a,b fields. No measurements are generated. Verify physical safe ink limits before printing. CSV row/column are 1-based; x/y pixel coordinates are 0-based.",recipes.len(),dpi)).map_err(|e|e.to_string())?;
+ fs::write(stage.path().join("README.txt"),format!("{} patches, 8 mm patches, 2 mm gaps at {} DPI. Direct device CMYK values; RIP must preserve channel values with no reconversion. Print under documented substrate, ink and process conditions. Measure D50 Lab consistently and fill the blank L,a,b fields. No measurements are generated. Verify physical safe ink limits before printing. CSV row/column are 1-based; x/y pixel coordinates are 0-based.",recipes.len(),dpi)).map_err(|e|e.to_string())?;
  let dest=root.join("ceramic_chart");if dest.exists(){return Err("ceramic_chart folder already exists".into())}
  fs::rename(stage.path(),&dest).map_err(|e|e.to_string())?;Ok(dest)
 }

@@ -10,7 +10,7 @@ use color_convert_rust::gamut::{self,Overlay};
 use gamut_view::ViewOptions;
 #[path = "../curve_view.rs"] mod curve_view;
 use color_convert_rust::gamut_raster::CompareLayout;
-use color_convert_rust::{characterization_tools as target_tools,device_link,versioning,system_profiles,i18n::{self,Language,tr}};
+use color_convert_rust::{cie_spectral::{self,Illuminant,Observer},characterization_tools as target_tools,device_link,versioning,system_profiles,i18n::{self,Language,tr}};
 use color_convert_rust::gradient::{self,GradientReport};
 use color_convert_rust::{reports,preferences::{self,Preferences}};
 #[cfg(windows)] use update_via_github::{UpdateConfig,UpdateManager,UpdateStatus};
@@ -31,10 +31,10 @@ struct Studio {
  link_grid:usize,link_tolerance:f64,link_intent:lcms2::Intent,link_report:Option<(PathBuf,PathBuf,PathBuf,device_link::MultiLinkReport)>,
  slider_drag:Option<(&'static str,usize)>,embedded_names:bool,display_profile:Option<Profile>,language:Language,nav_collapsed:[bool;5],picker:Option<Picker>,system_catalog:Option<system_profiles::Catalog>,system_error:Option<String>,system_loading:bool,
  version_allow_omit:bool,version_relative_only:bool,version_de:f64,version_ink:f64,version_report:Option<versioning::Report>,page:Page, source:Option<PathBuf>, profile:Option<Profile>, report:Option<Inspection>, error:Option<String>,
- multi_caps:Vec<f64>,multi_tac:f64,caps:[f64;4],tac:f64,grid:usize,mode:Mode,status:String,busy:bool, candidate:Option<PathBuf>,comparison:Option<Comparison>,compare_error:Option<String>,compare_grid:usize,compare_intent:lcms2::Intent,gamma:Vec<f64>,order:Vec<usize>, preview_open:bool, preview:Option<Overlay>, preview_revision:u64, preview_width:f32,preview_fullscreen:bool,resize_last:Option<Pixels>,gamut_advanced:bool,curve_drag:Option<(usize,usize,Pixels)>, preview_cache:std::cell::RefCell<gamut_view::PreviewCache>, preview_options:ViewOptions, gamut_grid:usize,gradient:Option<GradientReport>,gradient_detail:Option<usize>,gradient_error:Option<String>,coverage_threshold:f64, regions:[Selective;MAX_REGIONS],region_count:usize,region_selected:usize, correction_grid:usize, correction_tac:f64, smoothing:f64, smoothing_passes:usize,orbit_last:Option<Point<Pixels>>,chart_dpi:u32,recipe_target:[f64;3],recipe_settings:RecipeSettings,recipe_result:Option<RecipeReport>,lab_levels:usize,characterization:Option<color_convert_rust::characterization::Chart>,characterization_page:usize,characterization_patch:Option<usize>,characterization_fit:Option<color_convert_rust::characterization::Fit>,characterization_measured:bool,characterization_heat:bool,characterization_filter:target_tools::Filter,characterization_cloud:bool,characterization_view:ViewOptions,characterization_cache:std::cell::RefCell<gamut_view::PreviewCache>,characterization_revision:u64,measured:[Option<PathBuf>;2],measurement_result:Option<MeasuredComparison>,black:BlackGeneration,black_channel:Option<usize>,curve_points:Vec<[f64;5]>,logo:std::sync::Arc<gpui::Image>,#[cfg(windows)] updater:UpdateManager,
+ multi_caps:Vec<f64>,multi_tac:f64,caps:[f64;4],tac:f64,grid:usize,mode:Mode,status:String,busy:bool, candidate:Option<PathBuf>,comparison:Option<Comparison>,compare_error:Option<String>,compare_grid:usize,compare_intent:lcms2::Intent,gamma:Vec<f64>,order:Vec<usize>, preview_open:bool, preview:Option<Overlay>, preview_revision:u64, preview_width:f32,preview_fullscreen:bool,resize_last:Option<Pixels>,gamut_advanced:bool,curve_drag:Option<(usize,usize,Pixels)>, preview_cache:std::cell::RefCell<gamut_view::PreviewCache>, preview_options:ViewOptions, gamut_grid:usize,gradient:Option<GradientReport>,gradient_detail:Option<usize>,gradient_error:Option<String>,coverage_threshold:f64, regions:[Selective;MAX_REGIONS],region_count:usize,region_selected:usize, correction_grid:usize, correction_tac:f64, smoothing:f64, smoothing_passes:usize,orbit_last:Option<Point<Pixels>>,chart_dpi:u32,recipe_target:[f64;3],recipe_settings:RecipeSettings,recipe_result:Option<RecipeReport>,lab_levels:usize,characterization:Option<color_convert_rust::characterization::Chart>,characterization_page:usize,characterization_patch:Option<usize>,characterization_fit:Option<color_convert_rust::characterization::Fit>,characterization_measured:bool,characterization_heat:bool,spectral_illuminant:Illuminant,spectral_observer:Observer,characterization_filter:target_tools::Filter,characterization_cloud:bool,characterization_view:ViewOptions,characterization_cache:std::cell::RefCell<gamut_view::PreviewCache>,characterization_revision:u64,measured:[Option<PathBuf>;2],measurement_result:Option<MeasuredComparison>,black:BlackGeneration,black_channel:Option<usize>,curve_points:Vec<[f64;5]>,logo:std::sync::Arc<gpui::Image>,#[cfg(windows)] updater:UpdateManager,
 }
 impl Default for Studio {
- fn default()->Self{Self{link_grid:0,link_tolerance:2.,link_intent:lcms2::Intent::RelativeColorimetric,link_report:None,slider_drag:None,embedded_names:true,display_profile:None,language:Language::En,nav_collapsed:[false;5],picker:None,system_catalog:None,system_error:None,system_loading:false,version_allow_omit:false,version_relative_only:false,version_de:0.5,version_ink:0.5,version_report:None,page:Page::Inspector,source:None,profile:None,report:None,error:None,multi_caps:vec![],multi_tac:0.,caps:[100.,100.,100.,0.],tac:240.,grid:33,mode:Mode::Custom,status:"Open an ICC or ICM profile to start.".into(),busy:false,candidate:None,comparison:None,compare_error:None,compare_grid:17,compare_intent:lcms2::Intent::RelativeColorimetric,gamma:vec![],order:vec![],preview_open:true,preview:None,preview_revision:0,preview_width:360.,preview_fullscreen:false,resize_last:None,gamut_advanced:false,curve_drag:None,preview_cache:std::cell::RefCell::new(gamut_view::PreviewCache::default()),preview_options:ViewOptions::default(),gamut_grid:33,gradient:None,gradient_detail:None,gradient_error:None,coverage_threshold:2.,regions:[Selective::default();MAX_REGIONS],region_count:1,region_selected:0,correction_grid:33,correction_tac:400.,smoothing:0.20,smoothing_passes:1,orbit_last:None,chart_dpi:300,recipe_target:[50.,0.,0.],recipe_settings:RecipeSettings{caps:vec![100.;4],tac:240.,weights:vec![1.;4],tolerance:2.},recipe_result:None,lab_levels:5,characterization:None,characterization_page:1,characterization_patch:None,characterization_fit:None,characterization_measured:false,characterization_heat:false,characterization_filter:target_tools::Filter::default(),characterization_cloud:false,characterization_view:ViewOptions{profile_colors:false,layout:CompareLayout::Shared,solid:false,wireframe:false,floor_contour:false,..ViewOptions::default()},characterization_cache:std::cell::RefCell::new(gamut_view::PreviewCache::default()),characterization_revision:0,measured:[None,None],measurement_result:None,black:BlackGeneration::default(),black_channel:None,curve_points:IDENTITY_POINTS.to_vec(),logo:std::sync::Arc::new(gpui::Image::from_bytes(gpui::ImageFormat::Png,include_bytes!("../../assets/icon.png").to_vec())),#[cfg(windows)] updater:UpdateManager::new(UpdateConfig::new("emadgh/color-convert-rust","ICC-Profile-Studio.exe",STUDIO_VERSION.trim()).with_app_name("ICC Profile Studio").with_checksum_asset("ICC-Profile-Studio.exe.sha256").with_required_checksum(true))}}
+ fn default()->Self{Self{link_grid:0,link_tolerance:2.,link_intent:lcms2::Intent::RelativeColorimetric,link_report:None,slider_drag:None,embedded_names:true,display_profile:None,language:Language::En,nav_collapsed:[false;5],picker:None,system_catalog:None,system_error:None,system_loading:false,version_allow_omit:false,version_relative_only:false,version_de:0.5,version_ink:0.5,version_report:None,page:Page::Inspector,source:None,profile:None,report:None,error:None,multi_caps:vec![],multi_tac:0.,caps:[100.,100.,100.,0.],tac:240.,grid:33,mode:Mode::Custom,status:"Open an ICC or ICM profile to start.".into(),busy:false,candidate:None,comparison:None,compare_error:None,compare_grid:17,compare_intent:lcms2::Intent::RelativeColorimetric,gamma:vec![],order:vec![],preview_open:true,preview:None,preview_revision:0,preview_width:360.,preview_fullscreen:false,resize_last:None,gamut_advanced:false,curve_drag:None,preview_cache:std::cell::RefCell::new(gamut_view::PreviewCache::default()),preview_options:ViewOptions::default(),gamut_grid:33,gradient:None,gradient_detail:None,gradient_error:None,coverage_threshold:2.,regions:[Selective::default();MAX_REGIONS],region_count:1,region_selected:0,correction_grid:33,correction_tac:400.,smoothing:0.20,smoothing_passes:1,orbit_last:None,chart_dpi:300,recipe_target:[50.,0.,0.],recipe_settings:RecipeSettings{caps:vec![100.;4],tac:240.,weights:vec![1.;4],tolerance:2.},recipe_result:None,lab_levels:5,characterization:None,characterization_page:1,characterization_patch:None,characterization_fit:None,characterization_measured:false,characterization_heat:false,spectral_illuminant:Illuminant::D50,spectral_observer:Observer::Two,characterization_filter:target_tools::Filter::default(),characterization_cloud:false,characterization_view:ViewOptions{profile_colors:false,layout:CompareLayout::Shared,solid:false,wireframe:false,floor_contour:false,..ViewOptions::default()},characterization_cache:std::cell::RefCell::new(gamut_view::PreviewCache::default()),characterization_revision:0,measured:[None,None],measurement_result:None,black:BlackGeneration::default(),black_channel:None,curve_points:IDENTITY_POINTS.to_vec(),logo:std::sync::Arc::new(gpui::Image::from_bytes(gpui::ImageFormat::Png,include_bytes!("../../assets/icon.png").to_vec())),#[cfg(windows)] updater:UpdateManager::new(UpdateConfig::new("emadgh/color-convert-rust","ICC-Profile-Studio.exe",STUDIO_VERSION.trim()).with_app_name("ICC Profile Studio").with_checksum_asset("ICC-Profile-Studio.exe.sha256").with_required_checksum(true))}}
 }
 fn button(id: impl Into<ElementId>,label:impl Into<SharedString>)->Stateful<Div>{
  let label:SharedString=label.into();
@@ -212,7 +212,7 @@ impl Studio {
  fn load_reference(&mut self,path:PathBuf,cx:&mut Context<Self>){
   if self.busy{return}
   self.picker=None;
-  self.source=Some(path.clone());self.characterization=None;self.characterization_patch=None;self.characterization_fit=None;self.characterization_measured=false;self.characterization_heat=false;self.characterization_filter=target_tools::Filter::default();self.characterization_cloud=false;self.characterization_revision=self.characterization_revision.wrapping_add(1);self.characterization_page=1;self.version_report=None;self.version_allow_omit=false;self.version_relative_only=false;self.black=BlackGeneration::default();self.black_channel=None;self.curve_points=IDENTITY_POINTS.to_vec();self.recipe_result=None;self.recipe_settings.weights.clear();self.regions=[Selective::default();MAX_REGIONS];self.region_count=1;self.region_selected=0;self.correction_grid=33;self.correction_tac=400.;self.smoothing=0.20;self.smoothing_passes=1;self.preview=None;self.candidate=None;self.gradient=None;self.gradient_detail=None;self.gradient_error=None;self.gamma.clear();self.order.clear();self.curve_drag=None;self.comparison=None;self.compare_error=None;self.report=None;self.profile=None;self.display_profile=None;self.multi_caps.clear();self.multi_tac=0.;self.error=None;
+  self.source=Some(path.clone());self.characterization=None;self.characterization_patch=None;self.characterization_fit=None;self.characterization_measured=false;self.characterization_heat=false;self.spectral_illuminant=Illuminant::D50;self.spectral_observer=Observer::Two;self.characterization_filter=target_tools::Filter::default();self.characterization_cloud=false;self.characterization_revision=self.characterization_revision.wrapping_add(1);self.characterization_page=1;self.version_report=None;self.version_allow_omit=false;self.version_relative_only=false;self.black=BlackGeneration::default();self.black_channel=None;self.curve_points=IDENTITY_POINTS.to_vec();self.recipe_result=None;self.recipe_settings.weights.clear();self.regions=[Selective::default();MAX_REGIONS];self.region_count=1;self.region_selected=0;self.correction_grid=33;self.correction_tac=400.;self.smoothing=0.20;self.smoothing_passes=1;self.preview=None;self.candidate=None;self.gradient=None;self.gradient_detail=None;self.gradient_error=None;self.gamma.clear();self.order.clear();self.curve_drag=None;self.comparison=None;self.compare_error=None;self.report=None;self.profile=None;self.display_profile=None;self.multi_caps.clear();self.multi_tac=0.;self.error=None;
   match inspection::inspect(&path){Ok(r)=>self.report=Some(r),Err(e)=>self.error=Some(e)}
   if let Ok(p)=Profile::read(&path){
    self.display_profile=Some(p.clone());
@@ -887,7 +887,7 @@ impl Studio {
     .child(seg("target-predicted",tr("ICC predicted"),!self.characterization_measured&&!self.characterization_heat).on_click(cx.listener(|v,_,_,cx|{v.characterization_measured=false;v.characterization_heat=false;cx.notify();})))
     .child(seg("target-measured",tr("D50/2° measurement"),self.characterization_measured).on_click(cx.listener(|v,_,_,cx|{v.characterization_measured=true;v.characterization_heat=false;cx.notify();})))
     .child(seg("target-heat",tr("ΔE00 heatmap"),self.characterization_heat).on_click(cx.listener(|v,_,_,cx|{v.characterization_heat=true;v.characterization_measured=false;cx.notify();}))))
-   .child(tr("Measured view uses declared D50/2° Lab or a legacy spectral estimate; missing values appear gray. M0 is not M1."))
+   .child(tr("Measured view uses declared D50/2° Lab or a labelled spectral estimate; missing values appear gray. M0 is not M1."))
    .child(tr("Confirm only if measurement mode, reference white, backing and print condition are comparable. This is fit to characterization data, not independent validation."))
    .child(button("target-compare-absolute","Confirm comparable conditions and calculate ΔE00").on_click(cx.listener(|v,_,_,cx|{
     if v.busy{return}
@@ -937,6 +937,18 @@ impl Studio {
    if let Some(d)=patch.delta_e{p=p.child(format!("ΔE00 {:.3}",d));}
    for (j,v) in patch.inks.iter().enumerate(){p=p.child(div().flex().items_center().gap_2().child(div().w(px(100.)).child(self.ink_name(j))).child(div().flex_1().child(bar(*v/100.,self.ink_color(j),10.))).child(format!("{v:.2}%")));}
    if let Some(s)=&patch.spectrum{
+    p=p.child(div().text_lg().child(tr("Spectral viewing conditions")))
+     .child(div().flex().gap_1().children(Illuminant::ALL.into_iter().enumerate().map(|(i,ill)|seg(("spectral-ill",i),ill.label(),self.spectral_illuminant==ill).on_click(cx.listener(move|v,_,_,cx|{v.spectral_illuminant=ill;cx.notify();})))))
+     .child(div().flex().gap_1().children(Observer::ALL.into_iter().enumerate().map(|(i,obs)|seg(("spectral-obs",i),obs.label(),self.spectral_observer==obs).on_click(cx.listener(move|v,_,_,cx|{v.spectral_observer=obs;cx.notify();})))))
+     .child(tr("Alternate viewing conditions are spectral estimates only. ICC fit and heatmap remain D50/2°."));
+    if let (Some(start),Some(step))=(patch.start_nm,patch.step_nm){
+     match cie_spectral::calculate(s,start,step,self.spectral_illuminant,self.spectral_observer){
+      Ok(r)=>{p=p.child(format!("{} / {} · Lab {:.4?} · XYZ {:.4?} · White {:.4?}",self.spectral_illuminant.label(),self.spectral_observer.label(),r.lab,r.xyz,r.white))
+       .child(tr(if r.endpoint_extended{"Unmeasured wavelength endpoints extended; no bandpass correction."}else{"Measured wavelength coverage; no bandpass correction."}));},
+      Err(e)=>{p=p.child(div().text_xs().text_color(rgb(0xfbbf24)).child(e));}
+     }
+    }
+    p=p.child(button("cie-attribution","CIE data / CC BY-SA 4.0").on_click(cx.listener(|_,_,_,cx|cx.open_url("https://www.cie.co.at/data-tables"))));
     let peak=s.iter().copied().fold(1f64,f64::max);
     p=p.child(format!("{} · {} spectral samples · {:?} nm / {:?} nm",patch.measurement,s.len(),patch.start_nm,patch.step_nm))
      .child(div().flex().items_end().gap_1().h(px(80.)).children(s.iter().map(|v|div().flex_1().h(px((75.*v/peak) as f32)).bg(rgb(0xe87935)))));
@@ -960,19 +972,24 @@ impl Studio {
     v.status=match target_tools::export_cgats(c,&path,profile.cmyk()){Ok(())=>format!("Saved {}",path.display()),Err(e)=>e};cx.notify();
    }
   })));
-  if self.display_profile.as_ref().is_some_and(|p|p.cmyk()){
-   p=p.child(tr("CMYK TIFF uses 8 mm patches, 2 mm gaps, selected DPI and Rebuilder ink limits. Original physical size is unknown. Export is untagged; verify safe limits and disable RIP color conversion before printing."))
-    .child(format!("Current limits {:?} · TAC {:.0}% · {} DPI",self.caps,self.tac,self.chart_dpi))
-    .child(button("target-tiff-export",tr("Confirm limits and export page CMYK16 TIFF")).on_click(cx.listener(|v,_,_,cx|{
+  if let Some(profile)=&self.display_profile{
+   let n=c.patches.first().map(|p|p.inks.len()).unwrap_or(0);
+   let (caps,tac)=if profile.cmyk(){(self.caps.to_vec(),self.tac)}else{(self.multi_caps.clone(),self.multi_tac)};
+   p=p.child(tr("Separated TIFF: 8 mm patches, 2 mm gaps, selected DPI and Rebuilder ink limits. Original physical size is unknown. Check RIP channel mapping; no ICC conversion."))
+    .child(format!("{} channels · TAC {:.0}% · {} DPI",n,tac,self.chart_dpi));
+   for (j,cap) in caps.iter().enumerate(){p=p.child(div().flex().items_center().gap_2().child(swatch(self.ink_color(j),12.)).child(self.ink_name(j)).child(format!("{cap:.1}%")));}
+   if caps.len()!=n{p=p.child(tr("Configure ink limits for every channel before TIFF export."));}
+   else{p=p.child(button("target-tiff-export",tr("Confirm limits and export separated 16-bit TIFF")).on_click(cx.listener(|v,_,_,cx|{
      if v.busy{return}let (Some(c),Some(profile))=(&v.characterization,&v.display_profile)else{return};
      let Some(path)=rfd::FileDialog::new().add_filter("TIFF",&["tif"]).set_file_name("characterization_page.tif").save_file()else{return};
-     let (c,profile,page,dpi,caps,tac)=(c.clone(),profile.clone(),v.characterization_page,v.chart_dpi,v.caps,v.tac);
+     let (caps,tac)=if profile.cmyk(){(v.caps.to_vec(),v.tac)}else{(v.multi_caps.clone(),v.multi_tac)};
+     let (c,profile,page,dpi)=(c.clone(),profile.clone(),v.characterization_page,v.chart_dpi);
      v.busy=true;v.status="Exporting device recipes…".into();cx.notify();
      cx.spawn(async move|this,cx|{
       let result=cx.background_spawn(async move{target_tools::export_page_tiff(&c,&profile,page,&path,dpi,caps,tac).map(|_|path)}).await;
       let _=this.update(cx,|v,cx|{v.busy=false;v.status=result.map(|p|format!("Saved {}",p.display())).unwrap_or_else(|e|e);cx.notify();});
      }).detach();
-    })));
+    })));}
   }
   p.child(button("target-export","Export target CSV").on_click(cx.listener(|v,_,_,cx|{
    if v.busy{return}let Some(c)=&v.characterization else{return};
@@ -982,38 +999,45 @@ impl Studio {
   })))
  }
  fn lab_page(&self,cx:&mut Context<Self>)->Div{
-  let mut p=div().flex().flex_col().gap_3().child(heading("Profiling Lab","Direct-ink test charts, measured patch comparison and ArgyllCMS profiling.")).child(self.characterization_panel(cx))
+  let dynamic=self.display_profile.as_ref().is_some_and(|p|!p.cmyk());
+  let (caps,tac)=if dynamic{(self.multi_caps.clone(),self.multi_tac)}else{(self.caps.to_vec(),self.tac)};
+  let count=color_convert_rust::profiling_target::recipes(&caps,tac,self.lab_levels).map(|v|v.len()).unwrap_or(0);
+  let mut p=div().flex().flex_col().gap_3().child(heading("Profiling Lab","Direct-ink characterization targets, measured condition comparison and CMYK profiling.")).child(self.characterization_panel(cx))
    .child("Record device, substrate, ink configuration and measurement conditions externally. Use identical geometry and D50 Lab for both charts.")
    .child(div().text_lg().child(tr("Generate device test chart")))
    .child(div().flex().gap_1().items_center().child(tr("Levels per ink")).children([3usize,5,7].map(|n|button(("chart-level",n),if self.lab_levels==n{format!("{n} ✓")}else{n.to_string()}).on_click(cx.listener(move|v,_,_,cx|{if !v.busy{v.lab_levels=n;cx.notify();}})))))
-   .child(format!("Rebuilder caps {:?}, TAC {:.0}%; Chart DPI {}. 8 mm patches, 2 mm gaps.",self.caps,self.tac,self.chart_dpi))
+   .child(format!("{} channels · {} unique patches · caps {:?} · TAC {:.0}% · 8 mm patches, 2 mm gaps",caps.len(),count,caps,tac))
+   .child("Bounded design: single ramps, pair mixtures and distributed samples. Not a full factorial or a certified profiling target.")
    .child(div().flex().gap_2().items_center().child(format!("{}: {} DPI",tr("Chart resolution"),self.chart_dpi))
     .child(button("chart-dpi-minus","−10").on_click(cx.listener(|v,_,_,cx|{if !v.busy{v.chart_dpi=v.chart_dpi.saturating_sub(10).max(50);cx.notify();}})))
     .child(self.numeric_slider(("dpi-slider",0),self.chart_dpi as f64,50.,1200.,10.,|v,x|v.chart_dpi=x as u32,cx)).child(button("chart-dpi-plus","+10").on_click(cx.listener(|v,_,_,cx|{if !v.busy{v.chart_dpi=(v.chart_dpi+10).min(1200);cx.notify();}}))))
    .child(button("generate-chart","Export TIFF chart and measurement CSV").on_click(cx.listener(|v,_,_,cx|{
     if v.busy{return}let Some(p)=v.source.clone()else{return};let Some(root)=rfd::FileDialog::new().pick_folder()else{return};
-    let (levels,caps,tac,dpi)=(v.lab_levels,v.caps,v.tac,v.chart_dpi);
+    let dynamic=v.display_profile.as_ref().is_some_and(|p|!p.cmyk());
+    let (caps,tac)=if dynamic{(v.multi_caps.clone(),v.multi_tac)}else{(v.caps.to_vec(),v.tac)};
+    let (levels,dpi)=(v.lab_levels,v.chart_dpi);
     v.busy=true;v.status="Generating device chart…".into();cx.notify();
     cx.spawn(async move|this,cx|{
-     let result=cx.background_spawn(async move{lab::generate_chart(&p,&root,levels,caps,tac,dpi).map(|p|format!("Chart: {}",p.display()))}).await;
+     let result=cx.background_spawn(async move{color_convert_rust::profiling_target::export(&p,&root,levels,&caps,tac,dpi).map(|p|format!("Chart: {}",p.display()))}).await;
      let _=this.update(cx,|v,cx|{v.busy=false;v.status=result.unwrap_or_else(|e|format!("Error: {e}"));cx.notify();});
     }).detach();
    })))
    .child("Print the chart with no RIP color conversion; verify safe ink limits first. Fill blank measured L,a,b after printing; blank values are rejected.")
    .child(div().text_lg().child(tr("Measured condition comparison")));
   for i in 0..2{p=p.child(button(("measured-file",i),if i==0{"Select measured baseline CSV"}else{"Select measured changed-condition CSV"}).on_click(cx.listener(move|v,_,_,cx|{if !v.busy{if let Some(p)=rfd::FileDialog::new().add_filter("CSV",&["csv"]).pick_file(){v.measured[i]=Some(p);v.measurement_result=None;cx.notify();}}}))).child(self.measured[i].as_ref().map(|p|p.display().to_string()).unwrap_or("Not selected".into()));}
-  p=p.child(button("compare-measured","Compare measurements").on_click(cx.listener(|v,_,_,cx|{
+  p=p.child(button("compare-measured","Confirm comparable D50/2° conditions and compare").on_click(cx.listener(|v,_,_,cx|{
    if v.busy{return}let [Some(a),Some(b)]=v.measured.clone()else{return};v.busy=true;v.measurement_result=None;v.status="Comparing actual measurements…".into();cx.notify();
    cx.spawn(async move|this,cx|{
-    let result=cx.background_spawn(async move{lab::compare(&a,&b)}).await;
+    let result=cx.background_spawn(async move{color_convert_rust::profiling_target::compare(&a,&b)}).await;
     let _=this.update(cx,|v,cx|{v.busy=false;match result{Ok(r)=>{v.measurement_result=Some(r);v.status="Measured comparison finished".into()},Err(e)=>v.status=format!("Error: {e}")}cx.notify();});
    }).detach();
   })));
   if let Some(r)=&self.measurement_result{p=p.child(format!("{} patches | Mean ΔE {:.3} | P95 {:.3} | Max {:.3} ({}) | Mean ΔLab (after−before) {:.3?}",r.count,r.mean,r.p95,r.max,r.worst,r.bias));}
+  if dynamic{return p.child("N-color ICC fitting is not supported by Argyll colprof. Export measured data for a compatible profiling engine; no ICC is fabricated.");}
   p.child(div().text_lg().child(tr("Profile measured printing condition (Argyll colprof)")))
    .child("Supply an actual CMYK .ti3 file from a measurement workflow. Builds a new ICC with explicit TAC and Argyll default black generation. Validate it before production. No automatic compensation or matching is assumed.")
    .child(button("colprof","Build ICC from measured TI3").on_click(cx.listener(|v,_,_,cx|{
-    if v.busy{return}let Some(source)=rfd::FileDialog::new().add_filter("Measured Argyll TI3",&["ti3"]).pick_file()else{return};
+    if v.busy||v.display_profile.as_ref().is_none_or(|p|!p.cmyk()){return}let Some(source)=rfd::FileDialog::new().add_filter("Measured Argyll TI3",&["ti3"]).pick_file()else{return};
     let Some(mut dest)=rfd::FileDialog::new().add_filter("ICC",&["icc"]).set_file_name("measured_profile.icc").save_file()else{return};if dest.extension().is_none(){dest.set_extension("icc");}
     let tac=v.tac;v.busy=true;v.status="Argyll colprof is building measured profile…".into();cx.notify();
     cx.spawn(async move|this,cx|{
@@ -1050,6 +1074,7 @@ impl Studio {
     .child(div().text_lg().child(tr("Technology"))).child("Rust · GPUI · LittleCMS 2 · ArgyllCMS")
     .child(format!("Core package {}",env!("CARGO_PKG_VERSION")))
     .child("CMYK / Multichannel ICC · DeviceLink"))
+   .child(div().text_xs().child(cie_spectral::ATTRIBUTION))
    .child(div().text_lg().child(tr("Software updates")));
   #[cfg(windows)]{
    match self.updater.status(){
