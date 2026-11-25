@@ -158,8 +158,8 @@ impl Studio {
  fn system_dropdown(&self,target:Picker,cx:&mut Context<Self>)->Div{
   let key=match target{Picker::Reference=>"sys-ref-button",Picker::Comparison=>"sys-compare-button",Picker::Gamut=>"sys-gamut-button"};
   let selected=if target==Picker::Reference{self.source.as_ref()}else{self.candidate.as_ref()};
-  let label=if target==Picker::Reference{tr("System profiles")}else{selected.and_then(|p|p.file_name()).map(|p|{let name=p.to_string_lossy();let mut label=name.chars().take(22).collect::<String>();if name.chars().count()>22{label.push('…');}label}).unwrap_or_else(||tr("System profiles"))};
-  div().relative().flex_shrink_0().child(div().id(key).flex().items_center().gap_2().px_2().py_2().rounded_md().border_1().border_color(rgb(0x626262)).bg(rgb(0x262626)).cursor_pointer().child(label).child(if self.picker==Some(target){"▴"}else{"▾"}).on_click(cx.listener(move|v,_,_,cx|v.toggle_system_picker(target,cx))))
+  let label=selected.and_then(|p|p.file_name()).map(|p|{let name=p.to_string_lossy();let mut label=name.chars().take(20).collect::<String>();if name.chars().count()>20{label.push('…');}label}).unwrap_or_else(||tr("System profiles"));
+  div().relative().flex_shrink_0().when(target==Picker::Reference,|p|p.w_full()).child(div().id(key).flex().items_center().justify_between().gap_2().px_2().py_2().rounded_md().border_1().border_color(rgb(if self.picker==Some(target){0xe87935}else{0x626262})).bg(rgb(0x262626)).hover(|p|p.bg(rgb(0x333333))).cursor_pointer().child(div().flex_1().min_w(px(0.)).child(label)).child(div().text_color(rgb(0xa1a1aa)).child(if self.picker==Some(target){"▴"}else{"▾"})).on_click(cx.listener(move|v,_,_,cx|v.toggle_system_picker(target,cx))))
    .when(self.picker==Some(target),|p|p.child(div().absolute().left(px(0.)).top(px(35.)).child(deferred(anchored().snap_to_window().child(self.system_picker(target,cx))).with_priority(10))))
  }
  fn system_picker(&self,target:Picker,cx:&mut Context<Self>)->Div{
@@ -462,10 +462,10 @@ impl Studio {
   p=p.child(format!("ICC v{} → v{} · {} · {}",profile.version_major(),target,profile.space(),if target==2{"lut16 (mft2)"}else{"mAB / mBA"}))
    .child(div().flex().flex_wrap().gap_2().children((0..profile.channels().len()).map(|j|div().flex().items_center().gap_1().child(swatch(self.ink_color(j),12.)).child(format!("{} · {}",j+1,self.ink_name(j))))))
    .child(tr("Valid colorant names and laydown order tags are retained as original bytes. In ICC v2 these tags may be extensions; verify interpretation in the target RIP."))
-   .child("Preserves the six intent CLUTs and adapts the PCS-side Lab encoding; does not regenerate separations or relabel the header only. Unsupported curve/matrix structures fail closed.");
+   .child(tr("Preserves the six intent CLUTs and adapts the PCS-side Lab encoding; does not regenerate separations or relabel the header only. Unsupported curve/matrix structures fail closed."));
   if !omitted.is_empty(){
    p=p.child(div().text_sm().text_color(rgb(0xfbbf24)).child(format!("Optional / unhandled tags NOT transferred: {}",omitted.join(", "))))
-    .child("These may include vendor metadata or gamut data. The original ICC remains intact. Only enable omission for an independent compatibility copy; vendor/RIP behavior is not guaranteed.")
+    .child(tr("These may include vendor metadata or gamut data. The original ICC remains intact. Only enable omission for an independent compatibility copy; vendor/RIP behavior is not guaranteed."))
     .child(seg("version-omit",if self.version_allow_omit{"Omit listed tags ✓"}else{"Allow omission of listed tags"},self.version_allow_omit).on_click(cx.listener(|v,_,_,cx|{if !v.busy{v.version_allow_omit=!v.version_allow_omit;cx.notify();}})));
   }
   for (i,(label,value)) in [("Max forward ΔE00",self.version_de),("Max channel Δ (percentage points)",self.version_ink)].into_iter().enumerate(){
@@ -477,8 +477,8 @@ impl Studio {
   p=p.child(div().flex().gap_1().flex_wrap()
     .child(seg("version-all","Require all intents",!self.version_relative_only).on_click(cx.listener(|v,_,_,cx|{if !v.busy{v.version_relative_only=false;v.version_report=None;cx.notify();}})))
     .child(seg("version-rel","Relative / Absolute only",self.version_relative_only).on_click(cx.listener(|v,_,_,cx|{if !v.busy{v.version_relative_only=true;v.version_report=None;cx.notify();}}))))
-   .when(self.version_relative_only,|p|p.child(div().text_sm().text_color(rgb(0xfbbf24)).child("Compatibility copy: Perceptual and Saturation may change substantially. Do not use those intents in the RIP. All four are measured and reported, but only Relative and Absolute must meet the selected tolerance.")))
-   .child("Checks device→PCS color, PCS→device channel differences and TAC for all four intents. Preserves zero-ink channels and bounds; no new ICC saved if required limits fail.")
+   .when(self.version_relative_only,|p|p.child(div().text_sm().text_color(rgb(0xfbbf24)).child(tr("Compatibility copy: Perceptual and Saturation may change substantially. Do not use those intents in the RIP. All four are measured and reported, but only Relative and Absolute must meet the selected tolerance."))))
+   .child(tr("Checks device→PCS color, PCS→device channel differences and TAC for all four intents. Preserves zero-ink channels and bounds; no new ICC saved if required limits fail."))
    .child(button("convert-icc-version",if self.busy{"Working…"}else{"Convert & validate new ICC"}).on_click(cx.listener(move|v,_,_,cx|{
     if v.busy{return}let Some(source)=v.source.clone()else{return};
     if !omitted.is_empty()&&!v.version_allow_omit{v.status="Review listed tags and explicitly allow omission, or keep the original ICC.".into();cx.notify();return}
@@ -506,7 +506,7 @@ impl Studio {
    for i in &r.checks{p=p.child(div().text_sm().text_color(rgb(if i.passed{0xa7f3d0}else{0xfbbf24})).child(format!("{} [{}]: mean ΔE00 {:.4} · max {:.4} · channel Δ {:.4} pp · TAC Δ {:.4} pp",i.name,if i.passed{"PASS"}else if i.required{"FAIL"}else{"OUTSIDE TOLERANCE — NOT CERTIFIED"},i.mean_de,i.max_de,i.max_ink_pp,i.max_tac_pp)));}
    if !r.omitted.is_empty(){p=p.child(format!("Omitted by consent: {}",r.omitted.join(", ")));}
   }
-  p.child("Sampled equivalence, not a guarantee for all colors or vendor compatibility. Always validate in the target RIP and print-test.")
+  p.child(tr("Sampled equivalence, not a guarantee for all colors or vendor compatibility. Always validate in the target RIP and print-test."))
  }
  fn refresh_gamut(&mut self,cx:&mut Context<Self>){
   if self.busy{return}let Some(reference)=self.source.clone()else{return};
@@ -580,8 +580,8 @@ impl Studio {
   let o=self.preview_options;
   let filename=|p:&Option<PathBuf>|p.as_ref().and_then(|p|p.file_name()).map(|n|n.to_string_lossy().into_owned()).unwrap_or("Not selected".into());
   let mut p=div().flex().flex_col().gap_2().text_sm()
-   .child(div().text_xs().child(format!("Reference: {}",filename(&self.source))))
-   .child(div().text_xs().child(format!("Candidate: {}",filename(&self.candidate))))
+   .child(div().text_xs().child(format!("{}: {}",tr("Reference"),filename(&self.source))))
+   .child(div().text_xs().child(format!("{}: {}",tr("Candidate"),filename(&self.candidate))))
    .child(div().flex().gap_1().flex_wrap()
     .child(seg("preview-pick","Compare ICC",false).on_click(cx.listener(|v,_,_,cx|{if !v.busy{if let Some(path)=rfd::FileDialog::new().add_filter("ICC profile",&["icc","icm"]).pick_file(){v.candidate=Some(path);v.preview_options.candidate=true;v.preview=None;v.comparison=None;v.gradient=None;v.gradient_detail=None;v.gradient_error=None;v.refresh_gamut(cx);cx.notify();}}})))
     .child(self.system_dropdown(Picker::Gamut,cx))
@@ -607,7 +607,7 @@ impl Studio {
     .child(div().flex().gap_1().flex_wrap()
      .child(seg("floor","Floor",o.floor_contour).on_click(cx.listener(|v,_,_,cx|{v.preview_options.floor_contour=!v.preview_options.floor_contour;cx.notify();}))))
     .child(seg("save-gamut-png","Export PNG",false).on_click(cx.listener(|v,_,_,cx|{if let Some(data)=&v.preview{if let Some(path)=rfd::FileDialog::new().add_filter("PNG",&["png"]).set_file_name("gamut.png").save_file(){let result=color_convert_rust::gamut_raster::render(Some(data),v.preview_options).png().and_then(|bytes|{use std::io::Write;let mut f=tempfile::NamedTempFile::new_in(path.parent().unwrap_or(std::path::Path::new("."))).map_err(|e|e.to_string())?;f.write_all(&bytes).map_err(|e|e.to_string())?;f.persist_noclobber(&path).map_err(|e|e.to_string())?;Ok(())});v.status=result.map(|_|format!("Saved {}",path.display())).unwrap_or_else(|e|format!("Error: {e}"));cx.notify();}}})))
-    .child(div().text_xs().text_color(rgb(0xa1a1aa)).child("Sampled round-trip ΔE00 ≤ 2 surface; profile colors approximate D50 Lab to sRGB. Wire grid = L* rings and hue meridians. Not a measured physical gamut."));
+    .child(div().text_xs().text_color(rgb(0xa1a1aa)).child(tr("Sampled round-trip ΔE00 ≤ 2 surface; profile colors approximate D50 Lab to sRGB. Wire grid = L* rings and hue meridians. Not a measured physical gamut.")));
   }
   p
  }
@@ -695,7 +695,7 @@ impl Studio {
     }
    }else{p=p.child(tr("Select two valid CMYK or nCLR printer profiles to calculate target coverage differences."));}
   }
-  p.child("Coverage is a sampled round-trip reproduction test, not proof of physical achievability. Volume estimates integrate sampled cell occupancy at ΔE00 ≤ 2; resolution dependent, not a measured physical gamut.")
+  p.child(tr("Coverage is a sampled round-trip reproduction test, not proof of physical achievability. Volume estimates integrate sampled cell occupancy at ΔE00 ≤ 2; resolution dependent, not a measured physical gamut."))
  }
  fn correction_options(&self,cx:&mut Context<Self>)->Div{
   let estimate=self.profile.as_ref().and_then(|p|p.estimated_tac_percent());
@@ -752,7 +752,7 @@ impl Studio {
    .child(seg("reset-regions","Reset all",false).on_click(cx.listener(|v,_,_,cx|{if !v.busy{v.regions=[Selective::default();MAX_REGIONS];v.region_count=1;v.region_selected=0;cx.notify();}}))))
    .child(format!("{active} active correction region(s). Overlap is normalized; all masks use the original PCS color. Near-neutrals and lightness endpoints remain protected."))
    .child(self.correction_options(cx))
-   .child("One resampling pass for all regions, independent B2A intents; preserves A2B. Resampling can change unselected colors. Compare the new ICC before printing.")
+   .child(tr("One resampling pass for all regions, independent B2A intents; preserves A2B. Resampling can change unselected colors. Compare the new ICC before printing."))
    .child(button("save-selective","Generate corrected ICC").on_click(cx.listener(|v,_,_,cx|{if v.regions[..v.region_count].iter().any(|r|r.active()){v.save_edit(3,cx);}else{v.status="Choose a nonzero region adjustment first.".into();cx.notify();}})))
  }
  fn smoothing_page(&self,cx:&mut Context<Self>)->Div{
@@ -1294,7 +1294,7 @@ impl Studio {
     ;
    let mut white=div().flex().flex_col().gap_2().p_3().rounded_md().bg(rgb(0x282828))
     .child(div().text_lg().child(if r.is_output{tr("Paper / Substrate Color")}else{tr("Media White Point")}))
-    .child(div().text_xs().text_color(rgb(0xa1a1aa)).child("ICC mediaWhitePointTag (wtpt), D50 PCS; not the header illuminant."));
+    .child(div().text_xs().text_color(rgb(0xa1a1aa)).child(tr("ICC mediaWhitePointTag (wtpt), D50 PCS; not the header illuminant.")));
    if let Some(w)=&r.media_white{
     let mut details=div().flex().flex_col().gap_1()
      .child(format!("XYZ (Y=1 reference): {:.5} / {:.5} / {:.5}",w.xyz[0],w.xyz[1],w.xyz[2]))
@@ -1304,8 +1304,8 @@ impl Studio {
      details=details.child(format!("Approx. sRGB #{hex:06X}"));
      white=white.child(div().flex().items_center().gap_3().child(div().w(px(64.)).h(px(64.)).rounded_md().bg(rgb(hex))).child(details));
     }else{white=white.child(details);}
-    white=white.child(div().text_xs().child("Stored tag only. Swatch is an approximate sRGB rendering, not a calibrated or measured sample. A normalized D50 value does not prove the substrate is physically neutral."));
-   }else{white=white.child("Not available: wtpt missing, unreadable or invalid. No substitute white is assumed.");}
+    white=white.child(div().text_xs().child(tr("Stored tag only. Swatch is an approximate sRGB rendering, not a calibrated or measured sample. A normalized D50 value does not prove the substrate is physically neutral.")));
+   }else{white=white.child(tr("Not available: wtpt missing, unreadable or invalid. No substitute white is assumed."));}
    panel=panel.child(white);
    if let Some(profile)=&self.display_profile{
     let structures=color_convert_rust::advanced_lut::inspect(profile);
@@ -1351,14 +1351,14 @@ impl Studio {
     let line=match &check.result{Ok(max)=>format!("Transforms created • sampled maxima {}",max.iter().map(|v|format!("{v:.2}%")).collect::<Vec<_>>().join(" / ")),Err(e)=>format!("Failed: {e}")};
     panel=panel.child(div().flex().flex_col().gap_1().p_3().rounded_md().bg(rgb(0x282828)).child(check.name).child(div().text_sm().child(line)));
    }
-   panel=panel.child("729 sRGB samples per intent. Sampled values are not exhaustive.");
+   panel=panel.child(tr("729 sRGB samples per intent. Sampled values are not exhaustive."));
    if let Some(bounds)=&r.multichannel_bounds{
     panel=panel.child(div().text_lg().child(tr("Strict LUT bounds")));
     match bounds{
      Ok(b)=>{for (j,v) in b.channels.iter().enumerate(){panel=panel.child(format!("{}: {:.4}%",self.ink_name(j),100.*v));}panel=panel.child(format!("TAC upper bound: {:.4}% ({})",100.*b.tac,if b.exact_node_tac{"affine output curves; exact node maximum"}else{"conservative global envelope; may overestimate"}));},
      Err(e)=>panel=panel.child(format!("Not certifiable with supported LUT parser: {e}")),
     }
-    panel=panel.child("Multichannel bounds are conservative; editing support depends on the LUT structure.");
+    panel=panel.child(tr("Multichannel bounds are conservative; editing support depends on the LUT structure."));
    }
    if let Some(bounds)=&r.strict_bounds{
     panel=panel.child(div().text_lg().child(tr("Strict LUT bounds")));
