@@ -22,14 +22,19 @@ struct Weights{rows:Vec<[f64;3]>,white:[f64;3]}
 fn table<const N:usize>(data:&str,first:u32,allow_z_tail:bool)->R<Vec<[f64;N]>>{
  if data.is_empty(){return Err("Official CIE tables not embedded; run scripts/fetch-cie.ps1 and rebuild".into())}
  let mut out=Vec::new();
- for line in data.trim_start_matches('\u{feff}').lines(){
-  let mut fields=line.trim().split(',');
-  let nm=fields.next().ok_or("Missing wavelength")?.trim().parse::<u32>().map_err(|_|"Invalid wavelength")?;
+ for (line_index,line) in data.trim_start_matches('\u{feff}').lines().enumerate(){
+  let line=line.trim();if line.is_empty(){continue}
+  let mut fields=line.split(',');
+  let raw=fields.next().ok_or("Missing wavelength")?.trim().trim_matches('"');
+  if out.is_empty()&&matches!(raw.to_ascii_lowercase().as_str(),"wavelength"|"wavelength (nm)"|"wavelength [nm]"|"lambda"|"nm"){continue}
+  let value=raw.parse::<f64>().map_err(|_|format!("Invalid CIE wavelength at line {}: {:?}",line_index+1,raw))?;
+  if !value.is_finite()||value.fract()!=0.||!(0.0..=1000.).contains(&value){return Err("Invalid integral CIE wavelength".into())}
+  let nm=value as u32;
   if nm!=first+out.len() as u32||nm>END{return Err("Unexpected CIE wavelength grid".into())}
   let mut row=[0.;N];
   for (j,slot) in row.iter_mut().enumerate(){
-   let s=fields.next().ok_or("Missing CIE value")?.trim();
-   *slot=if allow_z_tail&&j==2&&nm>=560&&s.eq_ignore_ascii_case("nan"){0.}else{s.parse::<f64>().map_err(|_|"Invalid CIE value")?};
+   let s=fields.next().ok_or("Missing CIE value")?.trim().trim_matches('"');
+   *slot=if allow_z_tail&&j==2&&nm>=560&&(s.eq_ignore_ascii_case("nan")||s.is_empty()){0.}else{s.parse::<f64>().map_err(|_|"Invalid CIE value")?};
    if !slot.is_finite()||*slot<0.{return Err("Invalid CIE table value".into())}
   }
   if fields.next().is_some(){return Err("Unexpected CIE column".into())}
@@ -39,8 +44,8 @@ fn table<const N:usize>(data:&str,first:u32,allow_z_tail:bool)->R<Vec<[f64;N]>>{
  Ok(out)
 }
 fn build()->R<Vec<Weights>>{
- let observers=[table::<3>(CMF2,START,false)?,table::<3>(CMF10,START,true)?];
- let illuminants=[table::<1>(D50,300,false)?,table::<1>(D65,300,false)?,table::<1>(A,300,false)?];
+ let observers=[table::<3>(CMF2,START,false).map_err(|e|format!("CIE 1931: {e}"))?,table::<3>(CMF10,START,true).map_err(|e|format!("CIE 1964: {e}"))?];
+ let illuminants=[table::<1>(D50,300,false).map_err(|e|format!("D50: {e}"))?,table::<1>(D65,300,false).map_err(|e|format!("D65: {e}"))?,table::<1>(A,300,false).map_err(|e|format!("A: {e}"))?];
  let mut all=Vec::new();
  for cmf in &observers{for illum in &illuminants{
   let mut rows=Vec::new();let mut white=[0.;3];
