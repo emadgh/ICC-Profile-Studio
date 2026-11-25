@@ -76,12 +76,21 @@ impl Profile{
   let mut out=self.clone();let mut count=0;
   for key in [b"B2A0",b"B2A1",b"B2A2"]{
    let Some(t)=self.tags.get(key)else{continue};
+   if t.starts_with(b"mBA "){
+    out.tags.insert(*key,crate::advanced_lut::gamma_edit(t,gamma)?);count+=1;continue
+   }
    let (mut lut,kind)=checked_lut(t,false,n)?;
    // 4096 samples per output curve; original curves are sampled first.
    for j in 0..n{let old=&lut.out_curves[j];lut.out_curves[j]=(0..4096).map(|i|interp(old,i as f64/4095.).powf(gamma[j])).collect();}
    out.tags.insert(*key,encode(&lut,&kind)?);count+=1;
   }
   if count==0||!out.tags.contains_key(b"B2A0"){return Err("Missing B2A0 output transform".into())}
+  // Never reopen an ink certified closed in the original profile.
+  if self.version_major()==4{
+   let old=crate::print_space::bounds(self)?;let new=crate::print_space::bounds(&out)?;
+   for j in 0..n{if old.channels[j]==0.&&new.channels[j]!=0.{return Err(format!("Gamma edit reopened closed channel {}",j+1))}}
+  }
+  if self.version_major()==4{verify_gamma_samples(self,&out,gamma)?;}
   out.clean_stale();Ok(out)
  }
  /// order[new_index] = old_index. Both transform directions are permuted.
@@ -114,6 +123,30 @@ impl Profile{
   if self.tags.contains_key(b"clro"){return Err("Colorant order tag requires a dedicated mapping adapter".into())}
   out.clean_stale();Ok(out)
  }
+}
+// Compare the actual decoded original and edited pipelines independently
+// of our curve evaluator. This is a sample gate, not an exhaustive proof.
+fn verify_gamma_samples(source:&Profile,out:&Profile,gamma:&[f64])->R<()>{
+ use lcms2::{Profile as Native,Tag,TagSignature};
+ let a=Native::new_icc(&source.bytes()?).map_err(|e|e.to_string())?;
+ let b=Native::new_icc(&out.bytes()?).map_err(|e|e.to_string())?;
+ let n=gamma.len();
+ let mut x=vec![0f32;n];let mut y=vec![0f32;n];
+ for tag in [TagSignature::BToA0Tag,TagSignature::BToA1Tag,TagSignature::BToA2Tag]{
+  let Tag::Pipeline(p)=a.read_tag(tag)else{return Err("Missing original gamma validation pipeline".into())};
+  let Tag::Pipeline(q)=b.read_tag(tag)else{return Err("Missing edited gamma validation pipeline".into())};
+  if p.input_channels()!=3||q.input_channels()!=3||p.output_channels() as usize!=n||q.output_channels() as usize!=n{return Err("Unexpected gamma validation dimensions".into())}
+  for l in 0..=16{for aa in 0..=16{for bb in 0..=16{
+   let pcs=[l as f32/16.,aa as f32/16.,bb as f32/16.];p.eval(&pcs,&mut x);q.eval(&pcs,&mut y);
+   for j in 0..n{
+    let old=f64::from(x[j]);let new=f64::from(y[j]);
+    if !old.is_finite()||!new.is_finite()||old< -0.00002||old>1.00002||new< -0.00002||new>1.00002{return Err("Invalid native output in gamma verification".into())}
+    let expected=old.clamp(0.,1.).powf(gamma[j]);
+    if (expected-new).abs()>0.005+2./65535.{return Err(format!("Native gamma composition mismatch on channel {}: {:.4} pp",j+1,100.*(expected-new).abs()))}
+   }
+  }}}
+ }
+ Ok(())
 }
 /// Deterministic bounded sample set: neutral device ramp, single-channel
 /// ramps, pairwise 0/50/100% combinations and distributed 16-bit samples.
