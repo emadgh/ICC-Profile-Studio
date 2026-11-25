@@ -26,7 +26,7 @@ pub fn load(path:&Path)->R<Preferences>{
  if !path.exists(){return Ok(Preferences::default())}
  if fs::metadata(path).map_err(|e|e.to_string())?.len()>128*1024{return Err("Preferences exceed 128 KiB".into())}
  let p:Preferences=serde_json::from_slice(&fs::read(path).map_err(|e|e.to_string())?).map_err(|e|e.to_string())?;
- p.validate()?;Ok(Preferences{gamut_grid:33,..p})
+ p.validate()?;Ok(p)
 }
 pub fn save(path:&Path,p:&Preferences)->R<()>{
  p.validate()?;let parent=path.parent().ok_or("No preferences folder")?;fs::create_dir_all(parent).map_err(|e|e.to_string())?;
@@ -44,5 +44,6 @@ pub fn save(path:&Path,p:&Preferences)->R<()>{
  let v=load(&p).unwrap();assert!(!v.preview_open);assert_eq!(v.chart_dpi,300);
  save(&p,&v).unwrap();let json:serde_json::Value=serde_json::from_slice(&fs::read(&p).unwrap()).unwrap();assert!(json.get("stream_enabled").is_none());assert!(json.get("monitor").is_none());assert!(json.get("dpi").is_none());assert!(json.get("library").is_none());
  }
+ #[test]fn gamut_quality_roundtrip(){let d=tempfile::tempdir().unwrap();let p=d.path().join("settings.json");for grid in [9,17,33]{let v=Preferences{gamut_grid:grid,..Preferences::default()};save(&p,&v).unwrap();assert_eq!(load(&p).unwrap().gamut_grid,grid);}}
  #[test]fn rejects_invalid(){let d=tempfile::tempdir().unwrap();let p=d.path().join("settings.json");fs::write(&p,b"{\"schema\":1,\"chart_dpi\":0}").unwrap();assert!(load(&p).is_err());fs::write(&p,b"{\"schema\":99}").unwrap();assert!(load(&p).is_err());}
 }
