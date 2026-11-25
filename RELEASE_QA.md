@@ -65,3 +65,6 @@ update is implied by CI success.
 ### beta.35 N-color model acceptance (pending)
 - Open FOGRA55 ICC and use Patch explorer / Import CGATS to load the matching external data, then Evaluate N-color baseline. Verify grouped counts, comparison bars, ΔE00, TAC and nearest-recipe distances. Replacing source/chart clears previous results; virtual/missing/mixed measurements must fail explicitly. Test other channel counts and five UI languages.
 - Run optional `fogra55_ncolor_baseline` with local data. Independent Python reference values in NCOLOR_MODEL_QA.md are a comparison baseline, not compiled Rust results. Do not treat holdout results as independent physical print validation or export any ICC from this experiment.
+
+### beta.36 acceptance (pending)
+Verify all five folds, pooled counts, local ridge error bars, active-channel histogram, optional stress report (not available for insufficient data), clear-on-import, worker/UI responsiveness, five languages. Run opt-in FOGRA55 reference assertions. No ICC output or production accuracy claims.
