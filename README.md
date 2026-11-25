@@ -89,3 +89,5 @@ Shared custom CMYK/nCLR rebuilding and bounded correction paths, structural/nati
 Beta.32 adds persisted synthetic multichannel rebuild regressions, complex reverse LUT smoothing tests, consistent channel swatch provenance, recipe capability preflight and a subset-selectable real profile validation harness. See MULTICHANNEL_QA.md. CI and external profile validation pending.
 
 Beta.33 adds active-channel-only Custom rebuilding, cooperative cancellation before ICC publication, reuse of verified rebuild results, bounded native roundtrip scratch memory and selectable Fast / Balanced / High gamut sampling (9/17/33). Default gamut resolution remains 33. No measured speedup or Windows interactive acceptance is claimed until benchmarks and manual QA are run.
+
+Beta.34 extends bounded multipoint curves, selective color correction and LUT smoothing to compatible ICC v2 Lab LUT16 (mft2) output profiles. It retains the source version, independent reverse intents, A2B and channel identity; v2 black generation/whole-profile optimization, LUT8 and alternate pipelines remain unsupported. See MULTICHANNEL_QA.md for the FOGRA55 diagnostic and opt-in Rust test.

@@ -2,9 +2,9 @@
 use crate::{Profile,R,print_space,editing,multichannel,Lut};
 use lcms2::{Tag,TagSignature,Intent};
 #[derive(Clone,Copy,Debug,PartialEq,Eq)]
-pub enum Tool{Analysis,Rebuild,Gamma,Reorder,Correction,Recipe,Version,DeviceLink,Target,Fit}
+pub enum Tool{Analysis,Rebuild,Gamma,Reorder,Correction,Optimization,Recipe,Version,DeviceLink,Target,Fit}
 impl Tool{
- pub fn label(self)->&'static str{match self{Self::Analysis=>"Comparison / Gamut / Gradient",Self::Rebuild=>"Profile Rebuilder",Self::Gamma=>"Tone Curves / Gamma",Self::Reorder=>"Channel Reorder",Self::Correction=>"Bounded curves / correction / smoothing / black / optimization",Self::Recipe=>"Single color recipe",Self::Version=>"ICC Version Conversion",Self::DeviceLink=>"DeviceLink Generator (source)",Self::Target=>"Profiling Lab / print target",Self::Fit=>"Build ICC from measurements"}}
+ pub fn label(self)->&'static str{match self{Self::Analysis=>"Comparison / Gamut / Gradient",Self::Rebuild=>"Profile Rebuilder",Self::Gamma=>"Tone Curves / Gamma",Self::Reorder=>"Channel Reorder",Self::Correction=>"Bounded curves / correction / smoothing",Self::Optimization=>"Black generation / whole-profile optimization",Self::Recipe=>"Single color recipe",Self::Version=>"ICC Version Conversion",Self::DeviceLink=>"DeviceLink Generator (source)",Self::Target=>"Profiling Lab / print target",Self::Fit=>"Build ICC from measurements"}}
 }
 #[derive(Clone,Debug)]
 pub struct Capabilities{pub channels:usize,pub tools:Vec<(Tool,R<()>)>}
@@ -25,12 +25,13 @@ pub fn inspect(p:&Profile)->Capabilities{
  let rebuild:R<()>=(||{multichannel::channel_count(p)?;let q=get_native()?;pipeline(q,TagSignature::AToB1Tag,n,3)?;if !p.cmyk(){pipeline(q,TagSignature::BToA1Tag,3,n)?;}Ok(())})();
  let gamma:R<()>=(||{structural.clone()?;get_native()?;require(p.tags.contains_key(b"B2A0"),"Missing B2A0")?;for (k,v) in &decoded{if k.starts_with('B'){let s=v.as_ref().map_err(Clone::clone)?;require(s.inputs==3&&s.outputs==n,"Reverse LUT channel mismatch")?;require(s.device_curves.iter().all(|(_,v)|v.is_ok()),"Unsupported device curve")?;}}Ok(())})();
  let reorder:R<()>=(||{structural.clone()?;get_native()?;editing::supported_tags(p)?;require(!p.tags.contains_key(b"clro"),"Colorant order tag requires a mapping adapter")?;require(p.tags.contains_key(b"A2B0")&&p.tags.contains_key(b"B2A0"),"Both A2B0 and B2A0 are required")?;for (k,v) in &decoded{let s=v.as_ref().map_err(Clone::clone)?;let dims=if k.starts_with('A'){(n,3)}else{(3,n)};require((s.inputs,s.outputs)==dims,"LUT channel mismatch")?;}Ok(())})();
- let correction:R<()>=(||{rebuild.clone()?;require(p.version_major()==4&&p.pcs()=="Lab ","Requires ICC v4 Lab PCS")?;print_space::bounds(p)?;let q=get_native()?;for (key,sig) in [(b"B2A0",TagSignature::BToA0Tag),(b"B2A1",TagSignature::BToA1Tag),(b"B2A2",TagSignature::BToA2Tag)]{require(p.tags.get(key).is_some_and(|v|v.starts_with(b"mBA ")),"Requires three supported mBA reverse LUTs")?;pipeline(q,sig,3,n)?;}Ok(())})();
+ let correction:R<()>=(||{rebuild.clone()?;crate::correction::correction_kind(p)?;print_space::bounds(p)?;let q=get_native()?;for sig in [TagSignature::BToA0Tag,TagSignature::BToA1Tag,TagSignature::BToA2Tag]{pipeline(q,sig,3,n)?;}Ok(())})();
+ let optimization:R<()>=(||{correction.clone()?;require(p.version_major()==4,"Black generation and whole-profile optimization require ICC v4 Lab")})();
  let version:R<()>=(||{structural.clone()?;get_native()?;require(p.pcs()=="Lab ","Requires Lab PCS")?;require(p.tags.contains_key(b"wtpt")&&p.tags.contains_key(b"desc"),"Missing media white or profile description")?;for key in [b"A2B0",b"A2B1",b"A2B2",b"B2A0",b"B2A1",b"B2A2"]{let raw=p.tags.get(key).ok_or("All six intent tags are required")?;let f=key[0]==b'A';let expected=if p.version_major()==2{b"mft2"}else if f{b"mAB "}else{b"mBA "};require(raw.starts_with(expected),"Unsupported version conversion LUT type")?;let l=Lut::parse(raw)?;require((l.inputs,l.outputs)==if f{(n,3)}else{(3,n)},"LUT channel mismatch")?;}Ok(())})();
  let recipe:R<()>=(||{structural.clone()?;analysis.clone()?;print_space::bounds(p)?;Ok(())})();
  let target:R<()>=(||{structural.clone()?;analysis.clone()?;Ok(())})();
  let fit:R<()>=(||{target.clone()?;require(p.cmyk(),"N-color fitting is not supported by the current Argyll colprof workflow")})();
- Capabilities{channels:n,tools:vec![(Tool::Analysis,analysis.clone()),(Tool::Rebuild,rebuild),(Tool::Gamma,gamma),(Tool::Reorder,reorder),(Tool::Correction,correction),(Tool::Recipe,recipe),(Tool::Version,version),(Tool::DeviceLink,analysis),(Tool::Target,target),(Tool::Fit,fit)]}
+ Capabilities{channels:n,tools:vec![(Tool::Analysis,analysis.clone()),(Tool::Rebuild,rebuild),(Tool::Gamma,gamma),(Tool::Reorder,reorder),(Tool::Correction,correction),(Tool::Optimization,optimization),(Tool::Recipe,recipe),(Tool::Version,version),(Tool::DeviceLink,analysis),(Tool::Target,target),(Tool::Fit,fit)]}
 }
 /// Display-only single-ink predictions, not measured spectra or ink identities.
 pub fn predicted_swatches(p:&Profile)->R<Vec<u32>>{
@@ -61,6 +62,11 @@ mod tests{
  use super::*;
  #[test]fn native_count_and_preflight_matrix(){
   for n in [3,5,6,7,8,15]{let p=print_space::fixture(n);let c=inspect(&p);assert_eq!(c.channels,n);assert!(c.reason(Tool::Rebuild).is_none(),"{n}: {:?}",c.reason(Tool::Rebuild));assert!(c.reason(Tool::Correction).is_none());assert!(c.reason(Tool::Fit).is_some());assert_eq!(predicted_swatches(&p).unwrap().len(),n);}
+ }
+ #[test]fn legacy_correction_preflight_is_separate_from_optimization(){
+  let p=crate::versioning::test_legacy_fixture(7);let c=inspect(&p);
+  assert!(c.reason(Tool::Correction).is_none(),"{:?}",c.tools);
+  assert!(c.reason(Tool::Optimization).is_some());
  }
  #[test]fn missing_reverse_disables_rebuild_and_correction(){let mut p=print_space::fixture(6);p.tags.remove(b"B2A1");let c=inspect(&p);assert!(c.reason(Tool::Rebuild).is_some());assert!(c.reason(Tool::Correction).is_some());assert!(c.reason(Tool::Version).is_some());}
  #[test]fn cmyk_shared_rebuild(){let p=crate::synthetic_cmyk_v4(true);let caps=[0.6,0.6,0.6,0.];let out=multichannel::rebuild(&p,&caps,1.8,9,|_|{}).unwrap();let v=multichannel::verify(&out,&caps,1.8).unwrap();assert_eq!(v.channels[3],0.);assert_eq!(out.space(),"CMYK");}

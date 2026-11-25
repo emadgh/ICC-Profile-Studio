@@ -114,7 +114,7 @@ impl Studio {
  fn ink_name(&self,i:usize)->String{self.ink_names().get(i).cloned().map(|n|if self.embedded_names{color_convert_rust::rtl::visual(&n)}else{tr(&n)}).unwrap_or_else(||format!("CH {}",i+1))}
  fn ink_color(&self,i:usize)->u32{visible_ink(self.display_profile.as_ref().map(|p|capabilities::channel_display(p,i,&self.predicted_inks,self.embedded_names).0).unwrap_or(0x858585))}
  fn ink_provenance(&self,i:usize)->String{self.display_profile.as_ref().map(|p|tr(capabilities::channel_display(p,i,&self.predicted_inks,self.embedded_names).1.label())).unwrap_or_default()}
- fn page_reason(&self,page:Page)->Option<&str>{let c=self.capability.as_ref()?;let t=match page{Page::Rebuilder=>Tool::Rebuild,Page::Reorder=>Tool::Reorder,Page::Correction|Page::Smoothing|Page::Black=>Tool::Correction,Page::Comparison|Page::Gamut|Page::Gradient=>Tool::Analysis,Page::Version=>Tool::Version,Page::DeviceLink=>Tool::DeviceLink,_=>return None};c.reason(t)}
+ fn page_reason(&self,page:Page)->Option<&str>{let c=self.capability.as_ref()?;let t=match page{Page::Rebuilder=>Tool::Rebuild,Page::Reorder=>Tool::Reorder,Page::Correction|Page::Smoothing=>Tool::Correction,Page::Black=>Tool::Optimization,Page::Comparison|Page::Gamut|Page::Gradient=>Tool::Analysis,Page::Version=>Tool::Version,Page::DeviceLink=>Tool::DeviceLink,_=>return None};c.reason(t)}
 
  fn numeric_slider(&self,id:(&'static str,usize),value:f64,lo:f64,hi:f64,step:f64,set:impl Fn(&mut Self,f64)+Copy+'static,cx:&mut Context<Self>)->impl IntoElement{
   let bounds=std::rc::Rc::new(std::cell::Cell::new(None::<Bounds<Pixels>>));
@@ -337,7 +337,7 @@ impl Studio {
  }
  fn save_edit(&mut self,kind:u8,cx:&mut Context<Self>){
   if self.busy{return}let Some(source)=self.source.clone()else{return};
-  let tool=match kind{0=>Some(Tool::Gamma),1=>Some(Tool::Reorder),3|4|5|6|7=>Some(Tool::Correction),_=>None};if let Some(reason)=tool.and_then(|t|self.capability.as_ref().and_then(|c|c.reason(t))){self.status=reason.to_owned();cx.notify();return}
+  let tool=match kind{0=>Some(Tool::Gamma),1=>Some(Tool::Reorder),3|4|7=>Some(Tool::Correction),5|6=>Some(Tool::Optimization),_=>None};if let Some(reason)=tool.and_then(|t|self.capability.as_ref().and_then(|c|c.reason(t))){self.status=reason.to_owned();cx.notify();return}
   if kind==6&&self.black_channel.is_none_or(|k|k>=self.gamma.len()){self.status=tr("Select the physical black ink explicitly.").into();cx.notify();return}
   let suffix=match kind{0=>"curves",1=>"reordered",3=>"selective",4=>"smoothed",5=>"ink_optimized",6=>"black_generation",7=>"point_curves",_=>"renamed"};
   let default_name=format!("{}_{}.icc",source.file_stem().unwrap_or_default().to_string_lossy(),suffix);
@@ -401,7 +401,7 @@ impl Studio {
  fn curves_page(&self,cx:&mut Context<Self>)->Div{
   let mut p=div().flex().flex_col().gap_3().child(heading("Tone Curves","Drag curve handles or use numeric steps. Curves represent corrections, not measured ink response."));
   if self.gamma.is_empty(){return p.child(tr("Open a supported printer profile first."))}
-  let points=self.display_profile.as_ref().is_some_and(|p|p.version_major()==4&&p.pcs()=="Lab "&&(p.cmyk()||color_convert_rust::multichannel::channel_count(p).is_ok()));
+  let points=self.capability.as_ref().is_some_and(|c|c.reason(Tool::Correction).is_none());
   let point_mode=points&&self.curve_mode==1;
   p=p.child(div().flex().gap_1().flex_wrap().child(seg("tone-gamma","Gamma curves",!point_mode).on_click(cx.listener(|v,_,_,cx|{v.curve_mode=0;v.curve_drag=None;cx.notify();})))
    .when(points,|p|p.child(seg("tone-points","Bounded multipoint curves",point_mode).on_click(cx.listener(|v,_,_,cx|{v.curve_mode=1;v.curve_drag=None;cx.notify();})))));
@@ -695,8 +695,8 @@ impl Studio {
  }
  fn correction_page(&self,cx:&mut Context<Self>)->Div{
   let mut p=div().flex().flex_col().gap_3().child(heading("Selective Color Correction","Up to six independent soft hue regions in D50 Lab/LCh."));
-  let Some(profile)=&self.display_profile else{return p.child(tr("Open a compatible ICC v4 Lab printer profile."))};
-  if profile.version_major()!=4||profile.pcs()!="Lab "||(!profile.cmyk()&&color_convert_rust::multichannel::channel_count(profile).is_err()){return p.child(tr("Bounded correction requires compatible ICC v4 Lab profiles."))}
+  if self.display_profile.is_none(){return p.child(tr("Open a supported printer profile first."))}
+  if let Some(reason)=self.capability.as_ref().and_then(|c|c.reason(Tool::Correction)){return p.child(div().text_color(rgb(0xfbbf24)).child(reason.to_owned()));}
   let selected=self.region_selected;let r=self.regions[selected];
   let source=[65.,45.*r.center.to_radians().cos(),45.*r.center.to_radians().sin()];
   let corrected=color_convert_rust::correction::corrected_regions(source,&self.regions[..self.region_count]);
@@ -740,8 +740,8 @@ impl Studio {
  }
  fn smoothing_page(&self,cx:&mut Context<Self>)->Div{
   let mut p=div().flex().flex_col().gap_3().child(heading("LUT Smoothing","Bounded six-neighbor averaging in the B2A separation lattice."));
-  let Some(profile)=&self.display_profile else{return p.child(tr("Open a compatible ICC v4 Lab printer profile."))};
-  if profile.version_major()!=4||profile.pcs()!="Lab "||(!profile.cmyk()&&color_convert_rust::multichannel::channel_count(profile).is_err()){return p.child(tr("Bounded correction requires compatible ICC v4 Lab profiles."))}
+  if self.display_profile.is_none(){return p.child(tr("Open a supported printer profile first."))}
+  if let Some(reason)=self.capability.as_ref().and_then(|c|c.reason(Tool::Correction)){return p.child(div().text_color(rgb(0xfbbf24)).child(reason.to_owned()));}
   p=p.child(div().flex().flex_col().gap_2().p_3().rounded_md().bg(rgb(0x282828)).child(div().text_lg().child(tr("Smoothing settings"))).child(div().flex().items_center().justify_between().child(tr("Strength")).child(div().text_2xl().child(format!("{:.0}%",self.smoothing*100.)))).child(bar(self.smoothing,0xe87935,12.)).child(div().flex().flex_wrap().items_center().gap_2().child(format!("{}: {:.0}%",tr("Strength"),self.smoothing*100.))
    .child(button("smooth-minus","−1").on_click(cx.listener(|this,_,_,cx|{if !this.busy{this.smoothing=(this.smoothing-0.01).max(0.05);cx.notify();}})))
    .child(self.numeric_slider(("smooth-slider",0),self.smoothing,0.05,0.5,0.01,|v,x|v.smoothing=x,cx)).child(button("smooth-plus","+1").on_click(cx.listener(|this,_,_,cx|{if !this.busy{this.smoothing=(this.smoothing+0.01).min(0.5);cx.notify();}}))))
@@ -829,7 +829,7 @@ impl Studio {
   let mut p=div().flex().flex_col().gap_3().child(heading("Ink / Cost Optimizer","Find a bounded device recipe for a D50 Lab target."))
    .child(div().flex().gap_1().flex_wrap().children(["Single color recipe","Whole-profile optimization"].into_iter().enumerate().map(|(i,label)|seg(("optimizer-tab",i),label,self.recipe_tab==i).on_click(cx.listener(move|v,_,_,cx|{v.recipe_tab=i;cx.notify();})))));
   if self.recipe_tab==1{
-   if let Some(reason)=self.capability.as_ref().and_then(|c|c.reason(Tool::Correction)){return p.child(div().text_color(rgb(0xfbbf24)).child(reason.to_owned()));}
+   if let Some(reason)=self.capability.as_ref().and_then(|c|c.reason(Tool::Optimization)){return p.child(div().text_color(rgb(0xfbbf24)).child(reason.to_owned()));}
   if !self.display_profile.as_ref().is_some_and(|p|p.version_major()==4&&p.pcs()=="Lab "&&(p.cmyk()||color_convert_rust::multichannel::channel_count(p).is_ok())){return p.child(tr("Whole-profile optimization requires a compatible ICC v4 Lab profile."))}
   return p.child(div().text_lg().child(tr("Whole-profile ink optimization (ICC v4 / mBA)")))
    .child(self.optimizer_constraints(&caps,tac,cx))
@@ -1169,7 +1169,7 @@ impl Studio {
  fn point_curves_page(&self,cx:&mut Context<Self>)->Div{
   div().flex().flex_col().gap_2().child(heading("Bounded multipoint curves","Drag three control points per ink. Endpoints locked; monotonic output enforced."))
    .child(self.curve_cards(true,cx))
-   .child(tr("Piecewise-linear correction; independent B2A intents, source caps and explicit TAC. Simple v4 Lab mBA."))
+   .child(tr("Piecewise-linear correction; independent B2A intents, source caps and explicit TAC. ICC v2 LUT16 or v4 mBA."))
    .child(seg("reset-points","Reset all points",false).on_click(cx.listener(|v,_,_,cx|{if !v.busy{v.curve_points.fill(IDENTITY_POINTS[0]);cx.notify();}})))
    .child(self.correction_options(cx))
    .child(button("save-points","Generate bounded curves ICC").on_click(cx.listener(|v,_,_,cx|v.save_edit(7,cx))))

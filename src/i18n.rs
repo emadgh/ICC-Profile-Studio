@@ -438,6 +438,9 @@ const ROWS:&[[&str;5]]=&[
 ["Cancelling…","در حال لغو…","Annullamento…","جارٍ الإلغاء…","Отмена…"],
 ["Cancel rebuild","لغو بازسازی","Annulla ricostruzione","إلغاء إعادة البناء","Отменить перестроение"],
 ["Rebuild cancelled","بازسازی لغو شد","Ricostruzione annullata","أُلغيت إعادة البناء","Перестроение отменено"],
+["Bounded curves / correction / smoothing","منحنی محدود / اصلاح / هموارسازی","Curve limitate / correzione / smoothing","منحنيات محدودة / تصحيح / تنعيم","Ограниченные кривые / коррекция / сглаживание"],
+["Black generation / whole-profile optimization","تولید مشکی / بهینه‌سازی کل پروفایل","Generazione nero / ottimizzazione completa","توليد الأسود / تحسين الملف بالكامل","Генерация чёрного / оптимизация профиля"],
+["Piecewise-linear correction; independent B2A intents, source caps and explicit TAC. ICC v2 LUT16 or v4 mBA.","اصلاح خطی قطعه‌ای با B2A مستقل، سقف منبع و TAC مشخص. ICC v2 LUT16 یا v4 mBA.","Correzione lineare a tratti; intenti B2A indipendenti, limiti originali e TAC esplicito. ICC v2 LUT16 o v4 mBA.","تصحيح خطي مقطعي؛ نوايا B2A مستقلة وحدود المصدر وTAC صريح. ICC v2 LUT16 أو v4 mBA.","Кусочно-линейная коррекция; независимые B2A, исходные пределы и TAC. ICC v2 LUT16 или v4 mBA."],
 ];
 #[cfg(test)]mod tests{use super::*;#[test]fn five_languages_and_fallback(){for l in Language::ALL{set_active(l);assert!(!tr("Settings").is_empty());assert_eq!(tr("A2B1"),"A2B1");}set_active(Language::Fa);assert_eq!(tr("Settings"),crate::rtl::visual("تنظیمات"));assert!(Language::Ar.rtl());}}
 

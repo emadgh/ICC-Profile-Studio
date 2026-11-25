@@ -57,3 +57,7 @@ update is implied by CI success.
 - Cancel Custom rebuild before the first slice, mid-inversion and before publication. Confirm the original is unchanged, no output is created and controls recover. If publication wins the race, do not claim successful cancellation. Argyll revfix is not cancellable here.
 - Switch Fast/Balanced/High gamut quality with the same profiles; confirm both compared profiles use the same target grid, saved preferences restore it, and output ICC resolution is unaffected. Check 2D/3D zoom, orbit, fullscreen and RTL.
 - Run `cargo test --lib --no-default-features --release sparse_rebuild_benchmark -- --ignored --nocapture` for the synthetic microbenchmark. No elapsed-time target is asserted in CI.
+
+### beta.34 legacy correction acceptance (pending)
+- Verify v2 mft2 profiles enable bounded points, selective regions and smoothing only when all reverse intents are supported. Confirm v2 black generation/whole-profile optimization disabled with reason. Compare all four intents; test extended PCS endpoints, source caps, zero inks, explicit TAC, A2B bytes and no-clobber saves.
+- Run opt-in FOGRA55 Rust regression with operator-supplied ICC; compare against independent native diagnostic and print/RIP validation. No physical color approval from structural checks alone.

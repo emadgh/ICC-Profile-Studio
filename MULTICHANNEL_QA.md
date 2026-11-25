@@ -32,3 +32,11 @@ cargo test --lib --no-default-features --release real_profile_corpus -- --ignore
 The harness reports Mean/P95/Max predicted DE00 for four intents, sampled TAC, exact bounds, preserved A2B and unchanged source bytes. Unsupported profiles are explicitly logged as skipped; inventory coverage is not edit success.
 
 FOGRA55 is a seven-channel exchange space, not a measured profile for the user's particular printer. Official download: https://fogra.org/fileadmin/files/1_forschen/vorstufe/13.003_multicolor/Daten/Ref_FOGRA55.zip . Download was not successful in the development environment, so no result is claimed. Acquire manually, inspect license and checksum, extract ICC only into private corpus. Do not commit third-party profiles without permission.
+
+## beta.34 FOGRA55 native LUT16 diagnostic
+Operator-supplied real reference archive, not committed. LittleCMS 2.16 raw B2A1 pipeline was compared with native Lab transform: v2 nominal Lab input factor 65280/65535 verified. Independent Python/ctypes mirror of raw-grid smoothing (17³, strength 20%, two passes, explicit TAC 300%) encoded three separate mft2 reverse tables and reopened the result. All three quantized node maxima: 299.998474%. Native Lab-to-device peak TAC across the 4,884 reference Lab targets: perceptual 267.7302%, relative 295.4925%, saturation 271.5969%, absolute 294.9386%. All sampled channel maxima below certified source ceilings. This was NOT compiled Rust execution or physical print testing. The selected v2 corrections do not reopen closed source channels, but source maximum caps are global, not per-color guarantees. Resampling can change unselected colors. Run actual Rust opt-in test after CI:
+
+```powershell
+$env:ICC_FOGRA55_PATH = 'C:\private\icc-corpus\Ref-ECG-CMYKOGV_FOGRA55_TAC300.icc'
+cargo test --lib --no-default-features --release fogra55_legacy_correction_real_profile -- --ignored --nocapture
+```
