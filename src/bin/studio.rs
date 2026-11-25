@@ -126,7 +126,7 @@ impl Studio {
    scale.at(t.clamp(0.,1.) as f64)
   };
   let busy=self.busy;
-  let track=div().id(id).relative().w(px(116.)).h(px(26.)).flex_shrink_0().cursor_pointer()
+  let track=div().id("numeric-track").relative().w(px(116.)).h(px(26.)).flex_shrink_0().cursor_pointer()
    .child(canvas(move|b,_,_|{measured.set(Some(b));},move|b,_,window,_|{
     let w=(b.size.width-px(14.)).max(px(1.));let x=b.origin.x+px(7.);let y=b.origin.y+px(11.);
     window.paint_quad(fill(Bounds{origin:point(x,y),size:size(w,px(4.))},rgb(0x565656)));
