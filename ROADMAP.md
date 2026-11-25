@@ -236,3 +236,6 @@ Lean, vendor-independent GPUI application for CMYK and multichannel output ICCs 
 
 ## beta.38 — continuity-regularized inverse ramp (CI pending)
 - Beta.37 merged after CI #103. Joint five-point refinement with bounded search, pointwise error guards and existing hard ink limits. Real FOGRA55 Python mirror reduces maximum adjacent ink jump 11.5 → 1.3274 pp for L48–52, but L18–22 remains 18.7902 pp at lambda .02 (15.8632 pp at .10). No guarantee of global continuity, no ICC generation. Next: coupled continuation beyond five points and independent model/coverage gates before bounded 3D lattice and ICC serialization.
+
+## beta.39 — local 3D Lab lattice (CI pending)
+- Beta.38 merged after CI #104. Bounded 27-node Lab lattice, three-axis adjacency, explicit missing nodes, per-point guard, eight cell-center interpolation checks, work budget, UI slices. FOGRA55 narrow neutral cube Python mirror improves max jump 18 → 1.6076 pp and center max DE00 1.0851 → .2833, with all nodes/centers within tolerance. Not full PCS or production LUT. Next: wider dark/saturated coverage, explicit gamut mapping, scalable forward sampling and reverse-lattice strategy; fail closed before ICC generation.

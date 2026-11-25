@@ -96,3 +96,22 @@ Independent NumPy/skimage mirror on reopened operator-supplied Ref_FOGRA55.zip /
 | L18–22 | .10 | 70 | 15.8632 | 1.025488 | 1.823913 | 945.262273 → 116.306157 | 1009 |
 
 All 15 refined model predictions satisfy tolerance and caps, but dark separation remains discontinuous. Lambda=.10 trades more color error for lower jump; objectives at different weights are not directly comparable. All figures are independent Python diagnostics on the full reference dataset, not compiled Rust or independent print validation. No ICC generated. Next: wider neighborhood/coupled continuation and 3D lattice budget/coverage feasibility, physical validation; do not infer global continuity from five-point ramps.
+
+## beta.39 — bounded local 3D Lab lattice
+27 nodes, 54 axis-aligned edges (18 per axis), 8 cubic cells. Configurable center and per-axis half-span (0.5–25 Lab units); reject out-of-PCS requests. Independent hard-ridge inverse seeds, explicit unsupported nodes (never substitute zero), four alternating sweeps of joint six-neighbor refinement with existing error/coverage/cap/TAC guards. Fixed 3x3x3 size and conservative 3 billion channel-distance operations ceiling; estimate is a bound on distance work, not wall-clock duration. Seed evaluation count covers successful searches only. Report node errors and edge jumps separately by axis. At each complete cell center independently re-evaluate the integer-floored equal-weight mixture of its eight recipes using the forward model; report unsupported/missed centers separately. This samples one location per cell, does not establish whole-cell accuracy. No ICC serialization.
+
+Independent Python/NumPy/skimage mirror rerun on supplied Ref_FOGRA55.zip / FOGRA55.txt (4,884 rows, 4,272 unique), actual local cube centered Lab(50,0,0), half-spans (1,1,1), K cap 0%, other caps 100%, TAC <=300%, max recipe distance .4, tolerance 2, lambda .02, four sweeps. All 27 nodes and all eight centers within predicted tolerance before and after.
+
+| Metric | Independent | Regularized |
+|---|---:|---:|
+| Node mean DE00 | 0.172808 | 0.275284 |
+| Node max DE00 | 0.344624 | 0.457056 |
+| L-axis max ink jump pp | 18 | 1.5554 |
+| a-axis max ink jump pp | 18 | 1.3935 |
+| b-axis max ink jump pp | 18 | 1.6076 |
+| Center mean DE00 | 0.581480 | 0.207189 |
+| Center max DE00 | 1.085051 | 0.283328 |
+| Max node TAC (%) | 190.38 | 172.8591 |
+| Joint objective | 142.734046 | 5.204566 |
+
+4,860 distinct refinement trials in independent mirror; no closed-channel or TAC violations by construction. This narrow cube is deliberately chosen to establish local behavior and cannot represent dark or saturated areas or entire PCS. Same reference dataset fits and evaluates model; no independent physical measurement. Python diagnostics, not compiled Rust real-file execution. Real-data regression is opt-in; synthetic topology/limits tests are ordinary CI. Next: broaden coverage sampling, evaluate forward/ reverse full-lattice cost and continuity, explicit gamut mapping for out-of-gamut targets before ICC serialization.
