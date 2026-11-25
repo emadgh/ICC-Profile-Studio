@@ -14,7 +14,7 @@ use color_convert_rust::{device_link,versioning,system_profiles,i18n::{self,Lang
 use color_convert_rust::gradient::{self,GradientReport};
 use color_convert_rust::{reports,preferences::{self,Preferences}};
 #[cfg(windows)] use update_via_github::{UpdateConfig,UpdateManager,UpdateStatus};
-use color_convert_rust::{optimizer::{self,Settings as RecipeSettings,Report as RecipeReport},lab::{self,MeasuredComparison}};
+use color_convert_rust::{optimizer::{self,MultiSettings as RecipeSettings,MultiReport as RecipeReport},lab::{self,MeasuredComparison}};
 
 const STUDIO_VERSION:&str=include_str!("../../STUDIO_VERSION");
 
@@ -34,7 +34,7 @@ struct Studio {
  multi_caps:Vec<f64>,multi_tac:f64,caps:[f64;4],tac:f64,grid:usize,mode:Mode,status:String,busy:bool, candidate:Option<PathBuf>,comparison:Option<Comparison>,compare_error:Option<String>,compare_grid:usize,compare_intent:lcms2::Intent,gamma:Vec<f64>,order:Vec<usize>, preview_open:bool, preview:Option<Overlay>, preview_revision:u64, preview_width:f32,preview_fullscreen:bool,resize_last:Option<Pixels>,gamut_advanced:bool,curve_drag:Option<(usize,usize,Pixels)>, preview_cache:std::cell::RefCell<gamut_view::PreviewCache>, preview_options:ViewOptions, gamut_grid:usize,gradient:Option<GradientReport>,gradient_detail:Option<usize>,gradient_error:Option<String>,coverage_threshold:f64, regions:[Selective;MAX_REGIONS],region_count:usize,region_selected:usize, correction_grid:usize, correction_tac:f64, smoothing:f64, smoothing_passes:usize,orbit_last:Option<Point<Pixels>>,chart_dpi:u32,recipe_target:[f64;3],recipe_settings:RecipeSettings,recipe_result:Option<RecipeReport>,lab_levels:usize,measured:[Option<PathBuf>;2],measurement_result:Option<MeasuredComparison>,black:BlackGeneration,curve_points:Vec<[f64;5]>,logo:std::sync::Arc<gpui::Image>,#[cfg(windows)] updater:UpdateManager,
 }
 impl Default for Studio {
- fn default()->Self{Self{link_grid:0,link_tolerance:2.,link_intent:lcms2::Intent::RelativeColorimetric,link_report:None,slider_drag:None,embedded_names:true,display_profile:None,language:Language::En,nav_collapsed:[false;5],picker:None,system_catalog:None,system_error:None,system_loading:false,version_allow_omit:false,version_relative_only:false,version_de:0.5,version_ink:0.5,version_report:None,page:Page::Inspector,source:None,profile:None,report:None,error:None,multi_caps:vec![],multi_tac:0.,caps:[100.,100.,100.,0.],tac:240.,grid:33,mode:Mode::Custom,status:"Open an ICC or ICM profile to start.".into(),busy:false,candidate:None,comparison:None,compare_error:None,compare_grid:17,compare_intent:lcms2::Intent::RelativeColorimetric,gamma:vec![],order:vec![],preview_open:true,preview:None,preview_revision:0,preview_width:360.,preview_fullscreen:false,resize_last:None,gamut_advanced:false,curve_drag:None,preview_cache:std::cell::RefCell::new(gamut_view::PreviewCache::default()),preview_options:ViewOptions::default(),gamut_grid:33,gradient:None,gradient_detail:None,gradient_error:None,coverage_threshold:2.,regions:[Selective::default();MAX_REGIONS],region_count:1,region_selected:0,correction_grid:33,correction_tac:400.,smoothing:0.20,smoothing_passes:1,orbit_last:None,chart_dpi:300,recipe_target:[50.,0.,0.],recipe_settings:RecipeSettings::default(),recipe_result:None,lab_levels:5,measured:[None,None],measurement_result:None,black:BlackGeneration::default(),curve_points:IDENTITY_POINTS.to_vec(),logo:std::sync::Arc::new(gpui::Image::from_bytes(gpui::ImageFormat::Png,include_bytes!("../../assets/icon.png").to_vec())),#[cfg(windows)] updater:UpdateManager::new(UpdateConfig::new("emadgh/color-convert-rust","ICC-Profile-Studio.exe",STUDIO_VERSION.trim()).with_app_name("ICC Profile Studio").with_checksum_asset("ICC-Profile-Studio.exe.sha256").with_required_checksum(true))}}
+ fn default()->Self{Self{link_grid:0,link_tolerance:2.,link_intent:lcms2::Intent::RelativeColorimetric,link_report:None,slider_drag:None,embedded_names:true,display_profile:None,language:Language::En,nav_collapsed:[false;5],picker:None,system_catalog:None,system_error:None,system_loading:false,version_allow_omit:false,version_relative_only:false,version_de:0.5,version_ink:0.5,version_report:None,page:Page::Inspector,source:None,profile:None,report:None,error:None,multi_caps:vec![],multi_tac:0.,caps:[100.,100.,100.,0.],tac:240.,grid:33,mode:Mode::Custom,status:"Open an ICC or ICM profile to start.".into(),busy:false,candidate:None,comparison:None,compare_error:None,compare_grid:17,compare_intent:lcms2::Intent::RelativeColorimetric,gamma:vec![],order:vec![],preview_open:true,preview:None,preview_revision:0,preview_width:360.,preview_fullscreen:false,resize_last:None,gamut_advanced:false,curve_drag:None,preview_cache:std::cell::RefCell::new(gamut_view::PreviewCache::default()),preview_options:ViewOptions::default(),gamut_grid:33,gradient:None,gradient_detail:None,gradient_error:None,coverage_threshold:2.,regions:[Selective::default();MAX_REGIONS],region_count:1,region_selected:0,correction_grid:33,correction_tac:400.,smoothing:0.20,smoothing_passes:1,orbit_last:None,chart_dpi:300,recipe_target:[50.,0.,0.],recipe_settings:RecipeSettings{caps:vec![100.;4],tac:240.,weights:vec![1.;4],tolerance:2.},recipe_result:None,lab_levels:5,measured:[None,None],measurement_result:None,black:BlackGeneration::default(),curve_points:IDENTITY_POINTS.to_vec(),logo:std::sync::Arc::new(gpui::Image::from_bytes(gpui::ImageFormat::Png,include_bytes!("../../assets/icon.png").to_vec())),#[cfg(windows)] updater:UpdateManager::new(UpdateConfig::new("emadgh/color-convert-rust","ICC-Profile-Studio.exe",STUDIO_VERSION.trim()).with_app_name("ICC Profile Studio").with_checksum_asset("ICC-Profile-Studio.exe.sha256").with_required_checksum(true))}}
 }
 fn button(id: impl Into<ElementId>,label:impl Into<SharedString>)->Stateful<Div>{
  let label:SharedString=label.into();
@@ -212,12 +212,12 @@ impl Studio {
  fn load_reference(&mut self,path:PathBuf,cx:&mut Context<Self>){
   if self.busy{return}
   self.picker=None;
-  self.source=Some(path.clone());self.version_report=None;self.version_allow_omit=false;self.version_relative_only=false;self.black=BlackGeneration::default();self.curve_points=IDENTITY_POINTS.to_vec();self.recipe_result=None;self.regions=[Selective::default();MAX_REGIONS];self.region_count=1;self.region_selected=0;self.correction_grid=33;self.correction_tac=400.;self.smoothing=0.20;self.smoothing_passes=1;self.preview=None;self.candidate=None;self.gradient=None;self.gradient_detail=None;self.gradient_error=None;self.gamma.clear();self.order.clear();self.curve_drag=None;self.comparison=None;self.compare_error=None;self.report=None;self.profile=None;self.display_profile=None;self.multi_caps.clear();self.multi_tac=0.;self.error=None;
+  self.source=Some(path.clone());self.version_report=None;self.version_allow_omit=false;self.version_relative_only=false;self.black=BlackGeneration::default();self.curve_points=IDENTITY_POINTS.to_vec();self.recipe_result=None;self.recipe_settings.weights.clear();self.regions=[Selective::default();MAX_REGIONS];self.region_count=1;self.region_selected=0;self.correction_grid=33;self.correction_tac=400.;self.smoothing=0.20;self.smoothing_passes=1;self.preview=None;self.candidate=None;self.gradient=None;self.gradient_detail=None;self.gradient_error=None;self.gamma.clear();self.order.clear();self.curve_drag=None;self.comparison=None;self.compare_error=None;self.report=None;self.profile=None;self.display_profile=None;self.multi_caps.clear();self.multi_tac=0.;self.error=None;
   match inspection::inspect(&path){Ok(r)=>self.report=Some(r),Err(e)=>self.error=Some(e)}
   if let Ok(p)=Profile::read(&path){
    self.display_profile=Some(p.clone());
-   if let Ok(n)=editing::editable_channel_count(&p){self.gamma=vec![1.;n];self.order=(0..n).collect();self.curve_points=vec![[0.,0.25,0.5,0.75,1.];n];if !p.cmyk(){self.correction_tac=n as f64*100.;}}
-   if !p.cmyk(){if let Ok(n)=color_convert_rust::multichannel::channel_count(&p){if n!=4{self.multi_caps=vec![100.;n];self.multi_tac=self.report.as_ref().and_then(|r|r.tac).unwrap_or((n as f64*100.).min(240.)).clamp(0.,n as f64*100.);self.grid=17;}}}
+   if let Ok(n)=editing::editable_channel_count(&p){self.gamma=vec![1.;n];self.recipe_settings.weights=vec![1.;n];self.order=(0..n).collect();self.curve_points=vec![[0.,0.25,0.5,0.75,1.];n];if !p.cmyk(){self.correction_tac=n as f64*100.;}}
+   if !p.cmyk(){if let Ok(n)=color_convert_rust::multichannel::channel_count(&p){{self.multi_caps=vec![100.;n];self.multi_tac=self.report.as_ref().and_then(|r|r.tac).unwrap_or((n as f64*100.).min(240.)).clamp(0.,n as f64*100.);self.grid=17;}}}
    if p.check().is_ok(){
     self.caps=if p.cmyk(){[100.,100.,100.,0.]}else{[100.;4]};
     self.tac=p.estimated_tac_percent().unwrap_or(240.);
@@ -393,7 +393,7 @@ impl Studio {
   if destination.extension().is_none(){destination.set_extension("icc");}
   let output_path=destination.clone();
   let dynamic=self.display_profile.as_ref().is_some_and(|p|!p.cmyk());
-  let edit=match kind{0=>Edit::ToneMulti(self.gamma.clone()),1=>Edit::ReorderMulti(self.order.clone()),3 if dynamic=>Edit::CorrectionMulti(DynamicCorrection::Regions{regions:self.regions,count:self.region_count},self.correction_grid,self.correction_tac),3=>Edit::Correction(Operation::Regions{regions:self.regions,count:self.region_count},self.correction_grid,self.correction_tac),4 if dynamic=>Edit::CorrectionMulti(DynamicCorrection::Smooth{strength:self.smoothing,passes:self.smoothing_passes},self.correction_grid,self.correction_tac),4=>Edit::Correction(Operation::Smooth{strength:self.smoothing,passes:self.smoothing_passes},self.correction_grid,self.correction_tac),5=>Edit::Correction(Operation::Optimize{weights:self.recipe_settings.weights,tolerance:self.recipe_settings.tolerance},self.correction_grid.min(33),self.correction_tac),6=>Edit::Correction(Operation::Black(self.black),self.correction_grid.min(33),self.correction_tac),7 if dynamic=>Edit::CorrectionMulti(DynamicCorrection::Points(self.curve_points.clone()),self.correction_grid,self.correction_tac),7=>Edit::Correction(Operation::Points(std::array::from_fn(|i|self.curve_points[i])),self.correction_grid,self.correction_tac),_=>Edit::Rename(destination.file_stem().unwrap_or_default().to_string_lossy().into_owned())};
+  let edit=match kind{0=>Edit::ToneMulti(self.gamma.clone()),1=>Edit::ReorderMulti(self.order.clone()),3 if dynamic=>Edit::CorrectionMulti(DynamicCorrection::Regions{regions:self.regions,count:self.region_count},self.correction_grid,self.correction_tac),3=>Edit::Correction(Operation::Regions{regions:self.regions,count:self.region_count},self.correction_grid,self.correction_tac),4 if dynamic=>Edit::CorrectionMulti(DynamicCorrection::Smooth{strength:self.smoothing,passes:self.smoothing_passes},self.correction_grid,self.correction_tac),4=>Edit::Correction(Operation::Smooth{strength:self.smoothing,passes:self.smoothing_passes},self.correction_grid,self.correction_tac),5 if dynamic=>Edit::CorrectionMulti(DynamicCorrection::Optimize{weights:self.recipe_settings.weights.clone(),tolerance:self.recipe_settings.tolerance,caps:self.multi_caps.clone()},self.correction_grid.min(33),self.correction_tac.min(self.multi_tac)),5=>Edit::Correction(Operation::Optimize{weights:std::array::from_fn(|j|self.recipe_settings.weights[j]),tolerance:self.recipe_settings.tolerance},self.correction_grid.min(33),self.correction_tac.min(self.tac)),6=>Edit::Correction(Operation::Black(self.black),self.correction_grid.min(33),self.correction_tac),7 if dynamic=>Edit::CorrectionMulti(DynamicCorrection::Points(self.curve_points.clone()),self.correction_grid,self.correction_tac),7=>Edit::Correction(Operation::Points(std::array::from_fn(|i|self.curve_points[i])),self.correction_grid,self.correction_tac),_=>Edit::Rename(destination.file_stem().unwrap_or_default().to_string_lossy().into_owned())};
   self.busy=true;self.status="Editing ICC and validating with LittleCMS…".into();cx.notify();
   cx.spawn(async move |this,cx|{
    let result=cx.background_spawn(async move{editing::edit_file(&source,&destination,edit)}).await;
@@ -807,7 +807,10 @@ impl Studio {
   p
  }
  fn recipe_page(&self,cx:&mut Context<Self>)->Div{
-  if !self.profile.as_ref().is_some_and(|p|p.cmyk()){return div().child(tr("Requires CMYK printer profile."))}
+  if self.gamma.is_empty()||self.recipe_settings.weights.len()!=self.gamma.len(){return div().child(tr("Open a supported printer profile first."))}
+  let dynamic=self.display_profile.as_ref().is_some_and(|p|!p.cmyk());
+  let caps=if dynamic{self.multi_caps.clone()}else{self.caps.to_vec()};let tac=if dynamic{self.multi_tac}else{self.tac};
+  if caps.len()!=self.gamma.len(){return div().child(tr("Open a supported printer profile first."))}
   let mut p=div().flex().flex_col().gap_3().child(heading("Ink / Cost Optimizer","Find a bounded device recipe for a D50 Lab target."))
    .child("Uses the reference A2B prediction. Relative ink weights are cost proxies, not actual mass or currency. Search is approximate and can fail to find a feasible recipe.");
   for (i,(name,lo,hi)) in [("L*",0.,100.),("a*",-128.,127.),("b*",-128.,127.)].into_iter().enumerate(){
@@ -815,34 +818,37 @@ impl Studio {
     .child(button(("recipe-target-minus",i),"−1").on_click(cx.listener(move|v,_,_,cx|{if !v.busy{v.recipe_target[i]=(v.recipe_target[i]-1.).max(lo);v.recipe_result=None;cx.notify();}})))
     .child(self.numeric_slider(("recipe-target-slider",i),self.recipe_target[i],lo,hi,0.1,move|v,x|{v.recipe_target[i]=x;v.recipe_result=None;},cx)).child(button(("recipe-target-plus",i),"+1").on_click(cx.listener(move|v,_,_,cx|{if !v.busy{v.recipe_target[i]=(v.recipe_target[i]+1.).min(hi);v.recipe_result=None;cx.notify();}}))));
   }
-  for j in 0..4{
+  for j in 0..self.gamma.len(){
    p=p.child(div().flex().items_center().gap_2().child(format!("{} · {:.2}",self.ink_name(j),self.recipe_settings.weights[j]))
     .child(button(("weight-minus",j),"−0.25").on_click(cx.listener(move|v,_,_,cx|{if !v.busy{v.recipe_settings.weights[j]=(v.recipe_settings.weights[j]-0.25).max(0.01);v.recipe_result=None;cx.notify();}})))
     .child(self.numeric_slider(("weight-slider",j),self.recipe_settings.weights[j],0.01,100.,0.01,move|v,x|{v.recipe_settings.weights[j]=x;v.recipe_result=None;},cx)).child(button(("weight-plus",j),"+0.25").on_click(cx.listener(move|v,_,_,cx|{if !v.busy{v.recipe_settings.weights[j]=(v.recipe_settings.weights[j]+0.25).min(100.);v.recipe_result=None;cx.notify();}}))));
   }
-  p=p.child(format!("Caps and TAC from Rebuilder settings: {:?} / {:.0}%",self.caps,self.tac))
+  p=p.child(format!("{}: {:?} / {:.0}%",tr("Rebuilder channel limits and TAC"),caps,tac))
    .child(div().flex().gap_1().items_center().child(tr("ΔE00 tolerance")).children([1usize,2,3,5].map(|n|button(("recipe-tolerance",n),if self.recipe_settings.tolerance==n as f64{format!("{n} ✓")}else{n.to_string()}).on_click(cx.listener(move|v,_,_,cx|{if !v.busy{v.recipe_settings.tolerance=n as f64;v.recipe_result=None;cx.notify();}})))))
    .child(button("solve-recipe","Find ink recipes").on_click(cx.listener(|v,_,_,cx|{
-    if v.busy{return}let Some(p)=v.source.clone()else{return};let target=v.recipe_target;let mut s=v.recipe_settings;s.caps=v.caps;s.tac=v.tac;
+    if v.busy{return}let Some(p)=v.source.clone()else{return};let target=v.recipe_target;let mut s=v.recipe_settings.clone();let dynamic=v.display_profile.as_ref().is_some_and(|p|!p.cmyk());s.caps=if dynamic{v.multi_caps.clone()}else{v.caps.to_vec()};s.tac=if dynamic{v.multi_tac}else{v.tac};
     v.busy=true;v.recipe_result=None;v.status="Searching feasible ink recipes…".into();cx.notify();
     cx.spawn(async move|this,cx|{
-     let result=cx.background_spawn(async move{optimizer::find(&p,target,s)}).await;
+     let result=cx.background_spawn(async move{optimizer::find_multi(&p,target,s)}).await;
      let _=this.update(cx,|v,cx|{v.busy=false;match result{Ok(r)=>{v.status=format!("{} candidate recipes evaluated",r.evaluated);v.recipe_result=Some(r)},Err(e)=>v.status=format!("Error: {e}")}cx.notify();});
     }).detach();
    })));
   if let Some(r)=&self.recipe_result{
+   p=p.child(format!("{}: {:.1?} · {}: {}",tr("Target Lab"),r.target,tr("Validation samples"),r.evaluated));
+   if let Some(c)=&r.cheapest{let savings=if r.baseline.cost>0.{100.*(1.-c.cost/r.baseline.cost)}else{0.};p=p.child(div().p_3().rounded_md().bg(rgb(0x282828)).child(format!("{}: {:+.2}% · TAC {:.1}% → {:.1}%",tr("Relative cost reduction"),savings,r.baseline.tac,c.tac)));}
    for (label,recipe) in [("Original separation",Some(&r.baseline)),("Closest feasible",Some(&r.closest)),("Lowest cost found within tolerance",r.cheapest.as_ref())]{
-    let mut card=div().p_3().rounded_md().bg(rgb(0x282828)).flex().flex_col().gap_1().child(label);
+    let mut card=div().p_3().rounded_md().bg(rgb(0x282828)).flex().flex_col().gap_1().child(tr(label));
     if let Some(v)=recipe{
-     card=card.child(format!("Ink {:.2?}% · Lab {:.2?} · ΔE00 {:.3} · cost index {:.2}",v.ink,v.lab,v.delta_e,v.cost)).child(swatch(lab_swatch(v.lab),40.))
-      .children((0..4).map(|j|div().flex().items_center().gap_2().child(div().w(px(90.)).child(self.ink_name(j))).child(div().flex_1().child(bar(v.ink[j]/100.,self.ink_color(j),10.))).child(format!("{:.1}%",v.ink[j]))));
+     card=card.child(format!("Lab {:.2?} · ΔE00 {:.3} · TAC {:.2}% · {} {:.2}",v.lab,v.delta_e,v.tac,tr("Relative cost"))) .when(!v.feasible,|p|p.child(div().text_xs().text_color(rgb(0xfbbf24)).child(tr("Original separation exceeds requested limits.")))).child(swatch(lab_swatch(v.lab),40.))
+      .children((0..v.ink.len()).map(|j|div().flex().items_center().gap_2().child(div().w(px(90.)).child(self.ink_name(j))).child(div().flex_1().child(bar(v.ink[j]/100.,self.ink_color(j),10.))).child(format!("{:.1}%",v.ink[j]))));
     }else{card=card.child(tr("No solution found within tolerance"));}
     p=p.child(card);
    }
   }
-  p.child(div().text_lg().child("Whole-profile ink optimization (ICC v4 / mBA)"))
+  if !self.display_profile.as_ref().is_some_and(|p|p.version_major()==4&&p.pcs()=="Lab "&&(p.cmyk()||color_convert_rust::multichannel::channel_count(p).is_ok())){return p.child(tr("Whole-profile optimization requires a compatible ICC v4 Lab profile."))}
+  p.child(div().text_lg().child(tr("Whole-profile ink optimization (ICC v4 / mBA)")))
    .child(self.correction_options(cx))
-   .child("Searches for lower weighted ink cost within the chosen ΔE00 of the original predicted appearance at each sampled LUT node, using A2B1. Uses grid 17 or 33; it does not certify interpolation, global color accuracy, real ink mass or savings. Source channel bounds preserved; refuses baseline exceeding selected TAC. Run Profile Comparison and Gradient Analyzer afterwards.")
+   .child(tr("Whole-profile optimization preserves source channel bounds and uses the stricter of the Rebuilder TAC and correction TAC. It refuses an infeasible original separation. Node-level color tolerance does not certify interpolated color or real ink savings."))
    .child(button("optimize-profile","Generate ink-optimized ICC").on_click(cx.listener(|v,_,_,cx|v.save_edit(5,cx))))
  }
  fn lab_page(&self,cx:&mut Context<Self>)->Div{
