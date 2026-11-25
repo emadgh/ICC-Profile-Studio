@@ -1151,7 +1151,7 @@ impl Studio {
   }
   match color_convert_rust::ncolor_model::forward_grid_plan(&grid){
    Ok(plan)=>{
-    p=p.child(format!("{}: {} · {}: {} bytes",tr("Grid nodes"),plan.nodes,tr("Raw Lab16 table size")))
+    p=p.child(format!("{}: {} · {}: {} bytes",tr("Grid nodes"),plan.nodes,tr("Raw Lab16 table size"),plan.raw_bytes))
      .child(tr(if plan.uniform_mft2{"Uniform grid dimensions"}else{"Non-uniform grid dimensions"}))
      .child(button("ncolor-forward-audit","Audit forward CLUT").on_click(cx.listener(move|v,_,_,cx|{
       if v.busy||v.lab_loading{return}let Some(c)=v.characterization.clone()else{return};
