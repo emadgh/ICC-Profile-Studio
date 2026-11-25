@@ -399,6 +399,15 @@ fn black_dynamic_node(base:&[f64],caps:&[f64],tac:f64,k:usize,s:BlackGeneration,
 }
 // Raw LUT16 PCS uses 0xff00 for nominal ICC v2 Lab endpoints.
 const LEGACY_LAB:f64=65280./65535.;
+/// cmsReadTag A2B1 returns native raw LUT16 encoding in v2, not Lab v4.
+/// Do not clamp nominal extended v2 PCS output to 100/127: the stored
+/// 0xffff endpoint can encode L*>100 or a*/b*>127.
+fn decode_forward_lab(raw:[f32;3],legacy:bool)->R<CIELab>{
+ if raw.iter().any(|v|!v.is_finite()||*v< -0.00002||*v>1.00002){return Err("Invalid forward Lab".into())}
+ let factor=if legacy{LEGACY_LAB}else{1.};
+ let v=raw.map(|x|f64::from(x).clamp(0.,1.)/factor);
+ Ok(CIELab{L:100.*v[0],a:255.*v[1]-128.,b:255.*v[2]-128.})
+}
 fn correction_input(raw:[f64;3],legacy:bool,regions:&[Selective])->[f32;3]{
  let factor=if legacy{LEGACY_LAB}else{1.};
  if regions.is_empty()||raw.iter().any(|&x|x>factor){return raw.map(|v|v as f32)}
@@ -420,7 +429,8 @@ impl Profile{
   let n=crate::multichannel::channel_count(self)?;
   let kind=correction_kind(self)?;let legacy=self.version_major()==2;
   if !(if self.cmyk(){[17,33,49,65].contains(&grid)}else{[17,33].contains(&grid)})||!tac_percent.is_finite()||!(0.0..=n as f64*100.).contains(&tac_percent){return Err("Requires supported grid and valid TAC".into())}
-  if legacy&&matches!(&op,DynamicCorrection::Optimize{..}|DynamicCorrection::Black{..}){return Err("Whole-profile optimization and black generation require ICC v4 Lab".into())}
+  let predictive=matches!(&op,DynamicCorrection::Optimize{..}|DynamicCorrection::Black{..});
+  if predictive&&grid>33{return Err("Black generation and ink optimization require grid 17 or 33".into())}
   match &op{
    DynamicCorrection::Points(p)=>{if p.len()!=n{return Err("Point curve count must match channels".into())}for &row in p{validate_points([row;4])?;}},
    DynamicCorrection::Regions{regions,count}=>{if *count>MAX_REGIONS{return Err("Too many correction regions".into())}validate_regions(&regions[..*count])?;},
@@ -437,6 +447,10 @@ impl Profile{
   let mut out=self.clone();
   let mut input=vec![0f32;n];
   for (key,sig) in [(b"B2A0",TagSignature::BToA0Tag),(b"B2A1",TagSignature::BToA1Tag),(b"B2A2",TagSignature::BToA2Tag)]{
+   // Legacy predictive edits reserve half the requested color-error budget
+   // for interpolation. When 33 is requested, retain an original 17-point
+   // intent grid instead of unnecessarily resampling it to 33.
+   let grid=if legacy&&predictive&&grid==33&&self.tags.get(key).and_then(|raw|raw.get(10))==Some(&17){17}else{grid};
    // Encoding checked by correction_kind.
    // The source reverse envelope was certified by print_space::bounds; native evaluation supports complex PCS stages.
    let Tag::Pipeline(pipe)=native.read_tag(sig)else{return Err("LittleCMS could not decode B2A".into())};
@@ -450,20 +464,20 @@ impl Profile{
     if let DynamicCorrection::Black{channel,settings,..}=&op{
      let p=forward.as_ref().ok_or("Missing A2B1")?;
      for (x,&v) in node.iter_mut().zip(&result){*x=f64::from(v).clamp(0.,1.);}
-     let best=black_dynamic_node(&node,&caps,tac,*channel,*settings,|v|{
+     let mut node_settings=*settings;if legacy{node_settings.tolerance*=0.5;}
+     let best=black_dynamic_node(&node,&caps,tac,*channel,node_settings,|v|{
       for (x,&y) in input.iter_mut().zip(v){*x=y as f32;}let mut lab=[0f32;3];p.eval(&input,&mut lab);
-      if lab.iter().any(|v|!v.is_finite()){return Err("Invalid forward Lab".into())}
-      Ok(CIELab{L:100.*lab[0] as f64,a:255.*lab[1] as f64-128.,b:255.*lab[2] as f64-128.})
+      decode_forward_lab(lab,legacy)
      })?;
      values.extend_from_slice(&best);continue
     }
     if let DynamicCorrection::Optimize{weights,tolerance,..}=&op{
      let p=forward.as_ref().ok_or("Missing A2B1")?;
      for (x,&v) in node.iter_mut().zip(&result){*x=f64::from(v).clamp(0.,1.);}
-     let best=optimize_dynamic_node(&node,&caps,tac,weights,*tolerance,|v|{
+     let node_tolerance=if legacy{*tolerance*0.5}else{*tolerance};
+     let best=optimize_dynamic_node(&node,&caps,tac,weights,node_tolerance,|v|{
       for (x,&y) in input.iter_mut().zip(v){*x=y as f32;}let mut lab=[0f32;3];p.eval(&input,&mut lab);
-      if lab.iter().any(|v|!v.is_finite()){return Err("Invalid forward Lab".into())}
-      Ok(CIELab{L:100.*lab[0] as f64,a:255.*lab[1] as f64-128.,b:255.*lab[2] as f64-128.})
+      decode_forward_lab(lab,legacy)
      })?;
      values.extend_from_slice(&best);continue
     }
@@ -485,12 +499,55 @@ impl Profile{
    let lut=Lut{inputs:3,outputs:n,grid,in_curves:vec![vec![0.,1.];3],out_curves:vec![vec![0.,1.];n],clut:values};
    out.tags.insert(*key,crate::editing::encode(&lut,kind)?);
   }
-  out.clean_stale();crate::multichannel::verify(&out,&caps,tac)?;Ok(out)
+  out.clean_stale();crate::multichannel::verify(&out,&caps,tac)?;
+  // Legacy support is conservative: no publication when independently
+  // sampled native output exceeds the selected node color tolerance.
+  // This is sampled acceptance, not a continuous-domain proof.
+  if legacy&&predictive{
+   let tol=match &op{DynamicCorrection::Optimize{tolerance,..}=>*tolerance,DynamicCorrection::Black{settings,..}=>settings.tolerance,_=>unreachable!()};
+   verify_legacy_prediction(&native,&out,tol)?;
+  }
+  Ok(out)
  }
+}
+/// Native CMM acceptance across all four separation intents. Appearance
+/// comparison uses media-relative D50 in both profiles (simulate contract).
+/// 729 RGB colors + 33 neutrals; no general color-error bound is inferred.
+fn verify_legacy_prediction(original:&lcms2::Profile,out:&Profile,tolerance:f64)->R<()>{
+ let edited=lcms2::Profile::new_icc(&out.bytes()?).map_err(|e|e.to_string())?;
+ let mut samples=Vec::with_capacity(762);
+ for r in 0..9{for g in 0..9{for b in 0..9{samples.push([r,g,b].map(|v|(v*255/8) as u8));}}}
+ for i in 0..=32{samples.push([(i*255/32) as u8;3]);}
+ for intent in [lcms2::Intent::Perceptual,lcms2::Intent::RelativeColorimetric,lcms2::Intent::Saturation,lcms2::Intent::AbsoluteColorimetric]{
+  let (_,a)=crate::comparison::simulate(original,&samples,intent)?;
+  let (_,b)=crate::comparison::simulate(&edited,&samples,intent)?;
+  let mut peak=0f64;
+  for (x,y) in a.iter().zip(&b){let d=x.cie2000_delta_e(y,1.,1.,1.);if !d.is_finite()||d<0.{return Err("Invalid legacy sampled Delta E".into())}peak=peak.max(d);}
+  if peak>tolerance+1e-9{return Err(format!("Legacy sampled color tolerance exceeded ({intent:?}): {peak:.4} > {tolerance:.4}; try grid 33, lower black strength, or review the selected tolerance"))}
+ }
+ Ok(())
 }
 #[cfg(test)]
 mod dynamic_tests{
  use super::*;
+ #[test]fn legacy_forward_decode_nominal_and_extended(){
+  let v=decode_forward_lab([LEGACY_LAB as f32,(128./255.*LEGACY_LAB) as f32,(128./255.*LEGACY_LAB) as f32],true).unwrap();
+  assert!((v.L-100.).abs()<0.00002);assert!(v.a.abs()<0.00002);assert!(v.b.abs()<0.00002);
+  let e=decode_forward_lab([1.;3],true).unwrap();assert!(e.L>100.&&e.a>127.&&e.b>127.);
+  assert!(decode_forward_lab([f32::NAN,0.,0.],true).is_err());
+  assert_eq!(decode_forward_lab([1.;3],false).unwrap().L,100.);
+ }
+ #[test]fn legacy_predictive_zero_channel_and_native_reopen(){
+  let p=crate::versioning::test_legacy_fixture(7);let bounds=crate::print_space::bounds(&p).unwrap();
+  for op in [DynamicCorrection::Optimize{weights:vec![1.;7],tolerance:5.,caps:vec![100.;7]},DynamicCorrection::Black{channel:1,settings:BlackGeneration{strength:0.2,tolerance:5.,..Default::default()},caps:vec![100.;7]}]{
+   let q=p.bounded_correction_multi(op,17,700.).unwrap();
+   assert_eq!(q.version_major(),2);assert_eq!(q.space(),"7CLR");
+   for k in [b"A2B0",b"A2B1",b"A2B2"]{assert_eq!(p.tags[k],q.tags[k]);}
+   for k in [b"B2A0",b"B2A1",b"B2A2"]{assert!(q.tags[k].starts_with(b"mft2"));}
+   let v=crate::multichannel::verify(&q,&bounds.channels,7.).unwrap();assert_eq!(v.channels[6],0.);
+   let d=tempfile::tempdir().unwrap();let dest=d.path().join("legacy.icc");q.save_new(&dest).unwrap();assert_eq!(Profile::read(&dest).unwrap().space(),"7CLR");
+  }
+ }
  #[test]fn legacy_lab_coordinates_and_extended_range(){
   let raw=[0.5*LEGACY_LAB,0.6*LEGACY_LAB,0.4*LEGACY_LAB];
   let mut r=Selective::default();r.center=315.;r.light=10.;r.width=180.;
@@ -500,6 +557,21 @@ mod dynamic_tests{
   for j in 0..3{assert!((actual[j]-want[j]).abs()<1e-6);}
   assert_eq!(correction_input([1.,0.5,0.5],true,&[r]),[1.,0.5,0.5]);
   assert_eq!(correction_input(raw,true,&[]),raw.map(|v|v as f32));
+ }
+ #[test]#[ignore="Requires locally supplied FOGRA55 ICC"]
+ fn fogra55_legacy_predictive_real_profile(){
+  let path=std::path::PathBuf::from(std::env::var_os("ICC_FOGRA55_PATH").expect("Set ICC_FOGRA55_PATH"));
+  let source=std::fs::read(&path).unwrap();let p=Profile::read(&path).unwrap();
+  assert_eq!(p.version_major(),2);assert_eq!(p.space(),"7CLR");
+  let dir=tempfile::tempdir().unwrap();let dest=dir.path().join("legacy-optimized.icc");
+  let result=crate::editing::edit_file(&path,&dest,crate::editing::Edit::CorrectionMulti(DynamicCorrection::Optimize{weights:vec![1.;7],tolerance:2.,caps:vec![100.;7]},33,400.)).unwrap();
+  println!("{result}");let q=Profile::read(&dest).unwrap();
+  for k in [b"A2B0",b"A2B1",b"A2B2"]{assert_eq!(p.tags[k],q.tags[k]);}
+  assert_eq!([q.tags[b"B2A0"][10],q.tags[b"B2A1"][10],q.tags[b"B2A2"][10]],[33,33,17]);
+  assert_eq!(std::fs::read(&path).unwrap(),source);
+  for i in [lcms2::Intent::Perceptual,lcms2::Intent::RelativeColorimetric,lcms2::Intent::Saturation,lcms2::Intent::AbsoluteColorimetric]{
+   let r=crate::comparison::compare(&path,&dest,9,i).unwrap();println!("{i:?}: max {:.4}, mean TAC {:.2} -> {:.2}",r.max_de,r.reference.mean_tac,r.candidate.mean_tac);
+  }
  }
  #[test]#[ignore="Requires locally supplied FOGRA55 ICC"]
  fn fogra55_legacy_correction_real_profile(){
@@ -530,7 +602,8 @@ mod dynamic_tests{
    let native=lcms2::Profile::new_icc(&q.bytes().unwrap()).unwrap();
    for intent in [lcms2::Intent::Perceptual,lcms2::Intent::RelativeColorimetric,lcms2::Intent::Saturation,lcms2::Intent::AbsoluteColorimetric]{assert_eq!(crate::print_space::sample_rgb(&native,&[[255,255,255],[0,0,0],[125,60,80]],intent).unwrap()[6],0.);}
   }
-  assert!(p.bounded_correction_multi(DynamicCorrection::Black{channel:3,settings:BlackGeneration::default(),caps:vec![100.;7]},17,60.).is_err());
+  // Low TAC must still fail rather than silently clipping the baseline.
+  assert!(p.bounded_correction_multi(DynamicCorrection::Black{channel:3,settings:BlackGeneration::default(),caps:vec![100.;7]},17,0.).is_err());
   let mut bad=p.clone();bad.tags.remove(b"B2A2");assert!(correction_kind(&bad).is_err());
  }
  #[test]fn nclr_points_preserve_forward_caps_and_tac(){
