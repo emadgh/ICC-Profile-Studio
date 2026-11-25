@@ -26,7 +26,7 @@ fn constrain(x:&mut [f64],caps:&[f64],tac:f64){
 #[derive(Debug,Clone)]
 pub struct Verified{pub channels:Vec<f64>,pub tac:f64,pub sampled_channels:Vec<f64>,pub sampled_tac:f64,pub samples:usize}
 pub fn verify(p:&Profile,caps:&[f64],tac:f64)->R<Verified>{
- let n=channel_count(p)?;settings(n,caps,tac,9)?;
+ let n=if p.cmyk(){crate::editing::editable_channel_count(p)?}else{channel_count(p)?};settings(n,caps,tac,9)?;
  let b=print_space::bounds(p)?;
  if !b.exact_node_tac||b.channels.iter().zip(caps).any(|(&v,&c)|v>c+1e-10)||b.tac>tac+1e-10{return Err("Cannot certify rebuilt channel/TAC bounds".into())}
  let native=lcms2::Profile::new_icc(&p.bytes()?).map_err(|e|e.to_string())?;
