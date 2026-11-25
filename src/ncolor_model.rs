@@ -396,6 +396,123 @@ pub fn regularize_inverse_ramp(chart:&Chart,channels:usize,center:[f64;3],settin
  let points=points.into_iter().zip(&baseline.points).map(|(p,b)|RegularizedPoint{target:b.target,predicted_lab:p.lab,inks_percent:p.key.iter().map(|&v|f64::from(v)/SCALE).collect(),delta_e:p.error,tac_percent:tac(&p.key),distance:p.distance}).collect();
  Ok(RegularizedRamp{baseline,lambda,points,initial_objective,objective,max_channel_jump_pp,max_predicted_error,within_tolerance_count,evaluations:cache.len()})
 }
+// Experimental local 3x3x3 Lab lattice, not an ICC PCS-wide CLUT.
+// Missing nodes are explicit and are never substituted with zero ink.
+const LATTICE_GRID:usize=3;
+const LATTICE_WORK_LIMIT:u64=3_000_000_000;
+#[derive(Clone,Debug)]
+pub struct LatticeSettings{pub center:[f64;3],pub half_span:[f64;3],pub inverse:InverseSettings,pub lambda:f64}
+#[derive(Clone,Debug)]
+pub struct LatticeNode{pub index:[usize;3],pub target:[f64;3],pub baseline:Option<RegularizedPoint>,pub refined:Option<RegularizedPoint>}
+#[derive(Clone,Debug)]
+pub struct LatticeMetrics{
+ pub supported_nodes:usize,pub within_tolerance:usize,pub error:Option<ErrorStats>,
+ pub axis_edges:[usize;3],pub axis_max_jump_pp:[Option<f64>;3],pub max_tac_percent:Option<f64>,
+ pub complete_cells:usize,pub supported_centers:usize,pub centers_within_tolerance:usize,pub center_error:Option<ErrorStats>,
+}
+#[derive(Clone,Debug)]
+pub struct LatticeAudit{
+ pub settings:LatticeSettings,pub nodes:Vec<LatticeNode>,pub baseline:LatticeMetrics,pub refined:LatticeMetrics,
+ pub initial_objective:f64,pub objective:f64,pub seed_evaluations:usize,pub refinement_evaluations:usize,
+ pub estimated_channel_distance_ops:u64,
+}
+fn lattice_index(c:[usize;3])->usize{(c[0]*LATTICE_GRID+c[1])*LATTICE_GRID+c[2]}
+fn lattice_coord(i:usize)->[usize;3]{[i/9,(i/3)%3,i%3]}
+fn lattice_neighbors(i:usize)->Vec<(usize,usize)>{
+ let c=lattice_coord(i);let mut out=Vec::new();
+ for a in 0..3{for d in [-1i32,1]{let k=c[a] as i32+d;if (0..3).contains(&k){let mut q=c;q[a]=k as usize;out.push((a,lattice_index(q)));}}}
+ out
+}
+fn lattice_target(s:&LatticeSettings,c:[usize;3])->[f64;3]{std::array::from_fn(|i|s.center[i]+(c[i] as f64-1.)*s.half_span[i])}
+fn lattice_obj(points:&[Option<Candidate>],lambda:f64)->f64{
+ let mut value=0.;
+ for (i,p) in points.iter().enumerate(){if let Some(p)=p{value+=p.error*p.error;for (_,j) in lattice_neighbors(i){if j>i{if let Some(q)=&points[j]{value+=lambda*roughness(&p.key,&q.key);}}}}}
+ value
+}
+fn lattice_local(points:&[Option<Candidate>],i:usize,c:&Candidate,lambda:f64)->f64{
+ c.error*c.error+lambda*lattice_neighbors(i).into_iter().filter_map(|(_,j)|points[j].as_ref()).map(|p|roughness(&p.key,&c.key)).sum::<f64>()
+}
+fn optional_stats(v:Vec<f64>)->R<Option<ErrorStats>>{if v.is_empty(){Ok(None)}else{stats(v).map(Some)}}
+fn lattice_metrics(points:&[Option<Candidate>],training:&[&Sample],s:&LatticeSettings,caps:&[u32],limit:u32)->R<LatticeMetrics>{
+ let mut errors=Vec::new();let mut axis_edges=[0;3];let mut axis_max_jump_pp=[None::<f64>;3];let mut peak=None::<f64>;
+ for (i,p) in points.iter().enumerate(){if let Some(p)=p{
+  if !feasible_recipe(&p.key,caps,limit){return Err("Lattice node violates limits".into())}
+  errors.push(p.error);peak=Some(peak.unwrap_or(0.).max(tac(&p.key)));
+  for (axis,j) in lattice_neighbors(i){if j>i{if let Some(q)=&points[j]{
+   axis_edges[axis]+=1;let jump=p.key.iter().zip(&q.key).map(|(&a,&b)|f64::from(a.abs_diff(b))/SCALE).fold(0.,f64::max);
+   axis_max_jump_pp[axis]=Some(axis_max_jump_pp[axis].unwrap_or(0.).max(jump));
+  }}}
+ }}
+ let mut complete_cells=0;let mut center_errors=Vec::new();
+ // At the center of a complete cell trilinear weights are all 1/8.
+ // Integer floor keeps the interpolated recipe inside the hard limits.
+ for l in 0..2{for a in 0..2{for b in 0..2{
+  let corners:Vec<_>=(0..8).filter_map(|v|points[lattice_index([l+(v>>2),a+((v>>1)&1),b+(v&1)])].as_ref()).collect();
+  if corners.len()!=8{continue}complete_cells+=1;
+  let q:Vec<_>=(0..caps.len()).map(|j|corners.iter().map(|p|p.key[j]).sum::<u32>()/8).collect();
+  if !feasible_recipe(&q,caps,limit){return Err("Lattice interpolation violates limits".into())}
+  let c=[l,a,b];let target=std::array::from_fn(|i|s.center[i]+(c[i] as f64-0.5)*s.half_span[i]);
+  if let Some(p)=trial_score(training,q,target,s.inverse.max_recipe_distance)?{center_errors.push(p.error);}
+ }}}
+ let within_tolerance=errors.iter().filter(|&&v|v<=s.inverse.tolerance).count();
+ let centers_within_tolerance=center_errors.iter().filter(|&&v|v<=s.inverse.tolerance).count();
+ Ok(LatticeMetrics{supported_nodes:errors.len(),within_tolerance,error:optional_stats(errors)?,axis_edges,axis_max_jump_pp,max_tac_percent:peak,
+  complete_cells,supported_centers:center_errors.len(),centers_within_tolerance,center_error:optional_stats(center_errors)?})
+}
+fn lattice_point(p:&Candidate,target:[f64;3])->RegularizedPoint{RegularizedPoint{target,predicted_lab:p.lab,inks_percent:p.key.iter().map(|&v|f64::from(v)/SCALE).collect(),delta_e:p.error,tac_percent:tac(&p.key),distance:p.distance}}
+pub fn audit_lab_lattice(chart:&Chart,channels:usize,s:LatticeSettings)->R<LatticeAudit>{
+ let (mode,samples)=grouped(chart,channels)?;
+ if samples.len()<LOCAL_K||!s.lambda.is_finite()||!(0.0..=1.).contains(&s.lambda)||s.half_span.iter().any(|x|!x.is_finite()||!(0.5..=25.).contains(x)){
+  return Err("Invalid lattice dimensions, weight or characterization size".into())
+ }
+ for j in 0..3{let (lo,hi)=if j==0{(0.,100.)}else{(-128.,127.)};if !s.center[j].is_finite()||s.center[j]-s.half_span[j]<lo||s.center[j]+s.half_span[j]>hi{return Err("Lab lattice outside supported PCS range".into())}}
+ // Conservative budget: 27 independent searches + sensitivity + four
+ // refinement sweeps at four scales, two interpolation audits, seed ranking.
+ let estimate=(27*(INVERSE_BUDGET+2*channels+16*(2+2*channels)+1)+16) as u64*samples.len() as u64*channels as u64;
+ if estimate>LATTICE_WORK_LIMIT{return Err("Lattice exceeds conservative computation budget; reduce characterization size".into())}
+ let training:Vec<_>=samples.iter().collect();
+ let mut baseline=Vec::with_capacity(27);let mut seed_evaluations=0;
+ for i in 0..27{
+  let target=lattice_target(&s,lattice_coord(i));
+  match solve_samples(&samples,mode.clone(),channels,target,s.inverse.clone()){
+   Ok(r)=>{seed_evaluations+=r.evaluations;baseline.push(Some(Candidate{key:key(&r.inks_percent,channels)?,lab:r.predicted_lab,error:r.delta_e,distance:r.nearest_recipe_distance}));}
+   Err(e) if e=="No supported feasible seed; adjust limits or obtain more characterization data"=>baseline.push(None),
+   Err(e)=>return Err(e),
+  }
+ }
+ let caps:Vec<_>=s.inverse.caps_percent.iter().map(|&x|units(x)).collect();let limit=units(s.inverse.tac_percent);
+ let before=lattice_metrics(&baseline,&training,&s,&caps,limit)?;
+ let mut points=baseline.clone();let initial_objective=lattice_obj(&points,s.lambda);
+ let mut cache:BTreeMap<(usize,Vec<u32>),Option<Candidate>>=BTreeMap::new();
+ if s.lambda>0.{
+  for sweep in 0..4{for visit in 0..27{
+   let i=if sweep%2==0{visit}else{26-visit};
+   let Some(base)=&baseline[i]else{continue};
+   let target=lattice_target(&s,lattice_coord(i));
+   for step in [5.,2.,1.,0.5].map(units){
+    let Some(current)=&points[i]else{continue};let q=current.key.clone();
+    let adjacent:Vec<_>=lattice_neighbors(i).into_iter().filter_map(|(_,j)|points[j].as_ref()).collect();
+    if adjacent.is_empty(){continue}
+    let avg:Vec<_>=(0..channels).map(|j|adjacent.iter().map(|p|p.key[j]).sum::<u32>()/adjacent.len() as u32).collect();
+    let mut trials=vec![project(avg.clone(),&caps,limit),project(q.iter().zip(&avg).map(|(&a,&b)|(a+b)/2).collect(),&caps,limit)];
+    for j in 0..channels{if caps[j]==0{continue}for inc in [false,true]{let mut t=q.clone();t[j]=if inc{t[j].saturating_add(step)}else{t[j].saturating_sub(step)};trials.push(project(t,&caps,limit));}}
+    trials.sort();trials.dedup();let mut best=current.clone();
+    for t in trials{
+     let ck=(i,t.clone());let c=if let Some(v)=cache.get(&ck){v.clone()}else{let v=trial_score(&training,t,target,s.inverse.max_recipe_distance)?;cache.insert(ck,v.clone());v};
+     if let Some(c)=c{
+      if c.error>base.error.max(s.inverse.tolerance)+1e-12||(base.error<=s.inverse.tolerance&&c.error>s.inverse.tolerance){continue}
+      if lattice_local(&points,i,&c,s.lambda).total_cmp(&lattice_local(&points,i,&best,s.lambda)).then_with(||c.key.cmp(&best.key)).is_lt(){best=c;}
+     }
+    }
+    points[i]=Some(best);
+   }
+  }}
+ }
+ let objective=lattice_obj(&points,s.lambda);if objective>initial_objective+1e-8{return Err("Lattice objective increased".into())}
+ let after=lattice_metrics(&points,&training,&s,&caps,limit)?;
+ let nodes=(0..27).map(|i|{let index=lattice_coord(i);let target=lattice_target(&s,index);LatticeNode{index,target,baseline:baseline[i].as_ref().map(|p|lattice_point(p,target)),refined:points[i].as_ref().map(|p|lattice_point(p,target))}}).collect();
+ Ok(LatticeAudit{settings:s,nodes,baseline:before,refined:after,initial_objective,objective,seed_evaluations,refinement_evaluations:cache.len(),estimated_channel_distance_ops:estimate})
+}
 /// An audit of sampled jumps near exact reference recipes and held-out
 /// errors. Tapered model is a candidate only; the inverse solver still uses
 /// the beta.36 hard-neighborhood ridge. Distances are not uncertainty bounds.
@@ -483,6 +600,21 @@ pub fn audit_continuity(chart:&Chart,channels:usize)->R<ContinuityAudit>{
   for (p,b) in r.points.iter().zip(&r.baseline.points){assert_eq!(p.inks_percent[2],0.);assert!(p.tac_percent<=90.);assert!(p.delta_e<=b.delta_e.max(2.)+1e-12);if b.within_tolerance{assert!(p.delta_e<=2.);}}
   let z=regularize_inverse_ramp(&chart,3,[70.,20.,0.],settings.clone(),0.).unwrap();assert_eq!(z.evaluations,0);assert_eq!(z.objective,z.initial_objective);assert!((z.max_channel_jump_pp-z.baseline.max_channel_jump_pp).abs()<1e-9);
   assert!(regularize_inverse_ramp(&chart,3,[70.,20.,0.],settings,f64::NAN).is_err());
+ }
+ #[test]fn lattice_topology_and_missing_metrics(){
+  let edges=(0..27).map(|i|lattice_neighbors(i).into_iter().filter(|&(_,j)|j>i).count()).sum::<usize>();assert_eq!(edges,54);
+  for i in 0..27{assert_eq!(lattice_index(lattice_coord(i)),i);}
+  let settings=LatticeSettings{center:[50.,0.,0.],half_span:[1.;3],inverse:InverseSettings{caps_percent:vec![0.;2],tac_percent:0.,tolerance:2.,max_recipe_distance:0.1},lambda:0.02};
+  let m=lattice_metrics(&vec![None;27],&[],&settings,&[0;2],0).unwrap();assert_eq!(m.supported_nodes,0);assert_eq!(m.complete_cells,0);assert!(m.error.is_none());assert_eq!(m.axis_max_jump_pp,[None;3]);
+ }
+ #[test]fn lattice_refinement_keeps_bounds_and_audits_centers(){
+  let mut t=String::from("CTI3\nILLUMINANT D50\nOBSERVER 2\nMEASUREMENT_CONDITION M1\nBEGIN_DATA_FORMAT\nSAMPLE_ID CH1 CH2 CH3 LAB_L LAB_A LAB_B\nEND_DATA_FORMAT\nBEGIN_DATA\n");
+  for i in 0..=5{for j in 0..=5{for k in 0..=5{t.push_str(&format!("p-{i}-{j}-{k} {} {} {} {} {} {}\n",i*20,j*20,k*20,90-i*10,j*10-20,k*10-20));}}}
+  t.push_str("END_DATA\n");let chart=crate::characterization_cgats::read(&t,3,false).unwrap();
+  let settings=LatticeSettings{center:[70.,0.,0.],half_span:[1.;3],inverse:InverseSettings{caps_percent:vec![100.;3],tac_percent:150.,tolerance:2.,max_recipe_distance:0.4},lambda:0.02};
+  let a=audit_lab_lattice(&chart,3,settings.clone()).unwrap();assert_eq!(a.nodes.len(),27);assert_eq!(a.refined.supported_nodes,27);assert_eq!(a.refined.axis_edges,[18;3]);assert_eq!(a.refined.complete_cells,8);assert_eq!(a.refined.supported_centers,8);assert!(a.objective<=a.initial_objective+1e-8);
+  for n in &a.nodes{let p=n.refined.as_ref().unwrap();assert!(p.tac_percent<=150.0000001);let b=n.baseline.as_ref().unwrap();if b.delta_e<=2.{assert!(p.delta_e<=2.);}}
+  let z=audit_lab_lattice(&chart,3,LatticeSettings{lambda:0.,..settings}).unwrap();assert_eq!(z.refinement_evaluations,0);assert_eq!(z.objective,z.initial_objective);
  }
  #[test]fn inverse_quantized_limits_and_unsupported_zero(){
   let caps=[units(10.00009),units(20.00009)];let limit=units(19.99999);
