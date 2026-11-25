@@ -1,4 +1,4 @@
-//! Structural conversion between simple 16-bit v2 and v4 CMYK/Lab LUTs.
+//! Structural conversion between simple 16-bit v2 and v4 CMYK/nCLR Lab LUTs.
 //! ICC legacy lut16 PCS Lab encoding has nominal full scale 65280,
 //! whereas mAB/mBA use 65535. Adapt PCS-side curves, never device values.
 //! https://www.color.org/v2issues/
@@ -10,15 +10,40 @@ const TRANSFORMS:[[u8;4];6]=[*b"A2B0",*b"A2B1",*b"A2B2",*b"B2A0",*b"B2A1",*b"B2A
 #[derive(Debug,Clone)]
 pub struct IntentCheck{pub name:&'static str,pub max_de:f64,pub mean_de:f64,pub max_ink_pp:f64,pub max_tac_pp:f64,pub passed:bool,pub required:bool}
 #[derive(Debug,Clone)]
-pub struct Report{pub target:u8,pub relative_absolute_only:bool,pub checks:Vec<IntentCheck>,pub omitted:Vec<String>,pub forward_samples:usize,pub reverse_samples:usize,pub bounds:crate::validation::Bounds}
+pub struct Report{pub target:u8,pub relative_absolute_only:bool,pub checks:Vec<IntentCheck>,pub omitted:Vec<String>,pub forward_samples:usize,pub reverse_samples:usize,pub bounds:crate::print_space::Bounds,pub channels:Vec<String>,pub colorant_metadata:Vec<String>}
 fn is_text(k:&[u8;4])->bool{matches!(k,b"desc"|b"cprt"|b"dmnd"|b"dmdd")}
 fn shared(k:&[u8;4],v:&[u8])->bool{
  let expected=match k{b"wtpt"|b"bkpt"|b"lumi"=>b"XYZ ",b"chad"=>b"sf32",b"view"=>b"view",b"tech"=>b"sig ",b"meas"=>b"meas",_=>return false};
  v.starts_with(expected)
 }
+// Preserve a well-formed channel table/order as opaque metadata, without
+// rescaling its coordinates or using it to infer physical ink identity.
+// v2 files carrying these later tags are compatibility copies, not a
+// claim of strict ICC v2 conformance.
+fn ink_metadata(p:&Profile,k:&[u8;4],v:&[u8])->bool{
+ let n=p.standard_channels().len();
+ if !(2..=15).contains(&n){return false}
+ if k==b"clrt"{
+  if !v.starts_with(b"clrt")||u32at(v,8).ok()!=Some(n as u32)||v.len()!=12+38*n{return false}
+  let names=p.colorants();
+  if names.len()!=n||names.iter().any(Option::is_none){return false}
+  let mut unique=std::collections::HashSet::new();
+  for i in 0..n{
+   let name=&v[12+38*i..44+38*i];
+   let Some(end)=name.iter().position(|&x|x==0)else{return false};
+   if end==0||!name[..end].iter().all(|x|x.is_ascii()&&!x.is_ascii_control())||!unique.insert(&name[..end]){return false}
+  }
+  return true
+ }
+ if k==b"clro"{
+  if !v.starts_with(b"clro")||u32at(v,8).ok()!=Some(n as u32)||v.len()!=12+n{return false}
+  let mut seen=[false;15];for &j in &v[12..]{let j=j as usize;if j>=n||seen[j]{return false}seen[j]=true;}return true
+ }
+ false
+}
 fn alternate(k:&[u8;4])->bool{k.starts_with(b"D2B")||k.starts_with(b"B2D")}
 pub fn omitted_tags(p:&Profile)->Vec<String>{
- p.tags.iter().filter(|(k,v)|!TRANSFORMS.contains(k)&&!is_text(k)&&!shared(k,v)).map(|(k,_)|String::from_utf8_lossy(k).into_owned()).collect()
+ p.tags.iter().filter(|(k,v)|!TRANSFORMS.contains(k)&&!is_text(k)&&!shared(k,v)&&!ink_metadata(p,k,v)).map(|(k,_)|String::from_utf8_lossy(k).into_owned()).collect()
 }
 fn ascii_text(v:&[u8])->R<String>{
  let raw=if v.starts_with(b"mluc"){
@@ -76,8 +101,8 @@ fn common_lengths(curves:&mut [Vec<f64>])->R<()>{
  Ok(())
 }
 fn build(p:&Profile,target:u8,allow_omit:bool)->R<(Profile,Vec<String>)>{
- p.check()?;
- if !p.cmyk()||p.pcs()!="Lab "||!matches!((p.version_major(),target),(2,4)|(4,2)){return Err("Requires opposite version of a CMYK/Lab printer ICC (v2 or v4)".into())}
+ let n=crate::editing::editable_channel_count(p)?;
+ if p.pcs()!="Lab "||!matches!((p.version_major(),target),(2,4)|(4,2)){return Err("Requires opposite version of a CMYK/nCLR Lab printer ICC (v2 or v4)".into())}
  if p.tags.keys().any(alternate){return Err("Alternate D2B/B2D transforms cannot be converted".into())}
  let omitted=omitted_tags(p);
  if !omitted.is_empty()&&!allow_omit{return Err(format!("Unsupported tags require explicit omission consent: {}",omitted.join(", ")))}
@@ -91,7 +116,7 @@ fn build(p:&Profile,target:u8,allow_omit:bool)->R<(Profile,Vec<String>)>{
    let expected=if p.version_major()==2{b"mft2"}else if forward{b"mAB "}else{b"mBA "};
    if !v.starts_with(expected){return Err(format!("Unsupported LUT type in {}",String::from_utf8_lossy(k)))}
    let mut l=Lut::parse(v)?;
-   if (l.inputs,l.outputs)!=if forward{(4,3)}else{(3,4)}{return Err("Unexpected transform dimensions".into())}
+   if (l.inputs,l.outputs)!=if forward{(n,3)}else{(3,n)}{return Err("Unexpected transform dimensions".into())}
    if forward{
     // Scale only the PCS output curve samples, preserving knots and CLUT.
     let f=if target==2{LEGACY}else{1./LEGACY};
@@ -118,7 +143,7 @@ fn build(p:&Profile,target:u8,allow_omit:bool)->R<(Profile,Vec<String>)>{
    let kind=if target==2{b"mft2"}else if forward{b"mAB "}else{b"mBA "};
    out.tags.insert(*k,crate::editing::encode(&l,kind)?);
   }else if is_text(k){out.tags.insert(*k,text_tag(&ascii_text(v)?,target,k==b"cprt"));}
-  else if shared(k,v){out.tags.insert(*k,v.clone());}
+  else if shared(k,v)||ink_metadata(p,k,v){out.tags.insert(*k,v.clone());}
  }
  for k in TRANSFORMS{if !out.tags.contains_key(&k){return Err("All six A2B/B2A intent tags are required".into())}}
  if !out.tags.contains_key(b"wtpt")||!out.tags.contains_key(b"desc"){return Err("Media white and profile description are required".into())}
@@ -126,15 +151,23 @@ fn build(p:&Profile,target:u8,allow_omit:bool)->R<(Profile,Vec<String>)>{
 }
 fn check(source:&Profile,out:&Profile,target:u8,omitted:Vec<String>,max_de:f64,max_ink:f64,relative_absolute_only:bool)->R<Report>{
  if !max_de.is_finite()||!(0.05..=2.).contains(&max_de)||!max_ink.is_finite()||!(0.05..=2.).contains(&max_ink){return Err("Validation limits must be 0.05–2 ΔE00 / percentage points".into())}
- let old=crate::validation::bounds(source)?;let bounds=crate::validation::bounds(out)?;
+ let n=crate::editing::editable_channel_count(source)?;
+ if source.space()!=out.space()||source.pcs()!=out.pcs()||crate::editing::editable_channel_count(out)?!=n{return Err("Version conversion changed device signature or PCS".into())}
+ let old=crate::print_space::bounds(source)?;let bounds=crate::print_space::bounds(out)?;
  // Preserve zero channels exactly; tolerate at most one 16-bit code for
  // other channel bounds and four codes for the conservative TAC bound.
- for j in 0..4{if bounds.channels[j]>old.channels[j]+if old.channels[j]==0.{0.}else{1./65535.}{return Err(format!("Conversion expands channel {} bound",j+1))}}
- if bounds.tac>old.tac+4./65535.{return Err("Conversion expands conservative TAC bound".into())}
+ for j in 0..n{if bounds.channels[j]>old.channels[j]+if old.channels[j]==0.{0.}else{1./65535.}{return Err(format!("Conversion expands channel {} bound",j+1))}}
+ if bounds.tac>old.tac+n as f64/65535.{return Err("Conversion expands conservative TAC bound".into())}
  let a=Native::new_icc(&source.bytes()?).map_err(|e|e.to_string())?;
  let b=Native::new_icc(&out.bytes()?).map_err(|e|e.to_string())?;
  let xyz=Native::new_xyz();let white=CIEXYZ{X:0.9642,Y:1.,Z:0.8249};
- let mut inks=Vec::new();for i in 0..9usize.pow(4){let mut q=i;let mut v=[0u16;4];for j in (0..4).rev(){v[j]=(q%9*65535/8) as u16;q/=9;}inks.push(v);}
+ let fi=crate::print_space::for_profile(&a)?;let fo=crate::print_space::for_profile(&b)?;
+ if fi.channels!=n||fo.channels!=n{return Err("Native channel count mismatch".into())}
+ let stride=2*n;
+ let mut inks=crate::editing::device_samples(n);
+ // Preserve dense legacy CMYK lattice in addition to bounded dynamic samples.
+ if n==4{for i in 0..9usize.pow(4){let mut q=i;let mut v=[0u16;4];for j in (0..4).rev(){v[j]=(q%9*65535/8) as u16;q/=9;}for x in v{inks.extend_from_slice(&x.to_ne_bytes());}}}
+ let count=inks.len()/stride;
  let mut pcs=Vec::new();
  for l in 0..17{for aa in 0..17{for bb in 0..17{
   let lab=CIELab{L:l as f64*100./16.,a:aa as f64*255./16.-128.,b:bb as f64*255./16.-128.};
@@ -144,27 +177,36 @@ fn check(source:&Profile,out:&Profile,target:u8,omitted:Vec<String>,max_de:f64,m
  for i in 0..=100{let x=CIELab{L:i as f64,a:0.,b:0.}.to_xyz(&white);pcs.push([x.X,x.Y,x.Z]);}
  let mut checks=Vec::new();
  for (name,intent) in [("Perceptual",Intent::Perceptual),("Relative",Intent::RelativeColorimetric),("Saturation",Intent::Saturation),("Absolute",Intent::AbsoluteColorimetric)]{
-  let f=|p:&Native|Transform::<[u16;4],[f64;3]>::new_multiprofile(&[p,&xyz],PixelFormat::CMYK_16,PixelFormat::XYZ_DBL,intent,Flags::NO_OPTIMIZE).map_err(|e|e.to_string());
-  let r=|p:&Native|Transform::<[f64;3],[u16;4]>::new_multiprofile(&[&xyz,p],PixelFormat::XYZ_DBL,PixelFormat::CMYK_16,intent,Flags::NO_OPTIMIZE).map_err(|e|e.to_string());
-  let mut fa=vec![[0.;3];inks.len()];let mut fb=fa.clone();f(&a)?.transform_pixels(&inks,&mut fa);f(&b)?.transform_pixels(&inks,&mut fb);
-  let mut ra=vec![[0u16;4];pcs.len()];let mut rb=ra.clone();r(&a)?.transform_pixels(&pcs,&mut ra);r(&b)?.transform_pixels(&pcs,&mut rb);
+  let f=|p:&Native|Transform::<u8,[f64;3]>::new_multiprofile(&[p,&xyz],fi.pixel,PixelFormat::XYZ_DBL,intent,Flags::NO_OPTIMIZE).map_err(|e|e.to_string());
+  let r=|p:&Native|Transform::<[f64;3],u8>::new_multiprofile(&[&xyz,p],PixelFormat::XYZ_DBL,fo.pixel,intent,Flags::NO_OPTIMIZE).map_err(|e|e.to_string());
+  let mut fa=vec![[0.;3];count];let mut fb=fa.clone();f(&a)?.transform_pixels(&inks,&mut fa);f(&b)?.transform_pixels(&inks,&mut fb);
+  let mut ra=vec![0u8;pcs.len()*stride];let mut rb=ra.clone();r(&a)?.transform_pixels(&pcs,&mut ra);r(&b)?.transform_pixels(&pcs,&mut rb);
   let mut row=IntentCheck{name,max_de:0.,mean_de:0.,max_ink_pp:0.,max_tac_pp:0.,passed:false,required:!relative_absolute_only||matches!(intent,Intent::RelativeColorimetric|Intent::AbsoluteColorimetric)};
   for (x,y) in fa.into_iter().zip(fb){
    if x.iter().chain(&y).any(|v|!v.is_finite()){return Err("Nonfinite forward conversion".into())}
    let lab=|v:[f64;3]|CIEXYZ{X:v[0],Y:v[1],Z:v[2]}.to_lab(&white);
    let d=lab(x).cie2000_delta_e(&lab(y),1.,1.,1.);
-   if !d.is_finite()||d<0.{return Err("Invalid forward Delta E".into())}row.max_de=row.max_de.max(d);row.mean_de+=d/inks.len() as f64;
+   if !d.is_finite()||d<0.{return Err("Invalid forward Delta E".into())}row.max_de=row.max_de.max(d);row.mean_de+=d/count as f64;
   }
-  for (x,y) in ra.into_iter().zip(rb){
-   for j in 0..4{row.max_ink_pp=row.max_ink_pp.max(x[j].abs_diff(y[j]) as f64*100./65535.);}
-   let sum=|v:[u16;4]|v.iter().map(|&v|u32::from(v)).sum::<u32>();
-   row.max_tac_pp=row.max_tac_pp.max(sum(x).abs_diff(sum(y)) as f64*100./65535.);
+  for (x,y) in ra.chunks_exact(stride).zip(rb.chunks_exact(stride)){
+   let mut sx=0u32;let mut sy=0u32;
+   for j in 0..n{
+    let a=u16::from_ne_bytes([x[2*j],x[2*j+1]]);let b=u16::from_ne_bytes([y[2*j],y[2*j+1]]);
+    if old.channels[j]==0.&&b!=0{return Err(format!("Converted native transform reopened closed channel {}",j+1))}
+    row.max_ink_pp=row.max_ink_pp.max(a.abs_diff(b) as f64*100./65535.);sx+=u32::from(a);sy+=u32::from(b);
+   }
+   row.max_tac_pp=row.max_tac_pp.max(sx.abs_diff(sy) as f64*100./65535.);
   }
-  row.passed=row.max_de<=max_de&&row.max_ink_pp<=max_ink&&row.max_tac_pp<=4.*max_ink;
+  row.passed=row.max_de<=max_de&&row.max_ink_pp<=max_ink&&row.max_tac_pp<=n as f64*max_ink;
   if row.required&&!row.passed{return Err(format!("{name} intent equivalence failed: max ΔE00 {:.4} (limit {max_de:.2}), channel Δ {:.4} pp (limit {max_ink:.2}), TAC Δ {:.4} pp. No file saved.",row.max_de,row.max_ink_pp,row.max_tac_pp))}
   checks.push(row);
  }
- Ok(Report{target,relative_absolute_only,checks,omitted,forward_samples:inks.len(),reverse_samples:pcs.len(),bounds})
+ let mut colorant_metadata=Vec::new();
+ for k in [b"clrt",b"clro"]{if let Some(v)=out.tags.get(k){
+  if source.tags.get(k)!=Some(v){return Err("Colorant metadata changed during conversion".into())}
+  colorant_metadata.push(String::from_utf8_lossy(k).into_owned());
+ }}
+ Ok(Report{target,relative_absolute_only,checks,omitted,forward_samples:count,reverse_samples:pcs.len(),bounds,channels:out.channels(),colorant_metadata})
 }
 pub fn convert_file(source:&Path,destination:&Path,target:u8,allow_omit:bool,max_de:f64,max_ink:f64,relative_absolute_only:bool)->R<Report>{
  let p=Profile::read(source)?;let (out,omitted)=build(&p,target,allow_omit)?;
@@ -213,5 +255,34 @@ pub fn convert_file(source:&Path,destination:&Path,target:u8,allow_omit:bool,max
  #[test]fn failed_validation_or_existing_path_does_not_publish(){
   let d=tempfile::tempdir().unwrap();let a=d.path().join("a.icc");let b=d.path().join("b.icc");crate::synthetic_cmyk_v4(true).save_new(&a).unwrap();
   assert!(convert_file(&a,&b,2,false,0.,0.5,false).is_err());assert!(!b.exists());assert!(convert_file(&a,&a,2,false,0.5,0.5,true).is_err());
+ }
+}
+
+#[cfg(test)]
+mod dynamic_tests{
+ use super::*;
+ #[test]fn nclr_structural_roundtrip_preserves_device_axes_and_zero_ink(){
+  for n in [3,4,6,8,15]{
+   let mut p=crate::print_space::fixture(n);
+   let mut table=b"clrt\0\0\0\0".to_vec();put32(&mut table,n as u32);
+   for i in 0..n{let mut name=format!("Ink {}",i+1).into_bytes();name.resize(32,0);table.extend(name);for x in [32768u16,32896,32896]{put16(&mut table,x);}}
+   p.tags.insert(*b"clrt",table);
+   let mut order=b"clro\0\0\0\0".to_vec();put32(&mut order,n as u32);order.extend((0..n as u8).rev());p.tags.insert(*b"clro",order);
+   let (v2,omitted)=build(&p,2,false).unwrap();assert!(omitted.is_empty());assert_eq!(v2.space(),p.space());assert_eq!(v2.channels(),p.channels());
+   let (v4,_)=build(&v2,4,false).unwrap();
+   for k in TRANSFORMS{assert!(v2.tags[&k].starts_with(b"mft2"));let a=Lut::parse(&p.tags[&k]).unwrap();let b=Lut::parse(&v4.tags[&k]).unwrap();assert_eq!((a.inputs,a.outputs,a.grid),(b.inputs,b.outputs,b.grid));assert_eq!(a.clut,b.clut);}
+   for k in [b"clrt",b"clro"]{assert_eq!(p.tags[k],v4.tags[k]);}
+   if n>3{assert_eq!(crate::print_space::bounds(&v4).unwrap().channels[n-1],0.);}
+  }
+ }
+ #[test]fn native_six_channel_compatibility_report(){
+  let p=crate::print_space::fixture(6);
+  let (v2,_)=build(&p,2,false).unwrap();let r=check(&p,&v2,2,vec![],0.5,0.5,true).unwrap();
+  assert_eq!(r.channels.len(),6);assert_eq!(r.bounds.channels[5],0.);assert_eq!(r.checks.len(),4);assert!(r.forward_samples>=4096);
+  let (v4,_)=build(&v2,4,false).unwrap();assert!(check(&v2,&v4,4,vec![],0.5,0.5,true).is_ok());
+ }
+ #[test]fn malformed_colorant_metadata_needs_consent(){
+  let mut p=crate::print_space::fixture(6);p.tags.insert(*b"clro",b"clro\0\0\0\0\0\0\0\x06\0\0\0\0\0\0".to_vec());
+  assert!(build(&p,2,false).is_err());let (q,omitted)=build(&p,2,true).unwrap();assert!(omitted.contains(&"clro".to_owned()));assert!(!q.tags.contains_key(b"clro"));
  }
 }
