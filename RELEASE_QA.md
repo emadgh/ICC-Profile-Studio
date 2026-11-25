@@ -102,3 +102,11 @@ Evidence per check: build commit, input profile signature/version/channel count,
 - [ ] Verify right-aligned workspace, sidebar and preview, mirrored system picker/header and bottom status; compare mixed-script, numbers and paths with LTR mode. Axis orientation, slider direction, channel ordering and 3D orbit unchanged.
 - [ ] Test mixed-script wrapping, punctuation, editable input, focus and Windows DPI; GPUI display-only Arabic shaping is not full native bidi layout.
 - [ ] Inventory remaining dynamic success/status messages, technical descriptions and raw native diagnostics; replace with stable typed IDs/parameters in future batches. Static literal translation checks are not proof of complete UI translation.
+
+### Beta.41 consolidated CI and manual gates (pending)
+- [ ] One exact-head Windows CI for consolidated #35, including #34; previous CI #108 had already been launched before consolidation. No per-commit CI.
+- [ ] Numeric value click, type ASCII/Persian/Arabic digits, decimal, minus, Enter/Escape/Backspace/Delete; invalid/out-of-range values rejected, step snapping and endpoints, busy guard, focus changes/page switches. Manual keyboard/IME and clipboard acceptance outstanding.
+- [ ] Read-only jobs: cancel before/mid/after checkpoint, no stale/cancelled result publication, correct progress phase count, UI recovery. Verify gamut in expanded mode, comparison, gradient, optimizer and all N-color audit workers. Rebuild uses separate publication-safe control; other write/external jobs not covered.
+- [ ] Gamut shared/separate intent selectors, same target set, all four intents, 2D/3D/panel and expanded mode, caveat for cross-intent comparison, native errors.
+- [ ] RTL text alignment, picker/header and bottom status, mixed-script paths and labels; full native wrapping/IME/focus still requires manual work. Five languages and raw diagnostic details.
+- [ ] About/update state transitions, actual Windows offline/private feeds, checksum failure, verified download, explicit restart and title/taskbar metadata. No physical or stable-release approval inferred from CI.
