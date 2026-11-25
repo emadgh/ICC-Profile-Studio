@@ -449,3 +449,5 @@ pub(crate) fn synthetic_cmyk_v4(k_zero:bool)->Profile{
   p.tags.remove(b"clrt");assert_eq!(p.channels(),p.standard_channels());
  }
 }
+
+pub mod studio_release;
