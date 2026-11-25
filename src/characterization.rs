@@ -171,9 +171,34 @@ pub fn export_csv(c:&Chart,path:&Path)->R<()>{
   r.push(p.measurement_basis.clone());r.push(p.delta_e.map(|x|x.to_string()).unwrap_or_default());r.extend(p.inks.iter().map(|x|x.to_string()));w.write_record(r).map_err(|e|e.to_string())?;
  }w.flush().map_err(|e|e.to_string())
 }
+
+/// Export actual stored data only. CGATS does not retain original chart
+/// geometry, predicted Lab or per-patch comparison diagnostics; CSV does.
+/// The table is validated before creating a no-clobber destination.
+pub fn export_cgats(p:&Profile,c:&Chart,path:&Path)->R<()>{
+ let n=crate::print_space::format(&p.header[16..20])?.channels;
+ let text=crate::characterization_cgats::write(c,n,p.cmyk())?;
+ let mut stage=tempfile::NamedTempFile::new_in(path.parent().filter(|p|!p.as_os_str().is_empty()).unwrap_or(Path::new("."))).map_err(|e|e.to_string())?;
+ use std::io::Write;
+ stage.write_all(text.as_bytes()).map_err(|e|e.to_string())?;
+ stage.as_file().sync_all().map_err(|e|e.to_string())?;
+ stage.persist_noclobber(path).map_err(|e|e.to_string())?;
+ Ok(())
+}
+
 #[cfg(test)]
 mod tests{
  use super::*;
+
+ #[test]fn cgats_export_no_clobber_and_no_predicted_measurements(){
+  let p=crate::print_space::fixture(6);let c=virtual_chart(&p).unwrap();
+  let dir=tempfile::tempdir().unwrap();let path=dir.path().join("target.cgats");
+  export_cgats(&p,&c,&path).unwrap();let d=import_cgats(&p,&path).unwrap();
+  assert_eq!(d.patches.len(),c.patches.len());
+  assert!(d.patches.iter().zip(&c.patches).all(|(a,b)|a.inks==b.inks&&a.measured_lab.is_none()&&a.spectrum.is_none()));
+  let old=std::fs::read(&path).unwrap();assert!(export_cgats(&p,&c,&path).is_err());assert_eq!(std::fs::read(&path).unwrap(),old);
+ }
+
  #[test]fn embedded_cxf_pairs_by_location_not_record_order(){
   let xml=r#"<CxF><Object ObjectType="M0_Measurement"><ReflectanceSpectrum StartWL="380" ColorSpecification="m">0.1 0.2</ReflectanceSpectrum><Tag Name="Page" Value="2"/><Tag Name="Row" Value="3"/><Tag Name="Column" Value="4"/><Tag Name="SampleID" Value="7"/></Object><Object ObjectType="Target"><ColorCMYK><Cyan>20</Cyan><Magenta>0</Magenta><Yellow>50</Yellow><Black>0</Black></ColorCMYK><Tag Name="Page" Value="2"/><Tag Name="Row" Value="3"/><Tag Name="Column" Value="4"/><Tag Name="SampleID" Value="7"/></Object><ColorSpecification Id="m"><WavelengthRange Increment="10"/></ColorSpecification></CxF>"#;
   let mut raw=b"ZXML\0\0\0\0\0\0\0\x01".to_vec();
