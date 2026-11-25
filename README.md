@@ -111,3 +111,5 @@ See [ROADMAP.md](ROADMAP.md), [RELEASE_QA.md](RELEASE_QA.md) and [GitHub Issues]
 Beta.41 consolidates the UI stabilization work: shared/separate gamut rendering intents, partial RTL and localized diagnostics, direct numeric keyboard entry and cooperative read-only analysis cancellation with phase progress. Existing file-publication safety remains separate; manual Windows/RTL/updater and real-profile acceptance are pending. See active roadmap and release QA.
 
 Beta.42 adds cancellable gamut mesh extraction and per-phase progress, dynamic localized status headings, explicit gamut intent preference persistence, numeric validation feedback and regression tests. Manual Windows and real-profile acceptance remain pending.
+
+Beta.43 adds validated numeric clipboard input and a retry action for failed update downloads. Windows interaction and live updater acceptance remain pending. See RELEASE_QA.md.

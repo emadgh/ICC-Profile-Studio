@@ -43,18 +43,25 @@ fn check(config:&UpdateConfig)->Result<Option<UpdateInfo>,String>{
     let bytes=serde_json::to_vec(&all).map_err(|e|e.to_string())?;
     Ok(studio_release::select(&bytes,&config.current_version)?.map(|c|UpdateInfo{version:c.version,release_url:c.release_url,download_url:c.download_url,checksum_url:c.checksum_url,asset_digest:c.asset_digest}))
 }
-pub struct StudioUpdater{config:Arc<UpdateConfig>,state:Arc<Mutex<UpdateStatus>>}
+pub struct StudioUpdater{config:Arc<UpdateConfig>,state:Arc<Mutex<UpdateStatus>>,retry:Arc<Mutex<Option<UpdateInfo>>>}
 impl StudioUpdater{
-    pub fn new(config:UpdateConfig)->Self{Self{config:Arc::new(config),state:Arc::new(Mutex::new(UpdateStatus::Idle))}}
+    pub fn new(config:UpdateConfig)->Self{Self{config:Arc::new(config),state:Arc::new(Mutex::new(UpdateStatus::Idle)),retry:Arc::new(Mutex::new(None))}}
     pub fn status(&self)->UpdateStatus{self.state.lock().unwrap().clone()}
     pub fn start_check(&self,_auto:bool)->bool{
-        {let mut s=self.state.lock().unwrap();if matches!(*s,UpdateStatus::Checking|UpdateStatus::Downloading{..}|UpdateStatus::Ready(..)){return false}*s=UpdateStatus::Checking;}
+        {let mut s=self.state.lock().unwrap();if matches!(*s,UpdateStatus::Checking|UpdateStatus::Downloading{..}|UpdateStatus::Ready(..)){return false}*s=UpdateStatus::Checking;*self.retry.lock().unwrap()=None;}
         let state=self.state.clone();let config=self.config.clone();
         std::thread::spawn(move||{let next=match check(&config){Ok(Some(info))=>UpdateStatus::Available(info),Ok(None)=>UpdateStatus::UpToDate,Err(e)=>UpdateStatus::Failed(e)};*state.lock().unwrap()=next;});
         true
     }
+    pub fn can_retry_download(&self)->bool{
+        let state=self.state.lock().unwrap();matches!(*state,UpdateStatus::Failed(_))&&self.retry.lock().unwrap().is_some()
+    }
     pub fn start_download(&self)->bool{
-        let info={let mut s=self.state.lock().unwrap();let UpdateStatus::Available(info)=&*s else{return false};let info=info.clone();*s=UpdateStatus::Downloading{info:info.clone(),downloaded:0,total:None};info};
+        let info={let mut s=self.state.lock().unwrap();
+            let info=match &*s{UpdateStatus::Available(info)=>info.clone(),UpdateStatus::Failed(_)=>{let Some(info)=self.retry.lock().unwrap().clone()else{return false};info},_=>return false};
+            *self.retry.lock().unwrap()=Some(info.clone());
+            *s=UpdateStatus::Downloading{info:info.clone(),downloaded:0,total:None};info
+        };
         let state=self.state.clone();let config=self.config.clone();
         std::thread::spawn(move||{let p=state.clone();let i=info.clone();let result=download_update(&config,&info,move|downloaded,total|{*p.lock().unwrap()=UpdateStatus::Downloading{info:i.clone(),downloaded,total};});
           *state.lock().unwrap()=match result{Ok(path)=>UpdateStatus::Ready(info,path),Err(e)=>UpdateStatus::Failed(e)};

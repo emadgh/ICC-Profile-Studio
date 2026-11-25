@@ -672,6 +672,7 @@ const ROWS:&[[&str;5]]=&[
 ["Retry download","تلاش مجدد برای دانلود","Riprova download","إعادة محاولة التنزيل","Повторить загрузку"],
 ["Numeric entry: Enter applies; Escape cancels.","ورود عدد: Enter برای اعمال و Escape برای لغو.","Immissione numerica: Invio applica, Esc annulla.","إدخال رقم: Enter للتطبيق وEscape للإلغاء.","Ввод числа: Enter применяет, Escape отменяет."],
 ["Invalid numeric value or outside allowed range.","عدد نامعتبر یا خارج از محدوده مجاز است.","Valore numerico non valido o fuori intervallo.","قيمة رقمية غير صالحة أو خارج النطاق.","Недопустимое число или значение вне диапазона."],
+["Numeric input: Ctrl+V pastes; Ctrl+A clears; Enter applies; Escape cancels.","ورود عدد: Ctrl+V برای جای‌گذاری، Ctrl+A برای پاک کردن، Enter برای اعمال و Escape برای لغو.","Valore numerico: Ctrl+V incolla; Ctrl+A cancella; Invio applica; Esc annulla.","إدخال رقم: Ctrl+V للصق، Ctrl+A للمسح، Enter للتطبيق، Escape للإلغاء.","Число: Ctrl+V вставляет; Ctrl+A очищает; Enter применяет; Escape отменяет."],
 ];
 #[cfg(test)]mod tests{use super::*;#[test]fn five_languages_and_fallback(){for l in Language::ALL{set_active(l);assert!(!tr("Settings").is_empty());assert_eq!(tr("A2B1"),"A2B1");}set_active(Language::Fa);assert_eq!(tr("Settings"),crate::rtl::visual("تنظیمات"));assert!(Language::Ar.rtl());}}
 
