@@ -6,7 +6,8 @@ use crate::R;
 pub struct Format{pub channels:usize,pub pixel:PixelFormat}
 pub fn format(signature:&[u8])->R<Format>{
  if signature==b"CMYK"{return Ok(Format{channels:4,pixel:PixelFormat::CMYK_16})}
- if signature.len()!=4||&signature[1..]!=b"CLR"{return Err("Requires CMYK or 2–15 channel nCLR printer color space".into())}
+ if signature==b"CMY "{return Ok(Format{channels:3,pixel:PixelFormat::CMY_16})}
+ if signature.len()!=4||&signature[1..]!=b"CLR"{return Err("Requires CMY, CMYK or 2–15 channel nCLR printer color space".into())}
  let n=(signature[0] as char).to_digit(16).filter(|n|(2..=15).contains(n)).ok_or("Invalid nCLR count")? as usize;
  let pixel=PixelFormat(((14+n as u32)<<16)|((n as u32)<<3)|2);
  if pixel.channels()!=n||pixel.bytes_per_channel()!=2{return Err("Invalid native pixel format".into())}
@@ -108,6 +109,10 @@ pub(crate) fn fixture(n:usize)->crate::Profile{
  for k in [b"B2A0",b"B2A1",b"B2A2"]{p.tags.insert(*k,crate::editing::encode(&b,b"mBA ").unwrap());}
  p
 }
+#[cfg(test)]
+pub(crate) fn fixture_cmy()->crate::Profile{
+ let mut p=fixture(3);p.header[16..20].copy_from_slice(b"CMY ");p
+}
 #[cfg(test)]mod tests{
  use super::*;
  #[test]fn format_counts(){for n in 2..=15{let f=format(format!("{n:X}CLR").as_bytes()).unwrap();assert_eq!(f.channels,n);assert_eq!(f.pixel.bytes_per_pixel(),n*2);}assert!(format(b"RGB ").is_err());assert!(format(b"GRAY").is_err());}
@@ -119,6 +124,16 @@ pub(crate) fn fixture(n:usize)->crate::Profile{
   let whole=round.apply(&values).unwrap();let mut split=Vec::new();
   for chunk in values.chunks(127){split.extend(round.apply(chunk).unwrap());}
   assert_eq!(whole,split);
+ }
+ #[test]fn native_cmy_is_not_generic_three_channel(){
+  let p=fixture_cmy();assert_eq!(p.space(),"CMY ");
+  let f=format(b"CMY ").unwrap();assert_eq!(f.channels,3);assert_eq!(f.pixel,PixelFormat::CMY_16);
+  assert_ne!(f.pixel,format(b"3CLR").unwrap().pixel);
+  let native=Profile::new_icc(&p.bytes().unwrap()).unwrap();assert_eq!(for_profile(&native).unwrap().pixel,PixelFormat::CMY_16);
+  for intent in [Intent::Perceptual,Intent::RelativeColorimetric,Intent::Saturation,Intent::AbsoluteColorimetric]{
+   assert_eq!(Roundtrip::new(&native,intent).unwrap().apply(&[[0.2,0.3,0.2],[0.8,0.9,0.7]]).unwrap().len(),2);
+   assert_eq!(sample_rgb(&native,&[[255,255,255],[0,0,0]],intent).unwrap().len(),3);
+  }
  }
  #[test]fn six_channel_native_and_bounds(){
   let p=fixture(6);let native=Profile::new_icc(&p.bytes().unwrap()).unwrap();
