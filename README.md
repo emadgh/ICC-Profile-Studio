@@ -95,3 +95,5 @@ Beta.34 extends bounded multipoint curves, selective color correction and LUT sm
 Beta.35 introduces an experimental N-color forward-model evaluation in Profiling Lab / Patch explorer: compare nearest-neighbor and eight-neighbor inverse-distance Device→Lab predictions on held-out recipe groups. It does not build or export ICC profiles. Use declared, homogeneous D50/2° Lab measurements with explicit M0–M3; predicted ICC and derived spectral Lab are excluded. See NCOLOR_MODEL_QA.md.
 
 Beta.36 extends N-color evaluation with a local linear ridge baseline (32 neighbors), pooled five-fold grouped validation, active-ink coverage, and optional >=5-active-ink stress holdout. Not an ICC generator. See NCOLOR_MODEL_QA.md.
+
+Beta.37 adds experimental measurement-based N-color inverse recipe search and forward/adjacent inverse continuity diagnostics in Profiling Lab / Patch explorer. It uses quantized ink caps/TAC and a coverage heuristic, reports model-only tolerance, and compares hard/tapered ridge without replacing the existing inverse model. It does not create an ICC. See NCOLOR_MODEL_QA.md.
