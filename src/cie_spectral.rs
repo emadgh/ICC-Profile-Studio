@@ -26,7 +26,7 @@ fn table<const N:usize>(data:&str,first:u32,allow_z_tail:bool)->R<Vec<[f64;N]>>{
   let line=line.trim();if line.is_empty(){continue}
   let mut fields=line.split(',');
   let raw=fields.next().ok_or("Missing wavelength")?.trim().trim_matches('"');
-  if out.is_empty()&&matches!(raw.to_ascii_lowercase().as_str(),"wavelength"|"wavelength (nm)"|"wavelength [nm]"|"lambda"|"nm"){continue}
+  if out.is_empty()&&matches!(raw.to_ascii_lowercase().as_str(),"wavelength"|"wavelength (nm)"|"wavelength [nm]"|"lambda"|"λ"|"λ (nm)"|"nm"){continue}
   let value=raw.parse::<f64>().map_err(|_|format!("Invalid CIE wavelength at line {}: {:?}",line_index+1,raw))?;
   if !value.is_finite()||value.fract()!=0.||!(0.0..=1000.).contains(&value){return Err("Invalid integral CIE wavelength".into())}
   let nm=value as u32;
@@ -97,5 +97,10 @@ pub fn calculate(r:&[f64],start:u32,step:u32,ill:Illuminant,obs:Observer)->R<Res
   }}
  }
  #[test]fn refuse_invalid_grid(){assert!(calculate(&[0.5;35],380,10,Illuminant::D50,Observer::Two).is_err());assert!(calculate(&[f64::NAN;36],380,10,Illuminant::D50,Observer::Two).is_err());}
+ #[test]fn parser_accepts_integer_decimal_wavelengths_and_header(){
+  let mut csv=String::from("Wavelength (nm),X,Y,Z\n");
+  for nm in 360..=830{csv.push_str(&format!("{nm}.0,0.1,0.2,0.3\n"));}
+  csv.push('\n');let v=table::<3>(&csv,360,false).unwrap();assert_eq!(v.len(),471);assert_eq!(v[0],[0.1,0.2,0.3]);
+ }
  #[test]fn parser_rejects_missing_data(){assert!(table::<3>("360,1,2,3\n362,1,2,3",360,false).is_err());}
 }
