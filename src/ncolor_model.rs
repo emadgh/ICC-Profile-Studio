@@ -157,6 +157,132 @@ pub fn cross_validate(chart:&Chart,channels:usize)->R<CrossValidation>{
  let unique=samples.len();
  Ok(CrossValidation{channels,input_rows:chart.patches.len(),unique_recipes:unique,duplicate_rows:chart.patches.len()-unique,measurement,folds,pooled:pooled.summary(0)?,stress,active_counts,peak_tac_percent:samples.iter().map(|p|tac(&p.key)).fold(0.,f64::max)})
 }
+// Experimental inverse search. All recipes are integer percentage-point
+// quanta (0.0001 pp); limits are floored before search, not rounded upward.
+const INVERSE_BUDGET:usize=1200;
+#[derive(Clone,Debug)]
+pub struct InverseSettings{
+ pub caps_percent:Vec<f64>,pub tac_percent:f64,pub tolerance:f64,pub max_recipe_distance:f64,
+}
+#[derive(Clone,Debug)]
+pub struct InverseReport{
+ pub target:[f64;3],pub predicted_lab:[f64;3],pub inks_percent:Vec<f64>,
+ pub delta_e:f64,pub initial_delta_e:f64,pub tac_percent:f64,
+ pub within_tolerance:bool,pub nearest_recipe_distance:f64,pub exact_recipe:bool,
+ pub measurement:String,pub training_recipes:usize,pub evaluations:usize,
+ pub settings:InverseSettings,pub sensitivity_max_de:Option<f64>,
+ pub sensitivity_supported:usize,pub sensitivity_unsupported:usize,
+}
+#[derive(Clone,Debug)]
+struct Candidate{key:Vec<u32>,lab:[f64;3],error:f64,distance:f64}
+fn better(a:&Candidate,b:&Candidate)->bool{
+ a.error.total_cmp(&b.error).then_with(||a.distance.total_cmp(&b.distance))
+  .then_with(||a.key.iter().sum::<u32>().cmp(&b.key.iter().sum::<u32>()))
+  .then_with(||a.key.cmp(&b.key)).is_lt()
+}
+fn units(v:f64)->u32{(v*SCALE).floor() as u32}
+fn project(mut q:Vec<u32>,caps:&[u32],limit:u32)->Vec<u32>{
+ for (x,&c) in q.iter_mut().zip(caps){*x=(*x).min(c);}
+ let sum=q.iter().sum::<u32>();
+ if sum>limit{for x in &mut q{*x=(u64::from(*x)*u64::from(limit)/u64::from(sum)) as u32;}}
+ q
+}
+fn feasible_recipe(q:&[u32],caps:&[u32],limit:u32)->bool{
+ q.len()==caps.len()&&q.iter().zip(caps).all(|(&x,&c)|x<=c)&&q.iter().sum::<u32>()<=limit
+}
+fn trial_score(training:&[&Sample],q:Vec<u32>,target:[f64;3],max_distance:f64)->R<Option<Candidate>>{
+ let (_,_,lab,distance)=local_prediction(training,&q)?;
+ if distance>max_distance+1e-12{return Ok(None)}
+ let error=de(lab,target);
+ if !error.is_finite()||error<0.{return Err("Invalid inverse color difference".into())}
+ Ok(Some(Candidate{key:q,lab,error,distance}))
+}
+struct Search<'a>{training:Vec<&'a Sample>,target:[f64;3],max_distance:f64,
+ cache:BTreeMap<Vec<u32>,Option<Candidate>>,evaluations:usize}
+impl Search<'_>{
+ fn score(&mut self,q:Vec<u32>)->R<Option<Candidate>>{
+  if let Some(v)=self.cache.get(&q){return Ok(v.clone())}
+  if self.evaluations>=INVERSE_BUDGET{return Ok(None)}
+  self.evaluations+=1;
+  let v=trial_score(&self.training,q.clone(),self.target,self.max_distance)?;
+  self.cache.insert(q,v.clone());Ok(v)
+ }
+}
+/// Fit an experimental single recipe to declared measured/reference Lab.
+/// No ICC is read or written; this is a model estimate, not measured proof.
+/// The distance ceiling is a coverage heuristic, not a confidence interval.
+pub fn solve_inverse(chart:&Chart,channels:usize,target:[f64;3],settings:InverseSettings)->R<InverseReport>{
+ let (mode,samples)=grouped(chart,channels)?;
+ solve_samples(&samples,mode,channels,target,settings)
+}
+fn solve_samples(samples:&[Sample],measurement:String,n:usize,target:[f64;3],settings:InverseSettings)->R<InverseReport>{
+ if samples.len()<LOCAL_K||settings.caps_percent.len()!=n||settings.caps_percent.iter().any(|x|!x.is_finite()||!(0.0..=100.).contains(x))
+  ||!settings.tac_percent.is_finite()||!(0.0..=100.*n as f64).contains(&settings.tac_percent)
+  ||!settings.tolerance.is_finite()||!(0.1..=20.).contains(&settings.tolerance)
+  ||!settings.max_recipe_distance.is_finite()||!(0.01..=1.).contains(&settings.max_recipe_distance)
+  ||target.iter().any(|x|!x.is_finite())||!(0.0..=100.).contains(&target[0])||target[1..].iter().any(|x|!(-128.0..=127.).contains(x)){
+  return Err("Invalid inverse target, limits or insufficient characterization data".into())
+ }
+ let caps:Vec<_>=settings.caps_percent.iter().map(|&v|units(v)).collect();let limit=units(settings.tac_percent);
+ let mut search=Search{training:samples.iter().collect(),target,max_distance:settings.max_recipe_distance,cache:BTreeMap::new(),evaluations:0};
+ // Rank measured recipes independently of the model. Seed from feasible
+ // recipes and projected nearest colors, plus the unprinted substrate.
+ let mut ranked:Vec<_>=samples.iter().map(|s|(de(s.lab,target),s)).collect();
+ if ranked.iter().any(|(d,_)|!d.is_finite()){return Err("Invalid characterization color difference".into())}
+ ranked.sort_by(|a,b|a.0.total_cmp(&b.0).then_with(||a.1.key.cmp(&b.1.key)));
+ let mut seeds=vec![vec![0;n]];
+ seeds.extend(ranked.iter().filter(|(_,s)|feasible_recipe(&s.key,&caps,limit)).take(8).map(|(_,s)|s.key.clone()));
+ seeds.extend(ranked.iter().take(8).map(|(_,s)|project(s.key.clone(),&caps,limit)));
+ seeds.sort();seeds.dedup();
+ let mut starts=Vec::new();for q in seeds{if let Some(c)=search.score(q)?{starts.push(c);}}
+ starts.sort_by(|a,b|if better(a,b){std::cmp::Ordering::Less}else if better(b,a){std::cmp::Ordering::Greater}else{std::cmp::Ordering::Equal});
+ let mut best=starts.first().cloned().ok_or("No supported feasible seed; adjust limits or obtain more characterization data")?;
+ let initial_delta_e=best.error;
+ // Bounded deterministic multi-start pattern search. Each sweep evaluates
+ // single-axis moves and transfers from the largest other active ink.
+ // The feasible set includes a closed channel only at exactly zero.
+ for mut current in starts.into_iter().take(3){
+  for step in [10.,5.,2.,1.,0.5].map(units){
+   for _ in 0..2{
+    if search.evaluations>=INVERSE_BUDGET{break}
+    let mut next=current.clone();
+    let total=current.key.iter().sum::<u32>();
+    for j in 0..n{
+     if caps[j]==0{continue}
+     let mut trial=current.key.clone();trial[j]=trial[j].saturating_sub(step);
+     if trial!=current.key{if let Some(c)=search.score(trial)?{if better(&c,&next){next=c;}}}
+     let mut trial=current.key.clone();trial[j]+=(caps[j]-trial[j]).min(step).min(limit-total);
+     if trial!=current.key{if let Some(c)=search.score(trial)?{if better(&c,&next){next=c;}}}
+     let donor=(0..n).filter(|&k|k!=j&&current.key[k]>0).max_by_key(|&k|(current.key[k],std::cmp::Reverse(k)));
+     if let Some(k)=donor{
+      let mut trial=current.key.clone();let d=step.min(trial[k]).min(caps[j]-trial[j]);trial[k]-=d;trial[j]+=d;
+      if d>0{if let Some(c)=search.score(trial)?{if better(&c,&next){next=c;}}}
+     }
+    }
+    if !better(&next,&current){break}current=next;
+    if better(&current,&best){best=current.clone();}
+   }
+  }
+ }
+ if !feasible_recipe(&best.key,&caps,limit){return Err("Internal inverse limit violation".into())}
+ // Diagnostic only: measure model response to feasible +/-0.5 pp changes.
+ // Not a proof of continuity or a substitute for printing the recipe.
+ let mut sensitivity_max_de=None::<f64>;let mut supported=0;let mut unsupported=0;
+ for j in 0..n{for increase in [false,true]{
+  let mut q=best.key.clone();let step=units(0.5);
+  q[j]=if increase{q[j].saturating_add(step)}else{q[j].saturating_sub(step)};
+  if q==best.key||!feasible_recipe(&q,&caps,limit){continue}
+  match trial_score(&search.training,q,target,settings.max_recipe_distance)?{
+   Some(v)=>{let d=de(best.lab,v.lab);if !d.is_finite(){return Err("Invalid sensitivity sample".into())}
+    sensitivity_max_de=Some(sensitivity_max_de.unwrap_or(0.).max(d));supported+=1;},
+   None=>unsupported+=1,
+  }
+ }}
+ Ok(InverseReport{target,predicted_lab:best.lab,inks_percent:best.key.iter().map(|&v|f64::from(v)/SCALE).collect(),
+  delta_e:best.error,initial_delta_e,tac_percent:tac(&best.key),within_tolerance:best.error<=settings.tolerance,
+  nearest_recipe_distance:best.distance,exact_recipe:best.distance==0.,measurement,training_recipes:samples.len(),
+  evaluations:search.evaluations,settings,sensitivity_max_de,sensitivity_supported:supported,sensitivity_unsupported:unsupported})
+}
 #[cfg(test)]mod tests{
  use super::*;
  #[test]fn recipe_groups_prevent_leakage_and_predictions_are_ignored(){
@@ -170,6 +296,25 @@ pub fn cross_validate(chart:&Chart,channels:usize)->R<CrossValidation>{
   let q=evaluate(&c,3,0).unwrap();assert_eq!(r.idw.mean,q.idw.mean);
   let cv=cross_validate(&c,3).unwrap();assert_eq!(cv.pooled.test,126);assert_eq!(cv.folds.iter().map(|f|f.test).sum::<usize>(),126);assert!(cv.pooled.local.mean<cv.pooled.idw.mean);assert!(cv.stress.is_none());assert_eq!(cv.active_counts.iter().sum::<usize>(),126);
   c.patches[0].measurement="M0".into();assert!(evaluate(&c,3,0).is_err());
+ }
+ #[test]fn inverse_limits_seed_and_determinism(){
+  let samples=(0..=10).flat_map(|i|(0..=10).map(move|j|Sample{key:vec![units(i as f64*10.),units(j as f64*10.),0],lab:[90.-i as f64*4.,j as f64*5.,0.]})).collect::<Vec<_>>();
+  let settings=InverseSettings{caps_percent:vec![65.,60.,0.],tac_percent:90.,tolerance:2.,max_recipe_distance:0.4};
+  let a=solve_samples(&samples,"M1".into(),3,[70.,20.,0.],settings.clone()).unwrap();
+  let b=solve_samples(&samples,"M1".into(),3,[70.,20.,0.],settings.clone()).unwrap();
+  assert_eq!(a.inks_percent,b.inks_percent);assert_eq!(a.inks_percent[2],0.);
+  assert!(a.tac_percent<=90.&&a.inks_percent[0]<=65.&&a.inks_percent[1]<=60.);
+  assert!(a.delta_e<=a.initial_delta_e&&a.within_tolerance&&a.evaluations<=INVERSE_BUDGET);
+  let z=solve_samples(&samples,"M1".into(),3,[20.,80.,80.],InverseSettings{caps_percent:vec![0.;3],tac_percent:0.,..settings.clone()}).unwrap();
+  assert_eq!(z.inks_percent,vec![0.;3]);assert!(!z.within_tolerance);assert_eq!(z.evaluations,1);
+  assert!(solve_samples(&samples,"M1".into(),3,[50.,0.,0.],InverseSettings{tac_percent:f64::NAN,..settings}).is_err());
+ }
+ #[test]fn inverse_quantized_limits_and_unsupported_zero(){
+  let caps=[units(10.00009),units(20.00009)];let limit=units(19.99999);
+  let q=project(vec![1000000;2],&caps,limit);assert!(feasible_recipe(&q,&caps,limit));
+  let samples=(0..32).map(|i|Sample{key:vec![900000+i*100,900000],lab:[50.,0.,0.]}).collect::<Vec<_>>();
+  let s=InverseSettings{caps_percent:vec![0.;2],tac_percent:0.,tolerance:2.,max_recipe_distance:0.1};
+  assert!(solve_samples(&samples,"M1".into(),2,[50.,0.,0.],s).is_err());
  }
  #[test]fn known_exact_and_tie_order(){
   let training=(0..8).map(|i|Sample{key:vec![i*100,0],lab:[i as f64,0.,0.]}).collect::<Vec<_>>();
