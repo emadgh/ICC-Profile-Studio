@@ -8,6 +8,24 @@ thread_local!{static ACTIVE:Cell<Language>=const{Cell::new(Language::En)};}
 pub fn set_active(l:Language){ACTIVE.with(|v|v.set(l));}
 pub fn is_rtl()->bool{ACTIVE.with(|v|v.get().rtl())}
 pub fn tr(s:&str)->String{let l=ACTIVE.with(Cell::get);let i=match l{Language::En=>0,Language::Fa=>1,Language::It=>2,Language::Ar=>3,Language::Ru=>4};let value=ROWS.iter().find(|r|r[0]==s).map(|r|r[i]).unwrap_or(s);crate::rtl::visual(value)}
+/// Display-only diagnostic adapter. Keep raw strings for logging and engine APIs.
+pub fn diagnostic(raw:&str)->String{
+ if ACTIVE.with(Cell::get)==Language::En{return raw.to_owned()}
+ let translated=tr(raw);
+ if ROWS.iter().any(|r|r[0]==raw){return format!("{}\n{}",translated,raw)}
+ if let Some((prefix,detail))=raw.split_once(": "){
+  if matches!(prefix,"Error"|"Open failed"|"Version conversion refused"|"Name preference not saved"|"Language preference not saved"){
+   return format!("{}\n{}",tr(prefix),detail)
+  }
+ }
+ format!("{}\n{}",tr("Diagnostic details"),raw)
+}
+/// Translate known status messages at render time, not at assignment.
+pub fn status(raw:&str)->String{
+ if ROWS.iter().any(|r|r[0]==raw){return tr(raw)}
+ if raw.split_once(": ").is_some_and(|(p,_)|matches!(p,"Error"|"Open failed"|"Version conversion refused"|"Name preference not saved"|"Language preference not saved")){return diagnostic(raw)}
+ raw.to_owned()
+}
 const ROWS:&[[&str;5]]=&[
 ["Inspection","بازرسی","Ispezione","الفحص","Проверка"],
 ["Editing","ویرایش","Modifica","التحرير","Редактирование"],
@@ -556,6 +574,53 @@ const ROWS:&[[&str;5]]=&[
 ["Separate intents","Intentهای جداگانه","Intenti separati","أهداف تصيير منفصلة","Раздельные интенты"],
 ["Different intents: coverage changes include rendering intent differences.","Intentها متفاوت‌اند؛ تغییر پوشش شامل اثر تفاوت Intent نیز هست.","Intenti diversi: le variazioni di copertura includono le differenze di rendering.","أهداف مختلفة: تغيرات التغطية تشمل اختلافات التصيير.","Разные интенты: изменение охвата включает различия интентов."],
 ["Requested intents apply to both round-trip legs. Native CMM may use standard intent fallback.","Intent انتخابی در هر دو مسیر رفت و برگشت اعمال می‌شود. CMM ممکن است از جایگزینی استاندارد Intent استفاده کند.","Gli intenti richiesti valgono per entrambi i percorsi. Il CMM può usare il fallback standard.","تطبق الأهداف المطلوبة على مساري الذهاب والعودة. قد يستخدم CMM البديل القياسي.","Запрошенные интенты действуют в обе стороны. CMM может использовать стандартный резервный интент."],
+["Diagnostic details","جزئیات خطا","Dettagli diagnostici","تفاصيل التشخيص","Подробности диагностики"],
+["Error","خطا","Errore","خطأ","Ошибка"],
+["Open failed","باز کردن فایل ناموفق بود","Apertura non riuscita","تعذر فتح الملف","Не удалось открыть файл"],
+["Version conversion refused","تبدیل نسخه رد شد","Conversione versione rifiutata","تم رفض تحويل الإصدار","Преобразование версии отклонено"],
+["Name preference not saved","تنظیم نام مرکب ذخیره نشد","Preferenza nome non salvata","لم يُحفظ تفضيل الاسم","Настройка имени не сохранена"],
+["Language preference not saved","تنظیم زبان ذخیره نشد","Preferenza lingua non salvata","لم يُحفظ تفضيل اللغة","Настройка языка не сохранена"],
+["Starting multichannel rebuild…","در حال شروع بازسازی چندکاناله…","Avvio ricostruzione multicanale…","جارٍ بدء إعادة البناء متعدد القنوات…","Запуск многоканального перестроения…"],
+["Worker disconnected","ارتباط با پردازش قطع شد","Processo disconnesso","انقطع اتصال المعالج","Соединение с обработчиком потеряно"],
+["Comparing profile predictions with LittleCMS...","در حال مقایسه پیش‌بینی پروفایل‌ها با LittleCMS…","Confronto previsioni dei profili con LittleCMS…","جارٍ مقارنة توقعات الملفات باستخدام LittleCMS…","Сравнение прогнозов профилей через LittleCMS…"],
+["Comparison failed","مقایسه ناموفق بود","Confronto non riuscito","فشلت المقارنة","Сравнение не удалось"],
+["Editing ICC and validating with LittleCMS…","در حال ویرایش ICC و اعتبارسنجی با LittleCMS…","Modifica ICC e verifica con LittleCMS…","جارٍ تحرير ICC والتحقق باستخدام LittleCMS…","Редактирование ICC и проверка через LittleCMS…"],
+["Review listed tags and explicitly allow omission, or keep the original ICC.","تگ‌ها را بررسی و حذف آن‌ها را صریحاً مجاز کنید؛ یا ICC اصلی را نگه دارید.","Verificare i tag elencati e autorizzare l'omissione, oppure conservare l'ICC originale.","راجع الوسوم واسمح صراحة بحذفها أو احتفظ بملف ICC الأصلي.","Проверьте теги и явно разрешите их исключение либо сохраните исходный ICC."],
+["Converting LUT encoding and validating all intents…","در حال تبدیل کدگذاری LUT و اعتبارسنجی تمام Intentها…","Conversione codifica LUT e verifica di tutti gli intenti…","جارٍ تحويل ترميز LUT والتحقق من جميع الأهداف…","Преобразование кодирования LUT и проверка всех интентов…"],
+["Sampling effective Lab gamut with LittleCMS…","در حال نمونه‌برداری گاموت مؤثر Lab با LittleCMS…","Campionamento gamut Lab effettivo con LittleCMS…","جارٍ أخذ عينات نطاق Lab الفعلي باستخدام LittleCMS…","Выборка эффективного охвата Lab через LittleCMS…"],
+["Analyzing 13 gradients with LittleCMS…","در حال تحلیل ۱۳ گرادیان با LittleCMS…","Analisi di 13 gradienti con LittleCMS…","جارٍ تحليل 13 تدرجًا باستخدام LittleCMS…","Анализ 13 градиентов через LittleCMS…"],
+["Gradient analysis complete.","تحلیل گرادیان تکمیل شد.","Analisi gradienti completata.","اكتمل تحليل التدرج.","Анализ градиентов завершён."],
+["Gradient analysis failed.","تحلیل گرادیان ناموفق بود.","Analisi gradienti non riuscita.","فشل تحليل التدرج.","Анализ градиентов не удался."],
+["Choose a nonzero region adjustment first.","ابتدا اصلاح غیرصفر برای ناحیه انتخاب کنید.","Selezionare prima una correzione di regione non nulla.","اختر أولًا تعديلًا غير صفري للمنطقة.","Сначала выберите ненулевую коррекцию области."],
+["Searching feasible ink recipes…","در حال جست‌وجوی ترکیب‌های مجاز مرکب…","Ricerca ricette inchiostro ammissibili…","جارٍ البحث عن وصفات حبر ممكنة…","Поиск допустимых рецептов красок…"],
+["Reading characterization data…","در حال خواندن داده‌های مشخصه‌یابی…","Lettura dati di caratterizzazione…","جارٍ قراءة بيانات التوصيف…","Чтение данных характеризации…"],
+["Characterization target ready","تارگت مشخصه‌یابی آماده است","Target di caratterizzazione pronto","هدف التوصيف جاهز","Мишень характеризации готова"],
+["Reading measured CGATS…","در حال خواندن CGATS اندازه‌گیری‌شده…","Lettura CGATS misurato…","جارٍ قراءة CGATS المقاس…","Чтение измеренного CGATS…"],
+["CGATS target ready","تارگت CGATS آماده است","Target CGATS pronto","هدف CGATS جاهز","Мишень CGATS готова"],
+["Characterization fit calculated","برازش مشخصه‌یابی محاسبه شد","Adattamento caratterizzazione calcolato","تم حساب ملاءمة التوصيف","Аппроксимация характеризации рассчитана"],
+["Exporting device recipes…","در حال خروجی ترکیب‌های دستگاه…","Esportazione ricette dispositivo…","جارٍ تصدير وصفات الجهاز…","Экспорт рецептов устройства…"],
+["Generating device chart…","در حال تولید چارت دستگاه…","Generazione chart dispositivo…","جارٍ إنشاء مخطط الجهاز…","Создание тестовой карты устройства…"],
+["Comparing actual measurements…","در حال مقایسه اندازه‌گیری‌های واقعی…","Confronto misure effettive…","جارٍ مقارنة القياسات الفعلية…","Сравнение фактических измерений…"],
+["Measured comparison finished","مقایسه اندازه‌گیری‌ها تکمیل شد","Confronto misure completato","اكتملت مقارنة القياسات","Сравнение измерений завершено"],
+["Argyll colprof is building measured profile…","Argyll colprof در حال ساخت پروفایل از اندازه‌گیری‌ها است…","Argyll colprof sta creando il profilo misurato…","يقوم Argyll colprof ببناء الملف من القياسات…","Argyll colprof строит профиль по измерениям…"],
+["No staged update","به‌روزرسانی آماده نصب نیست","Nessun aggiornamento pronto","لا يوجد تحديث جاهز للتثبيت","Нет подготовленного обновления"],
+["Preferences loaded.","تنظیمات بارگذاری شد.","Preferenze caricate.","تم تحميل التفضيلات.","Настройки загружены."],
+["Default preferences restored in memory.","تنظیمات پیش‌فرض در حافظه بازیابی شد.","Preferenze predefinite ripristinate in memoria.","تمت استعادة التفضيلات الافتراضية في الذاكرة.","Настройки по умолчанию восстановлены в памяти."],
+["Missing B2A0","تگ B2A0 وجود ندارد","B2A0 mancante","وسم B2A0 مفقود","Отсутствует B2A0"],
+["Reverse LUT channel mismatch","تعداد کانال‌های LUT معکوس ناسازگار است","Canali LUT inversa non corrispondenti","عدم تطابق قنوات LUT العكسي","Несовпадение каналов обратной LUT"],
+["Unsupported device curve","منحنی دستگاه پشتیبانی نمی‌شود","Curva dispositivo non supportata","منحنى الجهاز غير مدعوم","Кривая устройства не поддерживается"],
+["Native CMY has fixed cyan/magenta/yellow order","ترتیب Cyan/Magenta/Yellow در CMY بومی ثابت است","CMY nativo ha ordine ciano/magenta/giallo fisso","ترتيب السماوي والأرجواني والأصفر ثابت في CMY الأصلي","Нативный CMY имеет фиксированный порядок C/M/Y"],
+["Colorant order tag requires a mapping adapter","تگ ترتیب مرکب به مبدل نگاشت نیاز دارد","Il tag ordine coloranti richiede un adattatore","وسم ترتيب الملونات يتطلب محول تعيين","Тег порядка красок требует адаптера отображения"],
+["Both A2B0 and B2A0 are required","هر دو تگ A2B0 و B2A0 لازم‌اند","Sono richiesti A2B0 e B2A0","يلزم وجود A2B0 وB2A0","Требуются A2B0 и B2A0"],
+["LUT channel mismatch","تعداد کانال‌های LUT ناسازگار است","Canali LUT non corrispondenti","عدم تطابق قنوات LUT","Несовпадение каналов LUT"],
+["Black generation and whole-profile optimization require ICC v4 Lab","تولید مشکی و بهینه‌سازی کل پروفایل به ICC v4 Lab نیاز دارند","Generazione nero e ottimizzazione completa richiedono ICC v4 Lab","توليد الأسود وتحسين الملف بالكامل يتطلبان ICC v4 Lab","Генерация чёрного и оптимизация профиля требуют ICC v4 Lab"],
+["Requires Lab PCS","به PCS از نوع Lab نیاز دارد","Richiede PCS Lab","يتطلب PCS من نوع Lab","Требуется PCS Lab"],
+["Missing media white or profile description","نقطه سفید مدیا یا توضیح پروفایل وجود ندارد","Bianco supporto o descrizione profilo mancante","بياض الوسيط أو وصف الملف مفقود","Отсутствует белая точка носителя или описание профиля"],
+["All six intent tags are required","هر شش تگ Intent لازم‌اند","Sono richiesti tutti e sei i tag intento","تلزم وسوم الأهداف الستة","Требуются все шесть тегов интентов"],
+["Unsupported version conversion LUT type","نوع LUT برای تبدیل نسخه پشتیبانی نمی‌شود","Tipo LUT non supportato per conversione versione","نوع LUT غير مدعوم لتحويل الإصدار","Тип LUT не поддерживает преобразование версии"],
+["N-color fitting is not supported by the current Argyll colprof workflow","برازش چندکاناله در فرایند فعلی Argyll colprof پشتیبانی نمی‌شود","Adattamento N-color non supportato dal flusso Argyll colprof corrente","ملاءمة N-color غير مدعومة في سير عمل Argyll colprof الحالي","N-цветная аппроксимация не поддерживается текущим процессом Argyll colprof"],
+["Requires output/printer ICC","به ICC خروجی چاپگر نیاز دارد","Richiede ICC output/stampante","يتطلب ICC للإخراج أو الطابعة","Требуется выходной ICC принтера"],
+["Requires CMY, CMYK or 2–15 channel nCLR printer color space","فضای رنگ چاپگر CMY، CMYK یا nCLR با ۲ تا ۱۵ کانال لازم است","Richiede spazio stampante CMY, CMYK o nCLR a 2–15 canali","يتطلب فضاء طابعة CMY أو CMYK أو nCLR من 2 إلى 15 قناة","Требуется пространство принтера CMY, CMYK или nCLR с 2–15 каналами"],
 ];
 #[cfg(test)]mod tests{use super::*;#[test]fn five_languages_and_fallback(){for l in Language::ALL{set_active(l);assert!(!tr("Settings").is_empty());assert_eq!(tr("A2B1"),"A2B1");}set_active(Language::Fa);assert_eq!(tr("Settings"),crate::rtl::visual("تنظیمات"));assert!(Language::Ar.rtl());}}
 
@@ -580,5 +645,14 @@ mod coverage_tests {
     }
    }
   }
+ }
+}
+
+#[cfg(test)]mod diagnostic_tests{
+ use super::*;
+ #[test]fn localized_diagnostics_preserve_native_details(){
+  let raw="Error: C:\\ICC\\profile.icc: LCMS A2B1";
+  for lang in Language::ALL{set_active(lang);let shown=diagnostic(raw);if lang==Language::En{assert_eq!(shown,raw)}else{assert!(shown.ends_with("C:\\ICC\\profile.icc: LCMS A2B1"));assert_ne!(shown,raw);assert!(diagnostic("Missing B2A0").ends_with("\nMissing B2A0"));}assert!(!status("Starting multichannel rebuild…").is_empty());}
+  set_active(Language::En);assert_eq!(diagnostic("Unknown native error"),"Unknown native error");
  }
 }
