@@ -9,6 +9,8 @@ on:
       - 'STUDIO_VERSION'
       - 'build.rs'
       - 'assets/**'
+      - 'scripts/fetch-cie.ps1'
+      - 'CIE_DATA.md'
       - '.github/workflows/studio.yml'
   pull_request:
     branches: [main]
@@ -19,6 +21,8 @@ on:
       - 'STUDIO_VERSION'
       - 'build.rs'
       - 'assets/**'
+      - 'scripts/fetch-cie.ps1'
+      - 'CIE_DATA.md'
       - '.github/workflows/studio.yml'
   workflow_dispatch:
     inputs:
@@ -40,7 +44,12 @@ jobs:
         id: toolchain
         with:
           targets: x86_64-pc-windows-msvc
+      - name: Fetch and verify CIE spectral tables
+        shell: pwsh
+        run: ./scripts/fetch-cie.ps1
       - name: Test LittleCMS inspection and ICC backend
+        env:
+          REQUIRE_CIE_DATA: '1'
         run: cargo test --lib --no-default-features --release --target x86_64-pc-windows-msvc
       - name: Build GPUI preview
         if: ${{ !cancelled() && steps.toolchain.outcome == 'success' }}
@@ -52,7 +61,7 @@ jobs:
           Copy-Item target/x86_64-pc-windows-msvc/release/icc-profile-studio.exe studio-dist/ICC-Profile-Studio.exe
           $hash = (Get-FileHash studio-dist/ICC-Profile-Studio.exe -Algorithm SHA256).Hash.ToLower()
           "$hash  ICC-Profile-Studio.exe" | Set-Content -Encoding ascii studio-dist/ICC-Profile-Studio.exe.sha256
-          Copy-Item README.md,ROADMAP.md,PROFILE_WORKFLOW.md,STUDIO_VERSION studio-dist/
+          Copy-Item README.md,ROADMAP.md,PROFILE_WORKFLOW.md,CIE_DATA.md,STUDIO_VERSION studio-dist/
           Compress-Archive -Path studio-dist/* -DestinationPath ICC-Profile-Studio-Windows-x64.zip
       - name: Publish separate Studio prerelease
         if: github.event_name == 'workflow_dispatch' && inputs.publish_preview && github.ref == 'refs/heads/main'
@@ -61,7 +70,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           $version = (Get-Content STUDIO_VERSION -Raw).Trim()
-          if ($version -notmatch '^\d+\.\d+\.\d+-beta\.\d+$') { throw "Expected Studio beta version" }
+          if ($version -notmatch '^\d+\.\d+\.\d+-beta\.\d+(\.\d+)?$') { throw "Expected Studio beta version" }
           $tag = "studio-v$version"
           gh release view $tag --json tagName 2>$null
           if ($LASTEXITCODE -eq 0) { throw "Immutable Studio version exists; increment STUDIO_VERSION" }
