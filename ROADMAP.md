@@ -198,3 +198,10 @@ Lean, vendor-independent GPUI application for CMYK and multichannel output ICCs 
 - Cache structural/native preflight per loaded profile, show capability diagnostics and block unsupported edit workspaces/actions. Native predicted single-ink swatches where embedded v4 colorant coordinates are unavailable; no invented ink names or measurement claims.
 - Allow bounded native resampling of complex v4 mBA reverse LUTs when conservative device bounds and native dimensions are verified. mpet, alternate pipelines and complex version conversion remain unsupported.
 - Add synthetic 3/5/6/7/8/15-channel preflight and CMYK rebuild tests plus opt-in real profile corpus harness. Real profiles, UI, physical print and N-color fitting remain pending. See MULTICHANNEL_QA.md for acquisition and profiling research.
+
+## beta.32 — profile regression and shared display provenance (CI pending)
+- beta.31 merged after successful Windows CI #95.
+- Add persisted synthetic rebuild matrix for 3/5/6/7/8/15 channels, 10% hard cap, zero inks, TAC, forward tag preservation, no-clobber and four native intent checks. Add native complex reverse LUT smoothing regression.
+- Share embedded/predicted/standard/unavailable swatch policy across Inspector, editors, Comparison and Gradient. Display per-channel provenance in Inspector; localize capability labels and fixed notices in five languages. Dynamic diagnostics still fall back to English.
+- Add single-recipe strict-bounds preflight and avoid starting gamut when source analysis is unavailable.
+- Real/reference corpus harness supports subset counts and four-intent predicted color reports. No actual industrial corpus execution or physical print test yet; FOGRA55 download unavailable in this environment.

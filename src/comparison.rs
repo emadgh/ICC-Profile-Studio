@@ -27,7 +27,8 @@ pub(crate) fn open_output(p:&Path)->Result<(Profile,Vec<ChannelInfo>),String>{
  let parsed=crate::Profile::parse(&data)?;
  let names=parsed.channels();let standard=parsed.standard_channels();
  if names.len()!=format.channels||standard.len()!=format.channels{return Err("ICC channel metadata does not match native format".into())}
- let channels=(0..format.channels).map(|j|ChannelInfo{name:names[j].clone(),standard:standard[j].clone(),color:parsed.channel_swatch(j,true),standard_color:parsed.channel_swatch(j,false)}).collect();
+ let predicted=crate::capabilities::predicted_swatches(&parsed).unwrap_or_default();
+ let channels=(0..format.channels).map(|j|ChannelInfo{name:names[j].clone(),standard:standard[j].clone(),color:crate::capabilities::channel_display(&parsed,j,&predicted,true).0,standard_color:crate::capabilities::channel_display(&parsed,j,&predicted,false).0}).collect();
  Ok((profile,channels))
 }
 /// Preserve the CMYK-only gate for existing four-channel DeviceLink,

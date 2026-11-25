@@ -220,6 +220,18 @@ mod tests{
    assert!(q.tags[key][b.ranges[1].clone()].starts_with(b"curv"));
   }
  }
+ #[test]fn native_complex_reverse_bounded_correction(){
+  let mut p=crate::print_space::fixture(6);
+  for key in [b"B2A0",b"B2A1",b"B2A2"]{
+   let mut t=p.tags[key].clone();let mo=t.len();for i in 0..12{put32(&mut t,if [0,4,8].contains(&i){65536}else{0});}
+   let co=t.len();identity_curves(&mut t,3);t[16..20].copy_from_slice(&(mo as u32).to_be_bytes());t[20..24].copy_from_slice(&(co as u32).to_be_bytes());p.tags.insert(*key,t);
+  }
+  let c=crate::capabilities::inspect(&p);assert!(c.reason(crate::capabilities::Tool::Correction).is_none(),"{:?}",c.tools);
+  let bounds=crate::print_space::bounds(&p).unwrap();
+  let out=p.bounded_correction_multi(crate::correction::DynamicCorrection::Smooth{strength:0.2,passes:1},17,100.).unwrap();
+  let verified=crate::multichannel::verify(&out,&bounds.channels,1.).unwrap();assert_eq!(verified.channels[5],0.);
+  for k in [b"A2B0",b"A2B1",b"A2B2"]{assert_eq!(p.tags[k],out.tags[k]);}
+ }
  #[test]fn reject_overlapping_or_truncated_stages(){
   let t=unequal();let mut v=t.clone();v[28..32].copy_from_slice(&32u32.to_be_bytes());assert!(Layout::parse(&v).is_err());
   assert!(Layout::parse(&t[..t.len()-1]).is_err());
