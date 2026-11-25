@@ -75,3 +75,24 @@ Independent inverse ramp mirror, hard ridge, center Lab(50,0,0), K cap 0%, other
 | 52 | 56 | 45 | 49.5 | 0 | 0 | 0 | 4.5 | 155 | 0.098557 | 6.5 |
 
 All five satisfy predicted tolerance but adjacent single-ink jumps reach 11.5 pp. This is the inverse ambiguity that must be regularized before reverse LUT construction. Subsequent work should use neighbor-aware separation with a bounded color error tradeoff, and test both forward and inverse lattice continuity. Numbers above are independent Python diagnostics, NOT compiled Rust execution. New opt-in real-data assertions accompany existing FOGRA55 test. No source data redistributed, no ICC generated.
+
+## beta.38 — continuity-regularized inverse ramp
+The existing independent five-point hard-ridge inverse remains available. New regularized refinement minimizes sum of squared model ΔE00 plus lambda times summed squared adjacent ink differences in percentage points. Four alternating sweeps over five nodes, steps 5/2/1/0.5 pp, candidate neighbor mean, halfway blend and projected coordinate changes. Every trial respects floored integer channel caps and TAC, supported recipe distance, and a pointwise color guard: a previously matching point remains within tolerance; a previously missed target cannot worsen (numeric tolerance 1e-12). At lambda=0 the exact independent baseline is returned. No claim of global optimality or maximum-jump monotonicity. Up to 80 candidate batches, at most 32 trials/batch for 15 channels; cached by point and integer recipe. No profile generation.
+
+Independent NumPy/skimage mirror on reopened operator-supplied Ref_FOGRA55.zip / FOGRA55.txt, 4,272 grouped recipes, K cap 0%, other caps 100%, TAC <=300%, max distance 0.4, tolerance 2. No data redistributed. Center L50, a=b=0, lambda=.02:
+
+| L* | C | M | Y | K | O | G | V | TAC | ΔE00 |
+|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+|48|60.5000|50.1900|53.6900|0|0|3.0000|10.0000|177.3800|0.325897|
+|49|59.7658|48.9475|52.6523|0|0|3.1655|9.7828|174.3139|0.095449|
+|50|58.4931|47.6547|51.4818|0|0|2.9902|9.6395|170.2593|0.104306|
+|51|57.2465|46.3273|50.4909|0|0|2.7451|9.0697|165.8795|0.158101|
+|52|56.0000|45.0000|49.5000|0|0|2.5000|8.5000|161.5000|0.133079|
+
+| Ramp | Lambda | Baseline max jump pp | Refined max jump pp | Baseline max ΔE00 | Refined max ΔE00 | Objective before → after | Refinement evals |
+|---|---:|---:|---:|---:|---:|---|---:|
+| L48–52 | .02 | 11.5 | 1.3274 | .216062 | .325897 | 6.233547 → .515131 | 883 |
+| L18–22 | .02 | 70 | 18.7902 | 1.025488 | 1.664711 | 190.282273 → 31.780664 | 1016 |
+| L18–22 | .10 | 70 | 15.8632 | 1.025488 | 1.823913 | 945.262273 → 116.306157 | 1009 |
+
+All 15 refined model predictions satisfy tolerance and caps, but dark separation remains discontinuous. Lambda=.10 trades more color error for lower jump; objectives at different weights are not directly comparable. All figures are independent Python diagnostics on the full reference dataset, not compiled Rust or independent print validation. No ICC generated. Next: wider neighborhood/coupled continuation and 3D lattice budget/coverage feasibility, physical validation; do not infer global continuity from five-point ramps.

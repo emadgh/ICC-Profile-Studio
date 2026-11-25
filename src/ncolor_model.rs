@@ -322,6 +322,80 @@ pub fn audit_inverse_ramp(chart:&Chart,channels:usize,center:[f64;3],settings:In
   max_predicted_error:points.iter().map(|p|p.delta_e).fold(0.,f64::max),
   within_tolerance_count:points.iter().filter(|p|p.within_tolerance).count(),points,adjacent_max_channel_pp,adjacent_total_change_pp})
 }
+/// Experimental joint ramp refinement. Penalizes adjacent ink differences
+/// in percentage points, subject to existing limits and per-point error guards.
+/// No claim of global 3D LUT continuity.
+#[derive(Clone,Debug)]
+pub struct RegularizedPoint{pub target:[f64;3],pub predicted_lab:[f64;3],pub inks_percent:Vec<f64>,pub delta_e:f64,pub tac_percent:f64,pub distance:f64}
+#[derive(Clone,Debug)]
+pub struct RegularizedRamp{pub baseline:InverseRampAudit,pub lambda:f64,pub points:Vec<RegularizedPoint>,pub initial_objective:f64,pub objective:f64,pub max_channel_jump_pp:f64,pub max_predicted_error:f64,pub within_tolerance_count:usize,pub evaluations:usize}
+fn roughness(a:&[u32],b:&[u32])->f64{distance(a,b) as f64/(SCALE*SCALE)}
+fn local_objective(points:&[Candidate],i:usize,c:&Candidate,lambda:f64)->f64{
+ c.error*c.error+lambda*((if i>0{roughness(&c.key,&points[i-1].key)}else{0.})+(if i+1<points.len(){roughness(&c.key,&points[i+1].key)}else{0.}))
+}
+fn ramp_objective(points:&[Candidate],lambda:f64)->f64{
+ points.iter().map(|p|p.error*p.error).sum::<f64>()+lambda*points.windows(2).map(|p|roughness(&p[0].key,&p[1].key)).sum::<f64>()
+}
+pub fn regularize_inverse_ramp(chart:&Chart,channels:usize,center:[f64;3],settings:InverseSettings,lambda:f64)->R<RegularizedRamp>{
+ if !lambda.is_finite()||!(0.0..=1.).contains(&lambda){return Err("Invalid continuity weight".into())}
+ let baseline=audit_inverse_ramp(chart,channels,center,settings.clone())?;
+ let (_,samples)=grouped(chart,channels)?;let training:Vec<_>=samples.iter().collect();
+ let caps:Vec<_>=settings.caps_percent.iter().map(|&x|units(x)).collect();let limit=units(settings.tac_percent);
+ let mut points=Vec::new();
+ for p in &baseline.points{
+  // Round-trip the already quantized baseline recipe, never round a cap upward.
+  let q=key(&p.inks_percent,channels)?;
+  if !feasible_recipe(&q,&caps,limit){return Err("Baseline recipe violates quantized limits".into())}
+  points.push(Candidate{key:q,lab:p.predicted_lab,error:p.delta_e,distance:p.nearest_recipe_distance});
+ }
+ let guards:Vec<_>=baseline.points.iter().map(|p|p.delta_e.max(settings.tolerance)).collect();
+ let initial_objective=ramp_objective(&points,lambda);
+ let mut cache:BTreeMap<(usize,Vec<u32>),Option<Candidate>>=BTreeMap::new();
+ // Four alternating sweeps. Include neighbor mean, halfway blend and
+ // projected coordinate steps. A missed baseline may improve but not worsen.
+ if lambda>0.{
+  for sweep in 0..4{
+   for visit in 0..points.len(){
+    let i=if sweep%2==0{visit}else{points.len()-1-visit};
+    for step in [5.,2.,1.,0.5].map(units){
+     let q=points[i].key.clone();let neighbors=[i.checked_sub(1),if i+1<points.len(){Some(i+1)}else{None}];
+     let adjacent:Vec<_>=neighbors.into_iter().flatten().collect();
+     let avg:Vec<_>=(0..channels).map(|j|adjacent.iter().map(|&k|points[k].key[j]).sum::<u32>()/adjacent.len() as u32).collect();
+     let mut trials=vec![project(avg.clone(),&caps,limit),project(q.iter().zip(&avg).map(|(&a,&b)|(a+b)/2).collect(),&caps,limit)];
+     for j in 0..channels{if caps[j]==0{continue}for increase in [false,true]{
+      let mut t=q.clone();t[j]=if increase{t[j].saturating_add(step)}else{t[j].saturating_sub(step)};
+      trials.push(project(t,&caps,limit));
+     }}
+     trials.sort();trials.dedup();
+     let mut best=points[i].clone();
+     for t in trials{
+      let cache_key=(i,t.clone());
+      let c=if let Some(c)=cache.get(&cache_key){c.clone()}else{
+       let c=trial_score(&training,t,baseline.points[i].target,settings.max_recipe_distance)?;
+       cache.insert(cache_key,c.clone());c
+      };
+      if let Some(c)=c{
+       // No point initially within tolerance may leave it. A missed point
+       // cannot exceed its original error. Always compare actual predictions.
+       if c.error>guards[i]+1e-12||(baseline.points[i].within_tolerance&&c.error>settings.tolerance){continue}
+       let order=local_objective(&points,i,&c,lambda).total_cmp(&local_objective(&points,i,&best,lambda)).then_with(||c.key.cmp(&best.key));
+       if order.is_lt(){best=c;}
+      }
+     }
+     if !feasible_recipe(&best.key,&caps,limit){return Err("Regularized recipe violates limits".into())}
+     points[i]=best;
+    }
+   }
+  }
+ }
+ let objective=ramp_objective(&points,lambda);
+ if objective>initial_objective+1e-8{return Err("Continuity objective increased".into())}
+ let max_channel_jump_pp=points.windows(2).flat_map(|p|p[0].key.iter().zip(&p[1].key)).map(|(&a,&b)|f64::from(a.abs_diff(b))/SCALE).fold(0.,f64::max);
+ let max_predicted_error=points.iter().map(|p|p.error).fold(0.,f64::max);
+ let within_tolerance_count=points.iter().filter(|p|p.error<=settings.tolerance).count();
+ let points=points.into_iter().zip(&baseline.points).map(|(p,b)|RegularizedPoint{target:b.target,predicted_lab:p.lab,inks_percent:p.key.iter().map(|&v|f64::from(v)/SCALE).collect(),delta_e:p.error,tac_percent:tac(&p.key),distance:p.distance}).collect();
+ Ok(RegularizedRamp{baseline,lambda,points,initial_objective,objective,max_channel_jump_pp,max_predicted_error,within_tolerance_count,evaluations:cache.len()})
+}
 /// An audit of sampled jumps near exact reference recipes and held-out
 /// errors. Tapered model is a candidate only; the inverse solver still uses
 /// the beta.36 hard-neighborhood ridge. Distances are not uncertainty bounds.
@@ -399,6 +473,17 @@ pub fn audit_continuity(chart:&Chart,channels:usize)->R<ContinuityAudit>{
   assert_eq!(z.inks_percent,vec![0.;3]);assert!(!z.within_tolerance);assert_eq!(z.evaluations,1);
   assert!(solve_samples(&samples,"M1".into(),3,[50.,0.,0.],InverseSettings{tac_percent:f64::NAN,..settings}).is_err());
  }
+ #[test]fn regularized_ramp_preserves_limits_and_tolerance(){
+  let mut text=String::from("CTI3\nILLUMINANT D50\nOBSERVER 2\nMEASUREMENT_CONDITION M1\nBEGIN_DATA_FORMAT\nSAMPLE_ID CH1 CH2 CH3 LAB_L LAB_A LAB_B\nEND_DATA_FORMAT\nBEGIN_DATA\n");
+  for i in 0..=10{for j in 0..=10{text.push_str(&format!("p-{i}-{j} {} {} 0 {} {} 0\n",i*10,j*10,90-i*4,j*5));}}
+  text.push_str("END_DATA\n");let chart=crate::characterization_cgats::read(&text,3,false).unwrap();
+  let settings=InverseSettings{caps_percent:vec![65.,60.,0.],tac_percent:90.,tolerance:2.,max_recipe_distance:0.4};
+  let r=regularize_inverse_ramp(&chart,3,[70.,20.,0.],settings.clone(),0.02).unwrap();
+  assert!(r.objective<=r.initial_objective+1e-8);
+  for (p,b) in r.points.iter().zip(&r.baseline.points){assert_eq!(p.inks_percent[2],0.);assert!(p.tac_percent<=90.);assert!(p.delta_e<=b.delta_e.max(2.)+1e-12);if b.within_tolerance{assert!(p.delta_e<=2.);}}
+  let z=regularize_inverse_ramp(&chart,3,[70.,20.,0.],settings.clone(),0.).unwrap();assert_eq!(z.evaluations,0);assert_eq!(z.objective,z.initial_objective);assert!((z.max_channel_jump_pp-z.baseline.max_channel_jump_pp).abs()<1e-9);
+  assert!(regularize_inverse_ramp(&chart,3,[70.,20.,0.],settings,f64::NAN).is_err());
+ }
  #[test]fn inverse_quantized_limits_and_unsupported_zero(){
   let caps=[units(10.00009),units(20.00009)];let limit=units(19.99999);
   let q=project(vec![1000000;2],&caps,limit);assert!(feasible_recipe(&q,&caps,limit));
@@ -433,6 +518,10 @@ pub fn audit_continuity(chart:&Chart,channels:usize)->R<ContinuityAudit>{
   println!("{ramp:#?}");assert_eq!(ramp.points.len(),5);
   for p in &ramp.points{assert_eq!(p.inks_percent[3],0.);assert!(p.tac_percent<=300.0000001);assert!(p.delta_e<=p.initial_delta_e);}
   assert_eq!(ramp.adjacent_max_channel_pp.len(),4);assert_eq!(ramp.within_tolerance_count,5);
+  let smooth=regularize_inverse_ramp(&c,7,[50.,0.,0.],ramp.settings.clone(),0.02).unwrap();println!("{smooth:#?}");
+  assert_eq!(smooth.within_tolerance_count,5);assert!(smooth.max_channel_jump_pp<=2.);assert!(smooth.objective<smooth.initial_objective);
+  for p in &smooth.points{assert_eq!(p.inks_percent[3],0.);assert!(p.tac_percent<=300.0000001);}
+
   let audit=audit_continuity(&c,7).unwrap();println!("{audit:#?}");
   assert_eq!(audit.anchors,128);assert_eq!(audit.perturbations[0].samples.count,1237);
   assert!((audit.perturbations[0].samples.hard.max-1.35925).abs()<0.01);

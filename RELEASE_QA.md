@@ -71,3 +71,6 @@ Verify all five folds, pooled counts, local ridge error bars, active-channel his
 
 ### beta.37 acceptance (pending)
 Verify inverse solver with closed channels, zero and fractional caps/TAC, impossible-to-match targets (report not reached, not proven impossible), unsupported coverage, deterministic repeat, local sensitivity and settings snapshots. Run forward continuity audit and five-point L* ramp; verify all rows, adjacent changes, stale result warning, source/chart resets and five languages. Real FOGRA55 Rust test opt-in with ICC_FOGRA55_DATA. Python mirror is diagnostic only. No ICC serialization or production approval.
+
+### beta.38 acceptance (pending)
+Compare independent and refined ramps in Profiling Lab. Check lambda=0 identical baseline, invalid weight rejected, pointwise tolerance guard, zero and fractional ink caps/TAC, deterministic refinement, stale settings, chart resets and five languages. Run synthetic tests and optional FOGRA55 reference test. Assess dark ramp separately; no ICC production claims.
