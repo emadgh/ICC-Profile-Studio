@@ -126,6 +126,25 @@ pub fn rebuild(p:&Profile,caps:&[f64],tac:f64,grid:usize,progress:impl Fn(String
   for k in [b"A2B0",b"A2B1",b"A2B2"]{assert_eq!(p.tags[k],out.tags[k]);}
   let v=verify(&out,&caps,1.2).unwrap();assert_eq!(v.channels[4],0.);assert_eq!(v.sampled_channels[4],0.);assert_eq!(v.samples,14739);assert!(v.tac<=1.2+1e-10);assert_eq!(out.channels().len(),6);
  }
+ #[test]fn persisted_rebuild_matrix(){
+  for n in [3,5,6,7,8,15]{
+   let p=print_space::fixture(n);let mut caps=vec![0.;n];caps[0]=0.65;caps[1]=0.10;
+   let before=p.bytes().unwrap();let out=rebuild(&p,&caps,0.70,9,|_|{}).unwrap();
+   let dir=tempfile::tempdir().unwrap();let path=dir.path().join("limited.icc");
+   out.save_new(&path).unwrap();let q=Profile::read(&path).unwrap();
+   assert_eq!(q.space(),p.space());assert_eq!(p.bytes().unwrap(),before);
+   for k in [b"A2B0",b"A2B1",b"A2B2"]{assert_eq!(q.tags[k],p.tags[k]);}
+   let bounds=verify(&q,&caps,0.70).unwrap();
+   assert_eq!(bounds.channels.len(),n);assert!(bounds.channels[1]<=0.10+1e-12);
+   assert!(bounds.channels[2..].iter().all(|&x|x==0.));
+   let native=lcms2::Profile::new_icc(&q.bytes().unwrap()).unwrap();
+   for intent in [lcms2::Intent::Perceptual,lcms2::Intent::RelativeColorimetric,lcms2::Intent::Saturation,lcms2::Intent::AbsoluteColorimetric]{
+    let v=print_space::sample_rgb(&native,&[[0,0,0],[255,255,255],[128,64,32],[17,98,240]],intent).unwrap();
+    assert_eq!(v.len(),n);assert!(v[1]<=10.01);assert!(v[2..].iter().all(|&x|x==0.));
+   }
+   assert!(out.save_new(&path).is_err());
+  }
+ }
  #[test]fn reject_wrong_caps_and_alternate(){
   let mut p=print_space::fixture(6);assert!(rebuild(&p,&[1.;4],1.,9,|_|{}).is_err());assert!(rebuild(&p,&[1.;6],7.,9,|_|{}).is_err());p.tags.insert(*b"B2D0",vec![0;8]);assert!(channel_count(&p).is_err());
  }
