@@ -846,7 +846,7 @@ impl Studio {
    for (label,recipe) in [("Original separation",Some(&r.baseline)),("Closest feasible",Some(&r.closest)),("Lowest cost found within tolerance",r.cheapest.as_ref())]{
     let mut card=div().p_3().rounded_md().bg(rgb(0x282828)).flex().flex_col().gap_1().child(tr(label));
     if let Some(v)=recipe{
-     card=card.child(format!("Lab {:.2?} · ΔE00 {:.3} · TAC {:.2}% · {} {:.2}",v.lab,v.delta_e,v.tac,tr("Relative cost"))) .when(!v.feasible,|p|p.child(div().text_xs().text_color(rgb(0xfbbf24)).child(tr("Original separation exceeds requested limits.")))).child(swatch(lab_swatch(v.lab),40.))
+     card=card.child(format!("Lab {:.2?} · ΔE00 {:.3} · TAC {:.2}% · {} {:.2}",v.lab,v.delta_e,v.tac,tr("Relative cost"),v.cost)) .when(!v.feasible,|p|p.child(div().text_xs().text_color(rgb(0xfbbf24)).child(tr("Original separation exceeds requested limits.")))).child(swatch(lab_swatch(v.lab),40.))
       .children((0..v.ink.len()).map(|j|div().flex().items_center().gap_2().child(div().w(px(90.)).child(self.ink_name(j))).child(div().flex_1().child(bar(v.ink[j]/100.,self.ink_color(j),10.))).child(format!("{:.1}%",v.ink[j]))));
     }else{card=card.child(tr("No solution found within tolerance"));}
     p=p.child(card);
