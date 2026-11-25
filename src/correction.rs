@@ -398,8 +398,8 @@ fn black_dynamic_node(base:&[f64],caps:&[f64],tac:f64,k:usize,s:BlackGeneration,
  Ok(best)
 }
 impl Profile{
- /// nCLR v4 Lab correction, with independent reverse intents and certified limits.
- /// No assumed black channel. Source forward LUTs stay byte-identical.
+ /// CMYK/nCLR v4 Lab correction, with independent reverse intents and certified ink limits.
+ /// Black generation requires an explicit physical channel index. A2B stays byte-identical.
  pub fn bounded_correction_multi(&self,op:DynamicCorrection,grid:usize,tac_percent:f64)->R<Self>{
   let n=if self.cmyk(){crate::editing::editable_channel_count(self)?}else{crate::multichannel::channel_count(self)?};
   if self.pcs()!="Lab "||self.version_major()!=4||![17,33].contains(&grid)||!tac_percent.is_finite()||!(0.0..=n as f64*100.).contains(&tac_percent){return Err("Requires nCLR ICC v4 Lab, grid 17/33 and valid TAC".into())}
@@ -545,6 +545,16 @@ mod dynamic_black_tests{
   let s=BlackGeneration{start:0.,maximum:1.,strength:1.,tolerance:0.1,..Default::default()};
   let v=black_dynamic_node(&b,&caps,2.,2,s,|x|Ok(CIELab{L:20.,a:x[2]*127.,b:0.})).unwrap();
   assert_eq!(v[2],0.);
+ }
+ #[test]fn ucr_leaves_chromatic_region_at_original_quantized_recipe(){
+  let b=[0.2,0.1,0.3,0.2,0.1,0.];let caps=[1.,1.,1.,1.,1.,0.];
+  let s=BlackGeneration{start:0.,strength:1.,ucr:true,..Default::default()};
+  let v=black_dynamic_node(&b,&caps,2.,2,s,|_|Ok(CIELab{L:20.,a:60.,b:0.})).unwrap();
+  assert!(v.iter().zip(b).all(|(&x,y)|(x-y).abs()<=1./65535.));
+ }
+ #[test]fn baseline_outside_user_tac_is_rejected(){
+  let b=[0.2,0.1,0.3,0.2,0.1,0.];let caps=[1.,1.,1.,1.,1.,0.];
+  assert!(black_dynamic_node(&b,&caps,0.1,2,BlackGeneration::default(),|_|Ok(CIELab{L:20.,a:0.,b:0.})).is_err());
  }
  #[test]fn profile_requires_explicit_valid_open_channel(){
   let p=crate::print_space::fixture(6);
