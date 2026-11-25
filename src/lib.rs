@@ -20,6 +20,7 @@ mod spectral_colorimetry;
 pub mod cie_spectral;
 pub mod device_link;
 mod chart_tiff;
+mod separated_tiff;
 pub mod correction;
 pub mod gradient;
 pub mod gamut;
