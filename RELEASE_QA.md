@@ -40,3 +40,9 @@ update is implied by CI success.
 - Change reference from each active page via both file dialog and installed profiles; verify navigation is retained, prior data invalidated, and Comparison candidate retained.
 - Compare same and different channel counts with overlay and side-by-side modes, identical curves, shared axes and missing channels. Switch optimizer tabs; verify weights/tolerance are shared and three results aligned.
 - CI generates Cargo.lock only if absent and embeds it for audit; pin the reviewed lockfile in the repository before claiming reproducible dependencies.
+
+### beta.29 editor and update QA (manual)
+- [ ] Click sidebar logo/name from every workspace; About opens and update check appears first.
+- [ ] Startup check is nonblocking; newer compatible public Studio beta displays a once-per-version prompt and sidebar shortcut. Later dismisses prompt but retains shortcut. Manual check, unavailable network/private release, checksum failure, verified download and explicit restart behavior.
+- [ ] Confirm native title, Alt+Tab/taskbar label, Task Manager Processes display and executable Properties. Windows may retain cached pinned shortcut names; Details tab normally shows the executable filename.
+- [ ] Check all five redesigned pages with CMYK and nCLR, narrow windows, RTL, sliders, drag controls, and candidate exports. Compare same input/settings against prior validated builds.

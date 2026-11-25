@@ -24,5 +24,22 @@ fn main() {
     resource.set_icon(path.to_str().unwrap());
     resource.set("FileDescription","ICC Profile Studio");
     resource.set("ProductName","ICC Profile Studio");
+    resource.set("InternalName","ICC Profile Studio");
+    resource.set("OriginalFilename","ICC-Profile-Studio.exe");
+    resource.set("CompanyName","emadghasemi.ir");
+    let version=include_str!("STUDIO_VERSION").trim();
+    println!("cargo:rerun-if-changed=STUDIO_VERSION");
+    resource.set("ProductVersion",version);
+    resource.set("FileVersion",version);
+    let (core,beta)=version.split_once("-beta.").expect("Studio beta version");
+    let parts:Vec<u64>=core.split('.').map(|v|v.parse().expect("Numeric version")).collect();
+    let beta:Vec<u64>=beta.split('.').map(|v|v.parse().expect("Numeric beta version")).collect();
+    assert_eq!(parts.len(),3);
+    assert!((1..=2).contains(&beta.len()));
+    let revision=beta[0].checked_mul(100).and_then(|v|v.checked_add(*beta.get(1).unwrap_or(&0))).expect("Windows revision");
+    assert!(parts.iter().all(|&v|v<=65535)&&revision<=65535&&beta.get(1).copied().unwrap_or(0)<100);
+    let fixed=(parts[0]<<48)|(parts[1]<<32)|(parts[2]<<16)|revision;
+    resource.set_version_info(winresource::VersionInfo::FILEVERSION,fixed);
+    resource.set_version_info(winresource::VersionInfo::PRODUCTVERSION,fixed);
     resource.compile().expect("Embed Windows application icon");
 }
