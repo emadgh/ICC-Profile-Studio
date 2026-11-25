@@ -221,3 +221,8 @@ Lean, vendor-independent GPUI application for CMYK and multichannel output ICCs 
 - Separate v2-compatible correction capability from v4-only black generation and whole-profile optimization. Keep unsupported LUT8, alternate D2B/B2D, uncertifiable envelopes rejected.
 - Localize updated capability labels. Add synthetic 7CLR tests and opt-in real FOGRA55 smoothing regression. Independent native diagnostic on supplied file passed sampled TAC; Rust real-file and Windows interactive tests not executed.
 - ISO28178 import is in separate PR #15, not assumed merged. Further work: legacy optimization, channel mapping/vendor tag policy, additional real profiles, DeviceLink and profiling research.
+
+## beta.35 — N-color characterization baseline (CI pending)
+- Beta.34 merged after Windows CI #99. Native CMY conflict reconciled separately in PR #18 (CI pending).
+- Implement bounded N-color forward-model evaluation for 2–15 inks, grouped repeated recipes, deterministic 5-fold assignment, one held-out fold in the UI, nearest-neighbor and IDW8 baseline, CIEDE2000 Mean/P95/Max, recipe-distance and sampled TAC diagnostics. Exclude ICC predictions and mixed measurement conditions.
+- Add opt-in FOGRA55 regression; evaluate actual supplied reference data independently (see NCOLOR_MODEL_QA.md). No measured industrial ceramic dataset, generated A2B or B2A ICC, or production fitting claims. Next: smooth regularized/local models, all-fold and structured neighborhood holdouts, coverage metrics, constrained inverse solver and explicit LUT size/error gates before experimental ICC serialization.
