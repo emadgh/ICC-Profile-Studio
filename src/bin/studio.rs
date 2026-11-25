@@ -13,7 +13,9 @@ use color_convert_rust::gamut_raster::CompareLayout;
 use color_convert_rust::{cie_spectral::{self,Illuminant,Observer},characterization_tools as target_tools,device_link,versioning,system_profiles,i18n::{self,Language,tr}};
 use color_convert_rust::gradient::{self,GradientReport};
 use color_convert_rust::{reports,preferences::{self,Preferences}};
-#[cfg(windows)] use update_via_github::{UpdateConfig,UpdateManager,UpdateStatus};
+#[cfg(windows)] use update_via_github::{UpdateConfig,UpdateStatus};
+#[cfg(windows)] #[path="../studio_updates.rs"] mod studio_updates;
+#[cfg(windows)] use studio_updates::StudioUpdater;
 use color_convert_rust::{optimizer::{self,MultiSettings as RecipeSettings,MultiReport as RecipeReport},lab::{self,MeasuredComparison}};
 
 const STUDIO_VERSION:&str=include_str!("../../STUDIO_VERSION");
@@ -27,10 +29,10 @@ struct Studio {
  link_grid:usize,link_tolerance:f64,link_intent:lcms2::Intent,link_report:Option<(PathBuf,PathBuf,PathBuf,device_link::MultiLinkReport)>,
  slider_drag:Option<(&'static str,usize)>,embedded_names:bool,display_profile:Option<Profile>,language:Language,nav_collapsed:[bool;5],picker:Option<Picker>,system_catalog:Option<system_profiles::Catalog>,system_error:Option<String>,system_loading:bool,
  version_allow_omit:bool,version_relative_only:bool,version_de:f64,version_ink:f64,version_report:Option<versioning::Report>,page:Page, source:Option<PathBuf>, profile:Option<Profile>, report:Option<Inspection>, error:Option<String>,
- multi_caps:Vec<f64>,multi_tac:f64,caps:[f64;4],tac:f64,grid:usize,mode:Mode,status:String,busy:bool, candidate:Option<PathBuf>,comparison:Option<Comparison>,compare_error:Option<String>,compare_grid:usize,compare_intent:lcms2::Intent,gamma:Vec<f64>,order:Vec<usize>, preview_open:bool, preview:Option<Overlay>, preview_revision:u64, preview_width:f32,preview_fullscreen:bool,resize_last:Option<Pixels>,gamut_advanced:bool,curve_drag:Option<(usize,usize,Pixels)>, preview_cache:std::cell::RefCell<gamut_view::PreviewCache>, preview_options:ViewOptions, gamut_grid:usize,gradient:Option<GradientReport>,gradient_detail:Option<usize>,gradient_error:Option<String>,coverage_threshold:f64, regions:[Selective;MAX_REGIONS],region_count:usize,region_selected:usize, correction_grid:usize, correction_tac:f64, smoothing:f64, smoothing_passes:usize,orbit_last:Option<Point<Pixels>>,chart_dpi:u32,recipe_target:[f64;3],recipe_settings:RecipeSettings,recipe_result:Option<RecipeReport>,lab_levels:usize,lab_tab:usize,lab_advanced:bool,lab_loading:bool,lab_attempted:bool,lab_epoch:u64,lab_error:Option<String>,compare_overlay:bool,compare_details:bool,recipe_tab:usize,recipe_weights_open:bool,characterization:Option<color_convert_rust::characterization::Chart>,characterization_page:usize,characterization_patch:Option<usize>,characterization_fit:Option<color_convert_rust::characterization::Fit>,characterization_measured:bool,characterization_heat:bool,spectral_illuminant:Illuminant,spectral_observer:Observer,characterization_filter:target_tools::Filter,characterization_cloud:bool,characterization_view:ViewOptions,characterization_cache:std::cell::RefCell<gamut_view::PreviewCache>,characterization_revision:u64,measured:[Option<PathBuf>;2],measurement_result:Option<MeasuredComparison>,black:BlackGeneration,black_channel:Option<usize>,curve_points:Vec<[f64;5]>,logo:std::sync::Arc<gpui::Image>,#[cfg(windows)] updater:UpdateManager,
+ multi_caps:Vec<f64>,multi_tac:f64,caps:[f64;4],tac:f64,grid:usize,mode:Mode,status:String,busy:bool, candidate:Option<PathBuf>,comparison:Option<Comparison>,compare_error:Option<String>,compare_grid:usize,compare_intent:lcms2::Intent,gamma:Vec<f64>,order:Vec<usize>, preview_open:bool, preview:Option<Overlay>, preview_revision:u64, preview_width:f32,preview_fullscreen:bool,resize_last:Option<Pixels>,gamut_advanced:bool,curve_drag:Option<(usize,usize,Pixels)>, preview_cache:std::cell::RefCell<gamut_view::PreviewCache>, preview_options:ViewOptions, gamut_grid:usize,gradient:Option<GradientReport>,gradient_detail:Option<usize>,gradient_error:Option<String>,coverage_threshold:f64, regions:[Selective;MAX_REGIONS],region_count:usize,region_selected:usize, correction_grid:usize, correction_tac:f64, smoothing:f64, smoothing_passes:usize,orbit_last:Option<Point<Pixels>>,chart_dpi:u32,recipe_target:[f64;3],recipe_settings:RecipeSettings,recipe_result:Option<RecipeReport>,lab_levels:usize,lab_tab:usize,lab_advanced:bool,lab_loading:bool,lab_attempted:bool,lab_epoch:u64,lab_error:Option<String>,compare_overlay:bool,compare_details:bool,recipe_tab:usize,recipe_weights_open:bool,characterization:Option<color_convert_rust::characterization::Chart>,characterization_page:usize,characterization_patch:Option<usize>,characterization_fit:Option<color_convert_rust::characterization::Fit>,characterization_measured:bool,characterization_heat:bool,spectral_illuminant:Illuminant,spectral_observer:Observer,characterization_filter:target_tools::Filter,characterization_cloud:bool,characterization_view:ViewOptions,characterization_cache:std::cell::RefCell<gamut_view::PreviewCache>,characterization_revision:u64,measured:[Option<PathBuf>;2],measurement_result:Option<MeasuredComparison>,black:BlackGeneration,black_channel:Option<usize>,curve_points:Vec<[f64;5]>,logo:std::sync::Arc<gpui::Image>,#[cfg(windows)] updater:StudioUpdater,#[cfg(windows)] update_started:bool,#[cfg(windows)] update_notice:Option<String>,#[cfg(windows)] notified_version:Option<String>,
 }
 impl Default for Studio {
- fn default()->Self{Self{link_grid:0,link_tolerance:2.,link_intent:lcms2::Intent::RelativeColorimetric,link_report:None,slider_drag:None,embedded_names:true,display_profile:None,language:Language::En,nav_collapsed:[false;5],picker:None,system_catalog:None,system_error:None,system_loading:false,version_allow_omit:false,version_relative_only:false,version_de:0.5,version_ink:0.5,version_report:None,page:Page::Inspector,source:None,profile:None,report:None,error:None,multi_caps:vec![],multi_tac:0.,caps:[100.,100.,100.,0.],tac:240.,grid:33,mode:Mode::Custom,status:"Open an ICC or ICM profile to start.".into(),busy:false,candidate:None,comparison:None,compare_error:None,compare_grid:17,compare_intent:lcms2::Intent::RelativeColorimetric,gamma:vec![],order:vec![],preview_open:true,preview:None,preview_revision:0,preview_width:360.,preview_fullscreen:false,resize_last:None,gamut_advanced:false,curve_drag:None,preview_cache:std::cell::RefCell::new(gamut_view::PreviewCache::default()),preview_options:ViewOptions::default(),gamut_grid:33,gradient:None,gradient_detail:None,gradient_error:None,coverage_threshold:2.,regions:[Selective::default();MAX_REGIONS],region_count:1,region_selected:0,correction_grid:33,correction_tac:400.,smoothing:0.20,smoothing_passes:1,orbit_last:None,chart_dpi:300,recipe_target:[50.,0.,0.],recipe_settings:RecipeSettings{caps:vec![100.;4],tac:240.,weights:vec![1.;4],tolerance:2.},recipe_result:None,lab_levels:5,lab_tab:0,lab_advanced:false,lab_loading:false,lab_attempted:false,lab_epoch:0,lab_error:None,compare_overlay:true,compare_details:false,recipe_tab:0,recipe_weights_open:false,characterization:None,characterization_page:1,characterization_patch:None,characterization_fit:None,characterization_measured:false,characterization_heat:false,spectral_illuminant:Illuminant::D50,spectral_observer:Observer::Two,characterization_filter:target_tools::Filter::default(),characterization_cloud:false,characterization_view:ViewOptions{profile_colors:false,layout:CompareLayout::Shared,solid:false,wireframe:false,floor_contour:false,..ViewOptions::default()},characterization_cache:std::cell::RefCell::new(gamut_view::PreviewCache::default()),characterization_revision:0,measured:[None,None],measurement_result:None,black:BlackGeneration::default(),black_channel:None,curve_points:IDENTITY_POINTS.to_vec(),logo:std::sync::Arc::new(gpui::Image::from_bytes(gpui::ImageFormat::Png,include_bytes!("../../assets/icon.png").to_vec())),#[cfg(windows)] updater:UpdateManager::new(UpdateConfig::new("emadgh/color-convert-rust","ICC-Profile-Studio.exe",STUDIO_VERSION.trim()).with_app_name("ICC Profile Studio").with_checksum_asset("ICC-Profile-Studio.exe.sha256").with_required_checksum(true))}}
+ fn default()->Self{Self{link_grid:0,link_tolerance:2.,link_intent:lcms2::Intent::RelativeColorimetric,link_report:None,slider_drag:None,embedded_names:true,display_profile:None,language:Language::En,nav_collapsed:[false;5],picker:None,system_catalog:None,system_error:None,system_loading:false,version_allow_omit:false,version_relative_only:false,version_de:0.5,version_ink:0.5,version_report:None,page:Page::Inspector,source:None,profile:None,report:None,error:None,multi_caps:vec![],multi_tac:0.,caps:[100.,100.,100.,0.],tac:240.,grid:33,mode:Mode::Custom,status:"Open an ICC or ICM profile to start.".into(),busy:false,candidate:None,comparison:None,compare_error:None,compare_grid:17,compare_intent:lcms2::Intent::RelativeColorimetric,gamma:vec![],order:vec![],preview_open:true,preview:None,preview_revision:0,preview_width:360.,preview_fullscreen:false,resize_last:None,gamut_advanced:false,curve_drag:None,preview_cache:std::cell::RefCell::new(gamut_view::PreviewCache::default()),preview_options:ViewOptions::default(),gamut_grid:33,gradient:None,gradient_detail:None,gradient_error:None,coverage_threshold:2.,regions:[Selective::default();MAX_REGIONS],region_count:1,region_selected:0,correction_grid:33,correction_tac:400.,smoothing:0.20,smoothing_passes:1,orbit_last:None,chart_dpi:300,recipe_target:[50.,0.,0.],recipe_settings:RecipeSettings{caps:vec![100.;4],tac:240.,weights:vec![1.;4],tolerance:2.},recipe_result:None,lab_levels:5,lab_tab:0,lab_advanced:false,lab_loading:false,lab_attempted:false,lab_epoch:0,lab_error:None,compare_overlay:true,compare_details:false,recipe_tab:0,recipe_weights_open:false,characterization:None,characterization_page:1,characterization_patch:None,characterization_fit:None,characterization_measured:false,characterization_heat:false,spectral_illuminant:Illuminant::D50,spectral_observer:Observer::Two,characterization_filter:target_tools::Filter::default(),characterization_cloud:false,characterization_view:ViewOptions{profile_colors:false,layout:CompareLayout::Shared,solid:false,wireframe:false,floor_contour:false,..ViewOptions::default()},characterization_cache:std::cell::RefCell::new(gamut_view::PreviewCache::default()),characterization_revision:0,measured:[None,None],measurement_result:None,black:BlackGeneration::default(),black_channel:None,curve_points:IDENTITY_POINTS.to_vec(),logo:std::sync::Arc::new(gpui::Image::from_bytes(gpui::ImageFormat::Png,include_bytes!("../../assets/icon.png").to_vec())),#[cfg(windows)] update_started:false,#[cfg(windows)] update_notice:None,#[cfg(windows)] notified_version:None,#[cfg(windows)] updater:StudioUpdater::new(UpdateConfig::new("emadgh/color-convert-rust","ICC-Profile-Studio.exe",STUDIO_VERSION.trim()).with_app_name("ICC Profile Studio").with_checksum_asset("ICC-Profile-Studio.exe.sha256").with_required_checksum(true))}}
 }
 fn button(id: impl Into<ElementId>,label:impl Into<SharedString>)->Stateful<Div>{
  let label:SharedString=label.into();
@@ -1129,15 +1131,38 @@ impl Studio {
   cx.spawn(async move|this,cx|{
    loop{
     cx.background_executor().timer(Duration::from_millis(150)).await;
-    let state=this.update(cx,|v,cx|{cx.notify();matches!(v.updater.status(),UpdateStatus::Checking|UpdateStatus::Downloading{..})});
+    let state=this.update(cx,|v,cx|{let status=v.updater.status();if let UpdateStatus::Available(info)=&status{if v.notified_version.as_deref()!=Some(info.version.as_str()){v.notified_version=Some(info.version.clone());v.update_notice=Some(info.version.clone());}}cx.notify();matches!(status,UpdateStatus::Checking|UpdateStatus::Downloading{..})});
     if !matches!(state,Ok(true)){break}
    }
   }).detach();
  }
  fn about_page(&self,cx:&mut Context<Self>)->Div{
-  let mut p=div().flex().flex_col().gap_3()
-   .child(div().p_4().rounded_md().bg(rgb(0x252525)).flex().items_center().gap_4()
-    .child(img(self.logo.clone()).size(px(84.)))
+  let mut updates=div().flex().flex_col().gap_2().p_4().rounded_md().bg(rgb(0x282828))
+   .child(div().flex().flex_wrap().items_center().justify_between().gap_2().child(div().text_lg().child(tr("Software updates"))));
+  #[cfg(windows)]{
+   let state=self.updater.status();
+   let checking=matches!(&state,UpdateStatus::Checking|UpdateStatus::Downloading{..}|UpdateStatus::Ready(..));
+   updates=updates.child(div().flex().flex_wrap().gap_2()
+    .child(button("check-studio",if checking{"Working…"}else{"Check for updates"}).bg(rgb(if checking{0x383838}else{0xc65f24})).on_click(cx.listener(|v,_,_,cx|{if v.updater.start_check(false){v.update_poll(cx);cx.notify();}})))
+    .child(button("github-releases-top","Releases").on_click(cx.listener(|_,_,_,cx|cx.open_url("https://github.com/emadgh/color-convert-rust/releases")))));
+   match state{
+    UpdateStatus::Idle=>updates=updates.child(tr("Check for a compatible Studio release.")),
+    UpdateStatus::Checking=>updates=updates.child(tr("Checking GitHub Releases…")),
+    UpdateStatus::UpToDate=>updates=updates.child(tr("No newer compatible Studio beta found.")),
+    UpdateStatus::Available(info)=>updates=updates.child(div().text_color(rgb(0xfb923c)).child(format!("{}: {}",tr("New update available"),info.version))).child(button("download-studio","Download verified update").on_click(cx.listener(|v,_,_,cx|{if !v.busy&&v.updater.start_download(){v.update_notice=None;v.update_poll(cx);cx.notify();}}))),
+    UpdateStatus::Downloading{info,downloaded,total}=>{
+     updates=updates.child(format!("{} {} · {:.1} MiB",tr("Downloading"),info.version,downloaded as f64/1048576.));
+     if let Some(n)=total.filter(|n|*n>0){updates=updates.child(bar((downloaded as f64/n as f64).clamp(0.,1.),0xe87935,10.));}
+    }
+    UpdateStatus::Ready(info,_)=>updates=updates.child(format!("{}: {}",tr("Verified update ready"),info.version)).child(button("install-studio","Restart and install").on_click(cx.listener(|v,_,_,cx|{if v.busy{return}match v.updater.apply_ready(){Ok(true)=>cx.quit(),Ok(false)=>{v.status="No staged update".into();cx.notify();},Err(e)=>{v.status=e;cx.notify();}}}))),
+    UpdateStatus::Failed(e)=>updates=updates.child(div().text_color(rgb(0xfca5a5)).child(e)),
+   }
+  }
+  #[cfg(not(windows))]{updates=updates.child(tr("Automatic updates are available on Windows only."));}
+  updates=updates.child(div().text_xs().text_color(rgb(0xa1a1aa)).child(tr("Studio beta releases only. Downloads require SHA-256 verification and explicit installation. Private releases require signed-in access.")));
+  div().flex().flex_col().gap_3().child(updates)
+   .child(div().p_4().rounded_md().bg(rgb(0x252525)).flex().flex_wrap().items_center().gap_4()
+    .child(img(self.logo.clone()).size(px(80.)))
     .child(div().flex().flex_col().gap_1().child(div().text_2xl().child("ICC Profile Studio"))
      .child(div().text_sm().text_color(rgb(0xfb923c)).child(format!("{} · Windows x64 · GPUI",STUDIO_VERSION.trim())))
      .child("by emadghasemi.ir")))
@@ -1146,34 +1171,12 @@ impl Studio {
     .child(div().flex().flex_wrap().gap_2()
      .child(button("developer-site","Website").on_click(cx.listener(|_,_,_,cx|cx.open_url("https://emadghasemi.ir"))))
      .child(button("github-project","Source code").on_click(cx.listener(|_,_,_,cx|cx.open_url("https://github.com/emadgh/color-convert-rust"))))
-     .child(button("github-releases","Releases").on_click(cx.listener(|_,_,_,cx|cx.open_url("https://github.com/emadgh/color-convert-rust/releases"))))
      .child(button("github-builds","Windows builds").on_click(cx.listener(|_,_,_,cx|cx.open_url("https://github.com/emadgh/color-convert-rust/actions"))))))
    .child(div().p_3().rounded_md().bg(rgb(0x252525)).flex().flex_col().gap_1()
     .child(div().text_lg().child(tr("Technology"))).child("Rust · GPUI · LittleCMS 2 · ArgyllCMS")
     .child(format!("Core package {}",env!("CARGO_PKG_VERSION")))
-    .child("CMYK / Multichannel ICC · DeviceLink"))
-   .child(div().text_xs().child(cie_spectral::ATTRIBUTION))
-   .child(div().text_lg().child(tr("Software updates")));
-  #[cfg(windows)]{
-   match self.updater.status(){
-    UpdateStatus::Idle=>p=p.child(tr("Check for a compatible Studio release.")),
-    UpdateStatus::Checking=>p=p.child(tr("Checking GitHub Releases…")),
-    UpdateStatus::UpToDate=>p=p.child("No newer accessible release found; private releases may be invisible."),
-    UpdateStatus::Available(info)=>p=p.child(format!("Version {} available",info.version)).child(button("download-studio","Download verified update").on_click(cx.listener(|v,_,_,cx|{if !v.busy{v.updater.start_download();v.update_poll(cx);cx.notify();}}))),
-    UpdateStatus::Downloading{info,downloaded,total}=>{
-     p=p.child(format!("Downloading {} · {:.1} MiB",info.version,downloaded as f64/1048576.));
-     if let Some(n)=total.filter(|n|*n>0){let f=(downloaded as f32/n as f32).clamp(0.,1.);p=p.child(div().h(px(10.)).bg(rgb(0x3b3b3b)).child(div().w(relative(f)).h_full().bg(rgb(0x60a5fa))));}
-    }
-    UpdateStatus::Ready(info,_)=>p=p.child(format!("Version {} downloaded and verified",info.version)).child(button("install-studio","Restart and install").on_click(cx.listener(|v,_,_,cx|{
-     if v.busy{return}match v.updater.apply_ready(){Ok(true)=>cx.quit(),Ok(false)=>{v.status="No staged update".into();cx.notify();},Err(e)=>{v.status=e;cx.notify();}}
-    }))),
-    UpdateStatus::Failed(e)=>p=p.child(div().text_color(rgb(0xfca5a5)).child(e)),
-   }
-   if !matches!(self.updater.status(),UpdateStatus::Checking|UpdateStatus::Downloading{..}|UpdateStatus::Ready(..)){
-    p=p.child(button("check-studio","Check for updates").on_click(cx.listener(|v,_,_,cx|{if !v.busy{v.updater.start_check(false);v.update_poll(cx);cx.notify();}})));
-   }
-  }
-  p.child("The shared updater cannot access private releases without authentication. No tokens are embedded. Download Studio previews through signed-in GitHub Releases. Studio beta tags use a separate namespace and are not supported by the existing latest-release updater; no automatic beta installation. Studio requires its own EXE and SHA256 asset, never the legacy executable.")
+    .child("CMYK / Multichannel ICC · DeviceLink")
+    .child(div().text_xs().child(cie_spectral::ATTRIBUTION)))
  }
  fn point_curves_page(&self,cx:&mut Context<Self>)->Div{
   div().flex().flex_col().gap_2().child(heading("Bounded multipoint curves","Drag three control points per ink. Endpoints locked; monotonic output enforced."))
@@ -1398,6 +1401,7 @@ impl Studio {
 impl Render for Studio {
  fn render(&mut self,window:&mut Window,cx:&mut Context<Self>)->impl IntoElement{
   i18n::set_active(self.language);
+  #[cfg(windows)] if !self.update_started{self.update_started=true;if self.updater.start_check(false){self.update_poll(cx);}}
   let viewport=window.viewport_size();let vw=f32::from(viewport.width);let vh=f32::from(viewport.height);
   let docked=ui_geometry::docked_preview(self.preview_open,vw);
   let width=self.preview_width.clamp(280.,(vw-760.).max(280.));
@@ -1410,8 +1414,15 @@ impl Render for Studio {
    ("Separation",&[(Page::Black,"Black Generation","◕"),(Page::Recipes,"Ink Optimizer","◈"),(Page::DeviceLink,"DeviceLink Generator","↔")]),
    ("Analysis",&[(Page::Comparison,"Profile Comparison","≍"),(Page::Gamut,"Gamut Viewer","◇"),(Page::Gradient,"Gradient Analyzer","▥"),(Page::Lab,"Profiling Lab","⊞")]),
    ("Application",&[(Page::Settings,"Settings","⚙"),(Page::About,"About & Updates","ⓘ")])];
+  let mut brand=div().flex().items_center().gap_1()
+   .child(div().id("brand-about").flex().flex_1().min_w(px(0.)).items_center().gap_2().rounded_md().cursor_pointer().hover(|s|s.bg(rgb(0x363636)))
+    .child(img(self.logo.clone()).size(px(30.))).child(div().flex().flex_col().min_w(px(0.)).child(div().text_sm().child("ICC Profile Studio")).child(div().text_xs().text_color(rgb(0xa1a1aa)).child("by emadghasemi.ir")))
+    .on_click(cx.listener(|v,_,_,cx|{v.page=Page::About;v.picker=None;v.preview_fullscreen=false;cx.notify();})));
+  #[cfg(windows)] if matches!(self.updater.status(),UpdateStatus::Available(..)|UpdateStatus::Ready(..)){
+   brand=brand.child(seg("brand-update","↑",true).bg(rgb(0xc65f24)).on_click(cx.listener(|v,_,_,cx|{v.page=Page::About;v.picker=None;v.update_notice=None;cx.notify();})));
+  }
   let mut sidebar=div().id("sidebar").flex().flex_col().w(px(if vw<900.{200.}else{238.})).flex_shrink_0().h_full().overflow_y_scroll().p_3().gap_1().bg(rgb(0x262626))
-   .child(div().flex().items_center().gap_2().child(img(self.logo.clone()).size(px(30.))).child(div().flex().flex_col().child(div().text_lg().child("ICC Profile Studio")).child(div().text_xs().text_color(rgb(0xa1a1aa)).child("by emadghasemi.ir"))))
+   .child(brand)
    .child(div().text_xs().mb_2().text_color(rgb(0xa1a1aa)).child(STUDIO_VERSION.trim().to_owned()))
    .child(div().flex().flex_col().gap_1()
     .child(button("open-profile","Open ICC").bg(rgb(0xc65f24)).hover(|s|s.bg(rgb(0xe87935))).on_click(cx.listener(|v,_,_,cx|{v.open(cx);cx.notify();})))
@@ -1454,7 +1465,9 @@ impl Render for Studio {
    Page::Settings=>self.settings_page(cx),
    Page::About=>self.about_page(cx),
   };
-  let editor=div().flex().flex_col().flex_1().min_w(px(0.)).h_full().bg(rgb(0x242424))
+  let mut editor=div().flex().flex_col().flex_1().min_w(px(0.)).h_full().bg(rgb(0x242424));
+  #[cfg(windows)] if let Some(version)=&self.update_notice{editor=editor.child(div().flex().flex_wrap().items_center().gap_2().px_4().py_2().bg(rgb(0x543621)).child(div().flex_1().min_w(px(0.)).child(format!("{}: {version}",tr("New update available")))).child(button("notice-about","View update").on_click(cx.listener(|v,_,_,cx|{v.page=Page::About;v.update_notice=None;v.picker=None;cx.notify();}))).child(button("notice-dismiss","Later").on_click(cx.listener(|v,_,_,cx|{v.update_notice=None;cx.notify();}))));}
+  let editor=editor
     .child(div().flex().flex_wrap().gap_2().items_center().justify_between().px_5().py_3().bg(rgb(0x282828)).child(div().flex_1().min_w(px(0.)).child(self.source.as_ref().and_then(|p|p.file_name()).map(|p|p.to_string_lossy().into_owned()).unwrap_or_else(||tr("No profile selected")))).when(self.display_profile.is_some(),|r|r.child(div().flex().gap_1().items_center()
      .child(seg("ink-name-standard","Standard names",!self.embedded_names).on_click(cx.listener(|v,_,_,cx|{v.embedded_names=false;v.persist_name_mode();cx.notify();})))
      .child(seg("ink-name-profile","Profile names",self.embedded_names).on_click(cx.listener(|v,_,_,cx|{v.embedded_names=true;v.persist_name_mode();cx.notify();})))
@@ -1474,9 +1487,10 @@ impl Render for Studio {
  }
 }
 fn main(){
+ #[cfg(windows)] unsafe{let id:Vec<u16>="ir.emadghasemi.ICCProfileStudio".encode_utf16().chain(Some(0)).collect();let _=windows_sys::Win32::UI::Shell::SetCurrentProcessExplicitAppUserModelID(id.as_ptr());}
  Application::new().run(|cx:&mut App|{
   let bounds=Bounds::centered(None,size(px(1440.),px(880.)),cx);
-  cx.open_window(WindowOptions{window_bounds:Some(WindowBounds::Windowed(bounds)),..Default::default()},|_,cx|cx.new(|_|Studio::startup())).expect("Open Studio window");
+  cx.open_window(WindowOptions{window_bounds:Some(WindowBounds::Windowed(bounds)),titlebar:Some(TitlebarOptions{title:Some("ICC Profile Studio".into()),appears_transparent:false,..Default::default()}),..Default::default()},|window,cx|{window.set_window_title("ICC Profile Studio");window.set_app_id("ir.emadghasemi.ICCProfileStudio");cx.new(|_|Studio::startup())}).expect("Open Studio window");
   cx.activate(true);
  });
 }
