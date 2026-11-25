@@ -833,7 +833,10 @@ impl Studio {
     .child(button(("weight-minus",j),"−0.25").on_click(cx.listener(move|v,_,_,cx|{if !v.busy{v.recipe_settings.weights[j]=(v.recipe_settings.weights[j]-0.25).max(0.01);v.recipe_result=None;cx.notify();}})))
     .child(self.numeric_slider(("weight-slider",j),self.recipe_settings.weights[j],0.01,100.,0.01,move|v,x|{v.recipe_settings.weights[j]=x;v.recipe_result=None;},cx)).child(button(("weight-plus",j),"+0.25").on_click(cx.listener(move|v,_,_,cx|{if !v.busy{v.recipe_settings.weights[j]=(v.recipe_settings.weights[j]+0.25).min(100.);v.recipe_result=None;cx.notify();}}))))));
   }
-  weights.child(ink_budget_dynamic(caps,tac)).child(div().flex().gap_1().items_center().child(tr("ΔE00 tolerance")).children([1usize,2,3,5].map(|n|button(("recipe-tolerance",n),if self.recipe_settings.tolerance==n as f64{format!("{n} ✓")}else{n.to_string()}).on_click(cx.listener(move|v,_,_,cx|{if !v.busy{v.recipe_settings.tolerance=n as f64;v.recipe_result=None;cx.notify();}})))))
+  weights.child(ink_budget_dynamic(caps,tac)).child(div().flex().flex_wrap().items_center().gap_2().child(format!("{}: {:.1}",tr("ΔE00 tolerance"),self.recipe_settings.tolerance))
+   .child(button("recipe-tolerance-minus","−0.1").on_click(cx.listener(|v,_,_,cx|{if !v.busy{v.recipe_settings.tolerance=((v.recipe_settings.tolerance*10.).round()-1.).max(1.)/10.;v.recipe_result=None;cx.notify();}})))
+   .child(self.numeric_slider(("recipe-tolerance-slider",0usize),self.recipe_settings.tolerance,0.1,5.,0.1,|v,x|{v.recipe_settings.tolerance=x;v.recipe_result=None;},cx))
+   .child(button("recipe-tolerance-plus","+0.1").on_click(cx.listener(|v,_,_,cx|{if !v.busy{v.recipe_settings.tolerance=((v.recipe_settings.tolerance*10.).round()+1.).min(50.)/10.;v.recipe_result=None;cx.notify();}}))))
  }
  fn recipe_page(&self,cx:&mut Context<Self>)->Div{
   if self.gamma.is_empty()||self.recipe_settings.weights.len()!=self.gamma.len(){return div().child(tr("Open a supported printer profile first."))}
@@ -905,7 +908,7 @@ impl Studio {
    let _=this.update(cx,|v,cx|{
     if v.lab_epoch!=epoch{return}
     v.lab_loading=false;
-    match result{Ok((c,notice))=>{v.characterization_page=c.patches.first().map(|p|p.page).unwrap_or(1);v.characterization_patch=None;v.characterization=Some(c);v.lab_error=notice;v.characterization_revision=v.characterization_revision.wrapping_add(1);},Err(e)=>v.lab_error=Some(e)}
+    match result{Ok((c,notice))=>{v.characterization_page=c.patches.first().map(|p|p.page).unwrap_or(1);v.characterization_patch=if c.patches.is_empty(){None}else{Some(0)};v.characterization=Some(c);v.lab_error=notice;v.characterization_revision=v.characterization_revision.wrapping_add(1);},Err(e)=>v.lab_error=Some(e)}
     cx.notify();
    });
   }).detach();
