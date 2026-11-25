@@ -182,6 +182,7 @@ pub fn edit_file(source:&Path,destination:&Path,edit:Edit)->R<String>{
  let p=Profile::read(source)?;
  let reorder=match &edit{Edit::Reorder(o)=>Some(o.to_vec()),Edit::ReorderMulti(o)=>Some(o.clone()),_=>None};
  let optimized_weights=match &edit{Edit::CorrectionMulti(crate::correction::DynamicCorrection::Optimize{weights,..},_,_)=>Some(weights.clone()),Edit::Correction(crate::correction::Operation::Optimize{weights,..},_,_)=>Some(weights.to_vec()),_=>None};
+ let black_channel=match &edit{Edit::CorrectionMulti(crate::correction::DynamicCorrection::Black{channel,..},_,_)=>Some(*channel),Edit::Correction(crate::correction::Operation::Black(_),_,_)=>Some(3),_=>None};
  let multi_edit=matches!(&edit,Edit::ToneMulti(_)|Edit::ReorderMulti(_)|Edit::CorrectionMulti(..));
  let (mut out,name)=match edit{
   Edit::Tone(g)=>(p.tone_gamma(g)?,None),
@@ -221,10 +222,27 @@ pub fn edit_file(source:&Path,destination:&Path,edit:Edit)->R<String>{
   let n=samples.len() as f64;
   Some(format!(" | 729 relative sRGB samples | Mean cost index {:.2} → {:.2} | Mean TAC {:.2}% → {:.2}% | Max sampled ΔE00 {:.3}",before/n,after/n,tac_before/n,tac_after/n,de))
  }else{None};
+ let black_report=if let Some(k)=black_channel{
+  use lcms2::CIELabExt;
+  let original=lcms2::Profile::new_icc(&p.bytes()?).map_err(|e|e.to_string())?;
+  let mut samples=Vec::with_capacity(729+33);
+  for r in 0..9{for g in 0..9{for b in 0..9{samples.push([r,g,b].map(|v|(v*255/8) as u8));}}}
+  for i in 0..=32{samples.push([(i*255/32) as u8;3]);}
+  let (a,la)=crate::comparison::simulate(&original,&samples,lcms2::Intent::RelativeColorimetric)?;
+  let (b,lb)=crate::comparison::simulate(&parsed,&samples,lcms2::Intent::RelativeColorimetric)?;
+  let mut max_de=0f64;let mut mean_de=0.;let mut ka=0.;let mut kb=0.;let mut ta=0.;let mut tb=0.;let mut na=0.;let mut nb=0.;let mut changed=0usize;
+  for (i,(x,y)) in a.iter().zip(&b).enumerate(){
+   if i<729{ka+=x[k];kb+=y[k];ta+=x.iter().sum::<f64>();tb+=y.iter().sum::<f64>();if (x[k]-y[k]).abs()>100./65535.{changed+=1;}}
+   else{na+=x[k];nb+=y[k];}
+  }
+  for (x,y) in la.iter().zip(&lb){let d=x.cie2000_delta_e(y,1.,1.,1.);if !d.is_finite()||d<0.{return Err("Invalid black generation sample Delta E".into())}max_de=max_de.max(d);mean_de+=d;}
+  Some(format!(" | Physical black CH{} | 729 RGB + 33 neutral samples | mean K {:.2}% → {:.2}% | neutral mean K {:.2}% → {:.2}% | mean TAC {:.2}% → {:.2}% | K changed {}/729 | mean / max ΔE00 {:.3} / {:.3}",k+1,ka/729.,kb/729.,na/33.,nb/33.,ta/729.,tb/729.,changed,mean_de/samples.len() as f64,max_de))
+ }else{None};
  out.save_new(destination)?;
  let mut message=format!("Saved edited ICC: {}",destination.display());
  if let Some(r)=report{let max=|f:fn(&ReorderCheck)->f64|r.checks.iter().map(f).fold(0.,f64::max);message.push_str(&format!(" | 4 intents, {} device / {} PCS samples per intent | Max ΔE00 {:.4} | ink Δ {:.4} pp | TAC Δ {:.4} pp",r.forward_samples,r.reverse_samples,max(|x|x.max_de),max(|x|x.max_ink_pp),max(|x|x.max_tac_pp)));}
  if let Some(r)=optimization_report{message.push_str(&r);}
+ if let Some(r)=black_report{message.push_str(&r);}
  Ok(message)
 }
 #[cfg(test)]
