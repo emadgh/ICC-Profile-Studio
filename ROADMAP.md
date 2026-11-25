@@ -164,3 +164,16 @@ Lean, vendor-independent GPUI application for CMYK and multichannel output ICCs 
 - Workflow #87: 142 backend tests passed, GPUI failed E0277 at the two new precise-step button IDs inferred as i32; explicit usize fixes both. Rebuild pending.
 - PR #1's old automatic CI diagnostic workflow is superseded by batched fail-fast CI on main. PR #4's remaining CGATS improvements consolidated here rather than merging overlapping branches: device-only target export, homogeneous data validation, exact round-trip numeric formatting, 32 MiB limit, atomic no-clobber and sync, regression tests. Reject incomplete Lab/XYZ fields and malformed spectral column names. No predicted values emitted as measurements. Unspecified mode remains unspecified. Export layout stays CSV-only.
 - Keep PR #6 as the only integration branch; do not merge until new CI succeeds. Next: beta.28 release QA.
+
+## beta.28 — release stabilization
+- Workflow #88 validated beta.27.1: 146 tests, CIE hashes, GPUI and package; PR #6 merged. Remove obsolete navigation constant and unused UI callback variables.
+- Bound ICC file reads and expanded tag data to 128 MiB, retain valid shared tag offsets, bound serialization and stage atomic no-clobber saving. CGATS rejects conflicting metadata and malformed field/row counts. Regression tests.
+- Locked Cargo build, BUILD_INFO.json with checked-out commit, lock and EXE SHA256, compiler and target. Same-job archive verification checks required files, version, PE AMD64 and digest. ZIP-only CI artifact, same seven-day retention. No extra job.
+- RELEASE_QA.md documents outstanding manual Windows, RTL, real profile, RIP, measurement, licensing, update and Argyll integrity checks. No stable release claim. Pending CI.
+
+### beta.28.1 — requested workflow/UI refinement
+- Workflow #89 failed at cargo --locked because Cargo.lock was missing. Generate it only when absent, then use locked test/build; package and verify lockfile SHA256 alongside the EXE. Not cross-run reproducible until lockfile is committed.
+- Profiling Lab default Patch explorer auto-loads embedded CxF/targ, falls back to clearly labelled ICC-predicted virtual target (no invented measurement). Dedicated asynchronous load with source epoch prevents stale results; add regression test. Compact color grid precedes optional advanced filters/cloud, and existing Print target, Measure & compare and Build ICC are separate tabs. Exports remain explicit.
+- Keep current page when loading ICC from either file dialog or system picker. Reset stale analysis, measurement pair and link report; retain candidate on Comparison only. Automatic preview loading does not require Generate.
+- Comparison: two profile header cards, toggle Overlay/Side by side; paired L* and ink-index curves on equal axes with blue/orange and distinct stroke thicknesses; missing channels not replaced with zeros. Shared-scale mean/max bars and compact Delta E histogram, optional details. Channel order for viewing only, not physical identity equivalence.
+- Ink/Cost Optimizer: Single color / Whole-profile tabs, target color swatch, compact per-channel limits and expandable relative weights, shared tolerance/TAC controls, three result columns and aligned ink bars. Relative cost is not currency; engine unchanged. 36 new localization rows across five languages. Manual UI QA pending.

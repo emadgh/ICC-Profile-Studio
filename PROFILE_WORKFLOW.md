@@ -8,3 +8,5 @@
 6. Save each edit to a new ICC and test the actual output. Unknown profiles or unsupported LUT structures must be rejected rather than approximated silently.
 
 Direct measurement-device integration is outside scope. All in-app color predictions are model-based unless explicitly based on imported measurements. Validate supported real profiles, Windows UI behavior, dependency licenses, update and Argyll package integrity before a stable release.
+
+For N-color, Studio prepares characterization targets and measured comparisons; it does not fit a new N-color ICC. Retain original measurements and the exact layout manifest. See RELEASE_QA.md before treating a preview as production-ready.

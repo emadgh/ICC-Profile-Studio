@@ -45,19 +45,25 @@ impl Profile {
  pub fn read(p:&Path)->R<Self>{
   let meta=fs::metadata(p).map_err(|e|e.to_string())?;
   if meta.len()>128*1024*1024{return Err("ICC larger than 128 MiB".into())}
-  Self::parse(&fs::read(p).map_err(|e|e.to_string())?)
+  use std::io::Read;
+  let mut bytes=Vec::new();fs::File::open(p).map_err(|e|e.to_string())?.take(128*1024*1024+1).read_to_end(&mut bytes).map_err(|e|e.to_string())?;
+  Self::parse(&bytes)
  }
  pub fn parse(b:&[u8])->R<Self>{
+  if b.len()>128*1024*1024{return Err("ICC larger than 128 MiB".into())}
   if b.len()<132 || &b[36..40]!=b"acsp"{return Err("Not an ICC profile".into())}
   let size=u32at(b,0)? as usize;
   if size<132 || size>b.len(){return Err("Invalid ICC size".into())}
   let n=u32at(b,128)? as usize;
   if n>4096 || 132+12*n>size{return Err("Invalid ICC tag directory".into())}
-  let mut tags=BTreeMap::new();
+  let mut tags=BTreeMap::new();let mut total=0usize;
   for i in 0..n {
    let p=132+i*12;let key:[u8;4]=b[p..p+4].try_into().unwrap();
    let o=u32at(b,p+4)? as usize;let l=u32at(b,p+8)? as usize;
    if o<132+12*n || l<8 || o.checked_add(l).filter(|v|*v<=size).is_none(){return Err("Invalid tag bounds".into())}
+   total=total.checked_add(l).ok_or("ICC tag allocation overflow")?;
+   if total>128*1024*1024{return Err("Expanded ICC tag data exceeds 128 MiB".into())}
+   if tags.contains_key(&key){return Err("Duplicate ICC tag".into())}
    if tags.insert(key,b[o..o+l].to_vec()).is_some(){return Err("Duplicate ICC tag".into())}
   }
   Ok(Self{header:b[..128].to_vec(),tags})
@@ -126,15 +132,18 @@ impl Profile {
   put32(&mut out,self.tags.len() as u32);out.resize(132+12*self.tags.len(),0);
   for (i,(key,val)) in self.tags.iter().enumerate(){
    while out.len()%4!=0{out.push(0)}
-   let o=u32::try_from(out.len()).map_err(|_|"ICC too big")?;let l=val.len() as u32;let p=132+i*12;
+   if out.len().checked_add(val.len()).is_none_or(|n|n>128*1024*1024-3){return Err("Serialized ICC exceeds 128 MiB".into())}
+   let o=u32::try_from(out.len()).map_err(|_|"ICC too big")?;let l=u32::try_from(val.len()).map_err(|_|"ICC tag too big")?;let p=132+i*12;
    out[p..p+4].copy_from_slice(key);out[p+4..p+8].copy_from_slice(&o.to_be_bytes());out[p+8..p+12].copy_from_slice(&l.to_be_bytes());out.extend(val);
   }
   while out.len()%4!=0{out.push(0)}
   let n=out.len() as u32;out[..4].copy_from_slice(&n.to_be_bytes());Ok(out)
  }
  pub fn save_new(&self,p:&Path)->R<()>{
-  let b=self.bytes()?;let mut f=fs::OpenOptions::new().write(true).create_new(true).open(p).map_err(|e|e.to_string())?;
-  if let Err(e)=f.write_all(&b).and_then(|_|f.sync_all()){drop(f);let _=fs::remove_file(p);return Err(e.to_string())}Ok(())
+  let b=self.bytes()?;
+  let mut f=tempfile::NamedTempFile::new_in(p.parent().filter(|v|!v.as_os_str().is_empty()).unwrap_or(Path::new("."))).map_err(|e|e.to_string())?;
+  f.write_all(&b).and_then(|_|f.as_file().sync_all()).map_err(|e|e.to_string())?;
+  f.persist_noclobber(p).map_err(|e|e.to_string())?;Ok(())
  }
  pub fn describe(&mut self,name:&str){
   let mut t=Vec::new();
@@ -291,6 +300,7 @@ impl Lut{
   let out_curves=read_curve_set(t,output_offset,outputs)?;
   Ok(Self{inputs,outputs,grid,in_curves,clut,out_curves})
  }
+ #[allow(dead_code)] // retained strict sampled-LUT reference evaluator
  fn eval4(&self,x:[f64;4])->[f64;3]{
   let mut lo=[0usize;4];let mut hi=[0usize;4];let mut frac=[0.;4];
   for j in 0..4{let p=interp(&self.in_curves[j],x[j])*(self.grid-1) as f64;lo[j]=p.floor() as usize;hi[j]=(lo[j]+1).min(self.grid-1);frac[j]=p-lo[j] as f64;}
@@ -384,6 +394,17 @@ mod tests{
   assert!(Lut::parse(&a).is_err());
   let out=p.custom_rebuild([1.,1.,1.,0.],1.,9,|_|{}).unwrap();
   assert_eq!(out.tags[b"A2B1"],a);assert_eq!(out.verify([1.,1.,1.,0.]).unwrap()[3],0.);
+ }
+ #[test]fn atomic_icc_save_never_clobbers(){
+  let d=tempfile::tempdir().unwrap();let path=d.path().join("profile.icc");let p=fixture();
+  p.save_new(&path).unwrap();let original=fs::read(&path).unwrap();assert!(Profile::read(&path).is_ok());
+  assert!(synthetic_cmyk_v4(true).save_new(&path).is_err());assert_eq!(fs::read(&path).unwrap(),original);
+  assert_eq!(fs::read_dir(d.path()).unwrap().count(),1);
+ }
+ #[test]fn shared_tag_offsets_allowed(){
+  let mut p=fixture();p.tags.insert(*b"A2B0",p.tags[b"A2B1"].clone());let mut b=p.bytes().unwrap();
+  let shared=b[136..144].to_vec();b[148..156].copy_from_slice(&shared);
+  let parsed=Profile::parse(&b).unwrap();assert_eq!(parsed.tags[b"A2B0"],parsed.tags[b"A2B1"]);
  }
  #[test]fn rejects_bad_header(){assert!(Profile::parse(&[0;132]).is_err());}
  #[test]fn channel_names(){assert_eq!(fixture().channels(),vec!["Cyan","Magenta","Yellow","Black"]);}
