@@ -20,6 +20,30 @@ impl ViewOptions{
   match self.style(i){(true,true)=>"Solid + wire",(true,false)=>"Solid",(false,true)=>"Wireframe",_=>"Points"}
  }
 }
+/// Pure scheduling state for a latest-request preview. Only one frame can
+/// be in flight per view. A new camera replaces the desired key, not a queue.
+#[derive(Clone,Copy,Debug,PartialEq)]
+pub struct FrameKey{pub revision:u64,pub present:bool,pub options:ViewOptions}
+impl FrameKey{pub fn same_dataset(self,other:Self)->bool{self.revision==other.revision&&self.present==other.present}}
+#[derive(Default,Debug)]
+pub struct FrameGate{desired:Option<FrameKey>,running:Option<FrameKey>,completed:Option<FrameKey>}
+impl FrameGate{
+ pub fn request(&mut self,key:FrameKey)->bool{
+  self.desired=Some(key);
+  if self.running.is_some()||self.completed==Some(key){return false}
+  self.running=Some(key);true
+ }
+ /// Intermediate camera frames from the same dataset may be shown while
+ /// a newer camera is pending, but a previous dataset must never be shown.
+ pub fn complete(&mut self,key:FrameKey)->bool{
+  if self.running!=Some(key){return false}
+  self.running=None;
+  let publish=self.desired.is_some_and(|desired|desired.same_dataset(key));
+  if publish{self.completed=Some(key);}
+  publish
+ }
+ pub fn pending(&self)->bool{self.desired.is_some()&&(self.running.is_some()||self.desired!=self.completed)}
+}
 pub const SIZE:u32=640;
 const BEFORE:[u8;3]=[96,165,250];
 const AFTER:[u8;3]=[251,191,36];
@@ -358,6 +382,15 @@ pub fn render_prepared(data:Option<&Overlay>,o:ViewOptions,wire_cache:[Option<&[
   let mut d=example();d.reference.as_mut().unwrap().surface=Some(crate::gamut_surface::Surface{triangles:vec![[[10.,-10.,-10.],[90.,20.,-20.],[90.,0.,20.]]],resolution:25,volume:0.});
   let o=ViewOptions{candidate:false,..Default::default()};
   assert_ne!(render(Some(&d),o).image.as_raw(),render(Some(&d),ViewOptions{floor_contour:false,..o}).image.as_raw());
+ }
+ #[test]fn frame_gate_coalesces_and_rejects_old_dataset(){
+  let mut g=FrameGate::default();let a=FrameKey{revision:1,present:true,options:ViewOptions::default()};
+  let b=FrameKey{options:ViewOptions{yaw:1.2,..a.options},..a};
+  let c=FrameKey{options:ViewOptions{yaw:2.4,..a.options},..a};
+  assert!(g.request(a));assert!(!g.request(b));assert!(!g.request(c));assert!(g.pending());
+  assert!(g.complete(a));assert!(g.pending());assert!(g.request(c));assert!(!g.request(c));
+  let d=FrameKey{revision:2,..c};assert!(!g.request(d));assert!(!g.complete(c));assert!(g.request(d));assert!(g.complete(d));assert!(!g.pending());assert!(!g.request(d));
+  let absent=FrameKey{present:false,..d};assert!(g.request(absent));assert!(!g.request(d));assert!(!g.complete(absent));assert!(!g.request(d));assert!(!g.pending());
  }
  #[test]fn cached_camera_matches_original_projection(){
   for yaw in [0.,0.65,1.2,3.14,6.2]{for pitch in [-1.5,0.,0.45,1.5]{
