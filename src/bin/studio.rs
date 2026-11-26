@@ -696,7 +696,26 @@ impl Studio {
      .child(seg("compare-tint","Compare tint",!o.profile_colors).on_click(cx.listener(|v,_,_,cx|{v.preview_options.profile_colors=false;cx.notify();}))))
     .child(div().flex().gap_1().flex_wrap()
      .child(seg("floor","Floor",o.floor_contour).on_click(cx.listener(|v,_,_,cx|{v.preview_options.floor_contour=!v.preview_options.floor_contour;cx.notify();}))))
-    .child(seg("save-gamut-png","Export PNG",false).on_click(cx.listener(|v,_,_,cx|{if let Some(data)=&v.preview{if let Some(path)=rfd::FileDialog::new().add_filter("PNG",&["png"]).set_file_name("gamut.png").save_file(){let result=color_convert_rust::gamut_raster::render(Some(data.as_ref()),v.preview_options).png().and_then(|bytes|{use std::io::Write;let mut f=tempfile::NamedTempFile::new_in(path.parent().unwrap_or(std::path::Path::new("."))).map_err(|e|e.to_string())?;f.write_all(&bytes).map_err(|e|e.to_string())?;f.persist_noclobber(&path).map_err(|e|e.to_string())?;Ok(())});v.status=result.map(|_|format!("Saved {}",path.display())).unwrap_or_else(|e|format!("Error: {e}"));cx.notify();}}})))
+    .child(seg("save-gamut-png","Export PNG",false).on_click(cx.listener(|v,_,_,cx|{
+     if v.busy{return}
+     let Some(data)=v.preview.clone()else{return};
+     let Some(path)=rfd::FileDialog::new().add_filter("PNG",&["png"]).set_file_name("gamut.png").save_file()else{return};
+     let mut options=v.preview_options;
+     if v.candidate.is_none()&&options.layout!=CompareLayout::Shared{options.layout=CompareLayout::Shared;options.solid=true;options.wireframe=false;}
+     v.busy=true;v.status="Exporting gamut PNG…".into();cx.notify();
+     cx.spawn(async move|this,cx|{
+      let result=cx.background_spawn(async move{
+       let bytes=color_convert_rust::gamut_raster::render(Some(data.as_ref()),options).png()?;
+       use std::io::Write;
+       let parent=path.parent().filter(|p|!p.as_os_str().is_empty()).unwrap_or(std::path::Path::new("."));
+       let mut f=tempfile::NamedTempFile::new_in(parent).map_err(|e|e.to_string())?;
+       f.write_all(&bytes).map_err(|e|e.to_string())?;f.as_file().sync_all().map_err(|e|e.to_string())?;
+       f.persist_noclobber(&path).map_err(|e|e.to_string())?;
+       Ok::<_,String>(path)
+      }).await;
+      let _=this.update(cx,|v,cx|{v.busy=false;v.status=result.map(|path|format!("Saved {}",path.display())).unwrap_or_else(|e|format!("Error: {e}"));cx.notify();});
+     }).detach();
+    })))
     .child(div().text_xs().text_color(rgb(0xa1a1aa)).child(tr("Sampled round-trip ΔE00 ≤ 2 surface; profile colors approximate D50 Lab to sRGB. Wire grid = L* rings and hue meridians. Not a measured physical gamut.")));
   }
   p
