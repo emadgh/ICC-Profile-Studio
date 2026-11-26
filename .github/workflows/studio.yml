@@ -69,7 +69,22 @@ jobs:
           $tag = "studio-v$version"
           gh release view $tag --json tagName 2>$null
           if ($LASTEXITCODE -eq 0) { throw "Immutable Studio version exists; increment STUDIO_VERSION" }
-          gh release create $tag studio-dist/ICC-Profile-Studio.exe studio-dist/ICC-Profile-Studio.exe.sha256 ICC-Profile-Studio-Windows-x64.zip --target $env:GITHUB_SHA --prerelease --latest=false --title "ICC Profile Studio $version" --notes "Windows x64 preview. Automated tests passed; production printer and interactive runtime validation pending. ICC-only GPUI application."
+          # Publish only the executable. Keep the ZIP, checksum and provenance in CI.
+          # Draft first: the updater already accepts the GitHub SHA-256 asset digest.
+          $hash = (Get-FileHash studio-dist/ICC-Profile-Studio.exe -Algorithm SHA256).Hash.ToLowerInvariant()
+          gh release create $tag studio-dist/ICC-Profile-Studio.exe --target $env:GITHUB_SHA --draft --prerelease --latest=false --title "ICC Profile Studio $version" --notes "Windows x64 preview. Download and run the EXE. ArgyllCMS tools download on demand for supported operations. Automated tests passed; clean Windows runtime and production printer validation pending. CIE data attribution: https://github.com/$env:GITHUB_REPOSITORY/blob/$env:GITHUB_SHA/CIE_DATA.md"
+          if ($LASTEXITCODE -ne 0) { throw "Studio draft release creation failed" }
+          $query = '.[] | select(.tag_name == "{0}" and .draft == true) | .id' -f $tag
+          $ids = @(gh api "repos/$env:GITHUB_REPOSITORY/releases" --paginate --jq $query)
+          if ($LASTEXITCODE -ne 0 -or $ids.Count -ne 1) { throw "Cannot identify draft release" }
+          $releaseId = $ids[0]
+          $assetJson = gh api "repos/$env:GITHUB_REPOSITORY/releases/$releaseId/assets?per_page=100"
+          if ($LASTEXITCODE -ne 0) { throw "Cannot verify draft release assets" }
+          $assets = @($assetJson | Out-String | ConvertFrom-Json)
+          if ($assets.Count -ne 1 -or $assets[0].name -ne 'ICC-Profile-Studio.exe' -or $assets[0].digest -ne "sha256:$hash") {
+            throw "Expected exactly one executable with matching GitHub SHA-256 digest; draft retained for inspection"
+          }
+          gh release edit $tag --draft=false --prerelease --latest=false
           if ($LASTEXITCODE -ne 0) { throw "Studio preview publication failed" }
       - uses: actions/upload-artifact@v4
         with:
