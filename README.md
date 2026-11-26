@@ -117,3 +117,5 @@ Beta.43 adds validated numeric clipboard input and a retry action for failed upd
 Beta.44 enables predictive whole-profile ink optimization and physical-black preference for compatible ICC v2 LUT16 Lab profiles, with corrected PCS encoding and strict native sampled color acceptance across all four intents. See LEGACY_PREDICTIVE_QA.md. Advanced LUT8/mpet and true channel-count reduction remain unsupported.
 
 Beta.45 reduces temporary gamut raster allocations and repeated UI computation, caches bounded wire geometry, shares immutable characterization snapshots, prunes exact neighbor distance scans and polishes compact/RTL navigation. See PERFORMANCE_QA.md; actual Windows frame-time/peak-RAM and final UI acceptance remain pending.
+
+Beta.46 reduces redundant clipped/occluded wireframe interpolation, uses exact fast paths for fully opaque/transparent blending, and avoids the empty-scene compositing pass. Regression tests compare depth/color and integer blending against the previous implementation. CI and actual Windows frame-time validation pending.
