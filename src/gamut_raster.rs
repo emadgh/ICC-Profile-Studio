@@ -43,7 +43,9 @@ impl Camera{
 fn in_slice(v:[f32;3],o:ViewOptions)->bool{o.three_d||!o.slice||(v[0]-o.light).abs()<=5.}
 fn paint(img:&mut RgbImage,x:i32,y:i32,color:[u8;3],alpha:u16){
  if x<0||y<0||x>=SIZE as i32||y>=SIZE as i32{return}
+ if alpha==0{return}
  let p=img.get_pixel_mut(x as u32,y as u32);
+ if alpha==255{p.0=color;return}
  for j in 0..3{p.0[j]=((p.0[j] as u16*(255-alpha)+color[j] as u16*alpha)/255) as u8;}
 }
 fn dot(img:&mut RgbImage,p:[f32;2],color:[u8;3],radius:i32,alpha:u16){
@@ -104,13 +106,16 @@ impl Layer{
   let n=((a[0]-b[0]).abs().max((a[1]-b[1]).abs()).ceil() as usize).clamp(1,2048);
   for i in 0..=n{
    let t=i as f32/n as f32;let x=(a[0]+(b[0]-a[0])*t).round() as i32;let y=(a[1]+(b[1]-a[1])*t).round() as i32;
+   if x<0||y<0||x>=SIZE as i32||y>=SIZE as i32{continue}
+   let idx=y as usize*SIZE as usize+x as usize;
    let z=a[2]+(b[2]-a[2])*t;
+   let depth=z+if solid{1.0}else{0.};
+   // Preserve inclusive depth ties and the original solid-wire bias.
+   // Clipped or hidden samples cannot change a pixel; skip their RGB work.
+   if !(depth>=self.depth[idx]){continue}
    let mut c=std::array::from_fn(|j|(ca[j] as f32+(cb[j] as f32-ca[j] as f32)*t).round() as u8);
    if solid{c=c.map(|v|(v as f32*0.68).round() as u8);}
-   if x>=0&&y>=0&&x<SIZE as i32&&y<SIZE as i32{
-    let idx=y as usize*SIZE as usize+x as usize;
-    if !solid||z+1.0>=self.depth[idx]{self.pixel(x,y,z+if solid{1.0}else{0.},c);}
-   }
+   self.depth[idx]=depth;self.color[idx]=c;
   }
  }
 }
@@ -313,6 +318,8 @@ pub fn render_prepared(data:Option<&Overlay>,o:ViewOptions,wire_cache:[Option<&[
   }
   layers[i]=Some(layer);
  }
+ // Empty workspace and hidden profiles already contain the complete grid.
+ if layers.iter().all(Option::is_none){return Rendered{image:img,visible,units_per_half:range/zoom}}
  // Per-profile Z-buffer prevents the far surface from painting over near
  // triangles. When both profiles overlap, blend in depth order.
  for y in 0..SIZE{for x in 0..SIZE{
@@ -336,6 +343,34 @@ pub fn render_prepared(data:Option<&Overlay>,o:ViewOptions,wire_cache:[Option<&[
  Rendered{image:img,visible,units_per_half:range/zoom}
 }
 #[cfg(test)]mod tests{
+ #[test]fn paint_fast_paths_match_integer_blend(){
+  let initial=[17,121,239];let color=[250,9,87];let mut img=RgbImage::from_pixel(SIZE,SIZE,Rgb(initial));
+  for alpha in 0u16..=255{img.put_pixel(0,0,Rgb(initial));paint(&mut img,0,0,color,alpha);
+   let expected=std::array::from_fn(|j|((initial[j] as u16*(255-alpha)+color[j] as u16*alpha)/255) as u8);
+   assert_eq!(img.get_pixel(0,0).0,expected);
+  }
+ }
+ #[test]fn wire_early_rejection_preserves_depth_and_color(){
+  fn previous(layer:&mut Layer,a:[f32;3],b:[f32;3],ca:[u8;3],cb:[u8;3],solid:bool){
+   let n=((a[0]-b[0]).abs().max((a[1]-b[1]).abs()).ceil() as usize).clamp(1,2048);
+   for i in 0..=n{let t=i as f32/n as f32;let x=(a[0]+(b[0]-a[0])*t).round() as i32;let y=(a[1]+(b[1]-a[1])*t).round() as i32;
+    let z=a[2]+(b[2]-a[2])*t;
+    let mut c=std::array::from_fn(|j|(ca[j] as f32+(cb[j] as f32-ca[j] as f32)*t).round() as u8);
+    if solid{c=c.map(|v|(v as f32*0.68).round() as u8);}
+    if x>=0&&y>=0&&x<SIZE as i32&&y<SIZE as i32{let idx=y as usize*SIZE as usize+x as usize;
+     if !solid||z+1.0>=layer.depth[idx]{layer.pixel(x,y,z+if solid{1.0}else{0.},c);}
+    }
+   }
+  }
+  for solid in [false,true]{let mut old=Layer::new();let mut new=Layer::new();
+   for x in 0..40{old.pixel(x,10,5.,[30,40,50]);new.pixel(x,10,5.,[30,40,50]);}
+   for (a,b) in [([-20.,10.,0.],[60.,10.,10.]),([60.,10.,10.],[-20.,10.,0.]),([0.,10.,4.],[39.,10.,4.]),([0.,10.,5.],[39.,10.,5.]),([10.,-5.,6.],[10.,20.,6.]),([639.,639.,2.],[650.,650.,3.])]{
+    let ca=[5,220,71];let cb=[250,19,120];previous(&mut old,a,b,ca,cb,solid);new.wire(a,b,ca,cb,solid);
+   }
+   assert_eq!(old.depth,new.depth);assert_eq!(old.color,new.color);
+  }
+ }
+
  use super::*;
  fn example()->Overlay{
   let points=vec![[30.,-4.,-40.],[50.,12.,20.],[98.,0.,0.],[70.,22.,-25.]];
