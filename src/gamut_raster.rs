@@ -29,6 +29,7 @@ impl FrameKey{pub fn same_dataset(self,other:Self)->bool{self.revision==other.re
 pub struct FrameGate{desired:Option<FrameKey>,running:Option<FrameKey>,completed:Option<FrameKey>}
 impl FrameGate{
  pub fn request(&mut self,key:FrameKey)->bool{
+  if self.completed.is_some_and(|previous|!previous.same_dataset(key)){self.completed=None;}
   self.desired=Some(key);
   if self.running.is_some()||self.completed==Some(key){return false}
   self.running=Some(key);true
@@ -390,7 +391,7 @@ pub fn render_prepared(data:Option<&Overlay>,o:ViewOptions,wire_cache:[Option<&[
   assert!(g.request(a));assert!(!g.request(b));assert!(!g.request(c));assert!(g.pending());
   assert!(g.complete(a));assert!(g.pending());assert!(g.request(c));assert!(!g.request(c));
   let d=FrameKey{revision:2,..c};assert!(!g.request(d));assert!(!g.complete(c));assert!(g.request(d));assert!(g.complete(d));assert!(!g.pending());assert!(!g.request(d));
-  let absent=FrameKey{present:false,..d};assert!(g.request(absent));assert!(!g.request(d));assert!(!g.complete(absent));assert!(!g.request(d));assert!(!g.pending());
+  let absent=FrameKey{present:false,..d};assert!(g.request(absent));assert!(!g.request(d));assert!(!g.complete(absent));assert!(g.request(d));assert!(g.complete(d));assert!(!g.pending());
  }
  #[test]fn cached_camera_matches_original_projection(){
   for yaw in [0.,0.65,1.2,3.14,6.2]{for pitch in [-1.5,0.,0.45,1.5]{
