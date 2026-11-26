@@ -436,7 +436,7 @@ mod tests{
   let d=tempfile::tempdir().unwrap();
   for (i,mut p) in [fixture(),synthetic_cmyk_v4(true)].into_iter().enumerate(){
    p.header[84..100].fill(17);
-   for n in 0..4{let mut val=b"test\\0\\0\\0\\0".to_vec();val.resize(8+n,0x6b);p.tags.insert([b'z',b'z',b'z',b'0'+n as u8],val);}
+   for n in 0..4{let mut val=vec![b't',b'e',b's',b't',0,0,0,0];val.resize(8+n,0x6b);p.tags.insert([b'z',b'z',b'z',b'0'+n as u8],val);}
    let expected=previous_bytes(&p);let actual=p.bytes().unwrap();assert_eq!(actual,expected);
    let path=d.path().join(format!("{i}.icc"));p.save_new(&path).unwrap();assert_eq!(fs::read(&path).unwrap(),expected);
    let reopened=Profile::read(&path).unwrap();assert_eq!(reopened.tags,p.tags);
