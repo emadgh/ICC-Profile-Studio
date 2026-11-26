@@ -8,7 +8,7 @@ and build provenance. It is not Authenticode verification or a UI runtime test.
 
 ## Manual acceptance checklist (not yet executed)
 
-- Launch the extracted EXE on Windows 10/11 x64 without Rust installed.
+- Launch the standalone EXE on clean Windows 10/11 x64 without Rust installed; verify runtime dependencies and optional Argyll download separately.
 - Test real CMYK v2/v4 and nCLR printer profiles, embedded names and corrupt files.
   Compare original file hashes before and after editing.
 - Verify all reverse intents, ink ceilings, zero-ink channels and TAC; compare
@@ -31,9 +31,7 @@ and build provenance. It is not Authenticode verification or a UI runtime test.
 
 Manual workflow dispatch on main with publish_preview enabled creates a
 prerelease only after successful tests, compilation and archive verification.
-Regular CI uploads one ZIP instead of duplicating the EXE. Release assets
-retain the standalone EXE and checksum. No stable release or automatic beta
-update is implied by CI success.
+Regular CI uploads one verification ZIP containing the EXE, checksum, documentation, and provenance. Public prereleases attach only `ICC-Profile-Studio.exe`. Before making the draft public, verify that exactly one attached asset exists and its GitHub SHA-256 digest matches the locally computed executable hash. The existing updater accepts a valid asset digest without a separate checksum file and refuses unverified releases. If verification fails, the draft is retained and must be inspected manually before publication. GitHub-generated source archives are not uploaded release assets. No stable release or automatic beta update is implied by CI success.
 
 ## beta.28.1 workflow regression checks (pending)
 - Open Profiling Lab with embedded target, then a profile without one; verify automatic color grid and clear measured/predicted provenance. Change reference while the automatic task is pending; reject stale result. Check all tabs, advanced filters and explicit exports.
