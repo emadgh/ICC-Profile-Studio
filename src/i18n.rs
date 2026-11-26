@@ -682,6 +682,7 @@ const ROWS:&[[&str;5]]=&[
 ["Show navigation","نمایش منو","Mostra navigazione","إظهار التنقل","Показать навигацию"],
 ["Rendering preview…","در حال رندر پیش‌نمایش…","Rendering anteprima…","جارٍ تصيير المعاينة…","Рендеринг предпросмотра…"],
 ["Preview rendering failed","رندر پیش‌نمایش ناموفق بود","Rendering anteprima non riuscito","فشل تصيير المعاينة","Не удалось отрисовать предпросмотр"],
+["Exporting gamut PNG…","در حال خروجی PNG گاموت…","Esportazione PNG gamut…","جارٍ تصدير PNG للنطاق…","Экспорт PNG цветового охвата…"],
 ];
 #[cfg(test)]mod tests{use super::*;#[test]fn five_languages_and_fallback(){for l in Language::ALL{set_active(l);assert!(!tr("Settings").is_empty());assert_eq!(tr("A2B1"),"A2B1");}set_active(Language::Fa);assert_eq!(tr("Settings"),crate::rtl::visual("تنظیمات"));assert!(Language::Ar.rtl());}}
 
