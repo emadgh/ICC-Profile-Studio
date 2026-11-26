@@ -313,3 +313,7 @@ PR #35 supersedes the separately stacked #34 and includes all its gamut intent a
 - UI: compact navigation hide/show, scrollable status details, corrected single-profile default gamut styling, responsive expanded preview, scrollable plot/control panel, RTL header/brand, pointer release outside controls, five-language navigation labels. Manual Windows/DPI/IME and live updater tests remain open, as do #31/#32 advanced engine and physical release QA. Do not claim full UI sign-off or measured process RAM/FPS based on code changes alone. One final-head CI.
 
 - Beta.45 CI #113 failed at wire callback type inference (E0282); explicit type fix plus per-frame camera coefficients, occluded-fragment color skip, per-L* plane gamut sampling and progress redraw suppression added to same PR #39. No version bump; one final combined rerun, exact-head success required. Full Windows responsiveness and peak RSS acceptance remain manual.
+
+## Beta.46 — raster hot-path follow-up
+- Skip clipped and depth-rejected wire samples before RGB interpolation, retaining inclusive depth ties and the existing solid-wire offset; opaque and transparent pixel blend fast paths; skip the full compositing loop for a workspace without visible profile layers. No ICC processing changes.
+- Regression tests compare previous wire raster depth/color for clipping, overlap, ties and both solid/wire modes, plus all integer alpha values. Windows CI and measured performance pending; no measured FPS/RSS claim. One CI request on the final PR head.
