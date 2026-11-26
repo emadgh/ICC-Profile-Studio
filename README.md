@@ -119,3 +119,5 @@ Beta.44 enables predictive whole-profile ink optimization and physical-black pre
 Beta.45 reduces temporary gamut raster allocations and repeated UI computation, caches bounded wire geometry, shares immutable characterization snapshots, prunes exact neighbor distance scans and polishes compact/RTL navigation. See PERFORMANCE_QA.md; actual Windows frame-time/peak-RAM and final UI acceptance remain pending.
 
 Beta.46 moves CPU gamut raster and PNG export to background workers, coalesces camera requests and rejects stale dataset frames. Actual Windows latency, FPS and peak memory acceptance remain pending. See PERFORMANCE_QA.md.
+
+Beta.47 eliminates redundant clipped/occluded wire interpolation, uses exact transparent/opaque blend fast paths and skips empty-layer compositing. Keeps the Beta.46 asynchronous scheduler unchanged. Regression tests compare previous depth/color and all integer alpha values. CI and measured Windows performance pending.
