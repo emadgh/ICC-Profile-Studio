@@ -287,9 +287,10 @@ impl Studio {
 
  fn start_analysis_job(&mut self,cx:&mut Context<Self>)->color_convert_rust::analysis_job::Job{
   self.numeric_edit=None;let job=color_convert_rust::analysis_job::Job::default();self.analysis_job=Some(job.clone());let poll=job.clone();
-  cx.spawn(async move|this,cx|{loop{
+  cx.spawn(async move|this,cx|{let mut previous=None;loop{
    cx.background_executor().timer(Duration::from_millis(120)).await;
-   if !matches!(this.update(cx,|v,cx|{let active=v.analysis_job.as_ref().is_some_and(|j|j.same(&poll));if active{cx.notify();}active}),Ok(true)){break}
+   let current=poll.progress().display_state();let changed=previous!=Some(current);previous=Some(current);
+   if !matches!(this.update(cx,|v,cx|{let active=v.analysis_job.as_ref().is_some_and(|j|j.same(&poll));if active&&changed{cx.notify();}active}),Ok(true)){break}
   }}).detach();
   job
  }
