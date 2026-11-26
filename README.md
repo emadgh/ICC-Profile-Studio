@@ -26,7 +26,7 @@ ArgyllCMS revfix/colprof use official Windows Argyll 3.5.0 installed when requir
 
 ## Build and download
 
-Download the [Windows artifact](https://github.com/emadgh/color-convert-rust/actions/workflows/studio.yml) and verify SHA256. Extract and run ICC-Profile-Studio.exe.
+Download `ICC-Profile-Studio.exe` from [GitHub Releases](https://github.com/emadgh/color-convert-rust/releases) and run it directly. Releases attach only the executable; GitHub provides the asset SHA-256 digest. CI retains the separate verification ZIP, checksum, documentation and build provenance in its [workflow artifact](https://github.com/emadgh/color-convert-rust/actions/workflows/studio.yml). ArgyllCMS tools are downloaded when required, not bundled. Clean Windows runtime validation remains pending.
 
     cargo test --lib --no-default-features --release
     cargo build --release
