@@ -33,7 +33,13 @@ impl Rendered{
   Ok(bytes)
  }
 }
-fn projected(v:[f32;3],o:ViewOptions)->[f32;3]{if o.three_d{project(v,o.yaw,o.pitch)}else{[v[1],v[2],0.]}}
+// Reuse exactly the same f32 trigonometric coefficients for every vertex.
+#[derive(Clone,Copy)]
+struct Camera{three_d:bool,sy:f32,cy:f32,sp:f32,cp:f32}
+impl Camera{
+ fn new(o:ViewOptions)->Self{Self{three_d:o.three_d,sy:o.yaw.sin(),cy:o.yaw.cos(),sp:o.pitch.sin(),cp:o.pitch.cos()}}
+ #[inline]fn project(self,v:[f32;3])->[f32;3]{if self.three_d{let [l,a,b]=v;let z=l-50.;let x=a*self.cy-b*self.sy;let y=a*self.sy+b*self.cy;[x,z*self.cp-y*self.sp,z*self.sp+y*self.cp]}else{[v[1],v[2],0.]}}
+}
 fn in_slice(v:[f32;3],o:ViewOptions)->bool{o.three_d||!o.slice||(v[0]-o.light).abs()<=5.}
 fn paint(img:&mut RgbImage,x:i32,y:i32,color:[u8;3],alpha:u16){
  if x<0||y<0||x>=SIZE as i32||y>=SIZE as i32{return}
@@ -85,9 +91,12 @@ impl Layer{
    let (fx,fy)=(x as f32+0.5,y as f32+0.5);
    let a=edge(p[1],p[2],fx,fy)/area;let b=edge(p[2],p[0],fx,fy)/area;let c=1.-a-b;
    if a>=-0.00001&&b>=-0.00001&&c>=-0.00001{
-    let weights=[a,b,c];let z=(0..3).map(|j|weights[j]*p[j][2]).sum();
+    let weights=[a,b,c];let z=(0..3).map(|j|weights[j]*p[j][2]).sum::<f32>();
+    let idx=y as usize*SIZE as usize+x as usize;
+    // Rejected back fragments never need RGB interpolation.
+    if !(z>=self.depth[idx]){continue}
     let color=std::array::from_fn(|i|(0..3).map(|j|weights[j]*colors[j][i] as f32).sum::<f32>().round().clamp(0.,255.) as u8);
-    self.pixel(x,y,z,color);
+    self.depth[idx]=z;self.color[idx]=color;
    }
   }}
  }
@@ -226,7 +235,8 @@ pub fn render_prepared(data:Option<&Overlay>,o:ViewOptions,wire_cache:[Option<&[
  let zoom=if o.zoom.is_finite(){o.zoom.clamp(0.5,3.)}else{1.};
  let scale=(SIZE as f32/2.-28.)/range*zoom;
  let at=|v:[f32;3]|[SIZE as f32/2.+v[0]*scale,SIZE as f32/2.-v[1]*scale];
- let p=|v:[f32;3]|at(projected(v,o));
+ let camera=Camera::new(o);
+ let p=|v:[f32;3]|at(camera.project(v));
  let step=if range>100.{20.}else if range>50.{10.}else{5.};
  let tick_count=(range/step).floor() as i32;
  // The axis/grid is always rendered, including before a profile is opened.
@@ -255,7 +265,7 @@ pub fn render_prepared(data:Option<&Overlay>,o:ViewOptions,wire_cache:[Option<&[
   if !(if i==0{o.reference}else{o.candidate}){continue}
   let Some(c)=cloud else{continue};let (solid,wire)=o.style(i);styles[i]=(solid,wire);let tint=if i==0{BEFORE}else{AFTER};
   let color=|lab:[f32;3]|if o.profile_colors{lab_rgb(lab)}else{tint};
-  let screen=|v:[f32;3]|{let q=projected(v,o);let xy=at(q);[xy[0],xy[1],if o.three_d{q[2]}else{v[0]}]};
+  let screen=|v:[f32;3]|{let q=camera.project(v);let xy=at(q);[xy[0],xy[1],if o.three_d{q[2]}else{v[0]}]};
   let points=||c.points.iter().copied().filter(|v|v.iter().all(|v|v.is_finite())&&in_slice(*v,o));
   visible[i]=points().count();let mut layer=Layer::new();
   let mesh=if solid||wire||o.floor_contour&&o.three_d{triangles(c)}else{&[]};
@@ -348,6 +358,12 @@ pub fn render_prepared(data:Option<&Overlay>,o:ViewOptions,wire_cache:[Option<&[
   let mut d=example();d.reference.as_mut().unwrap().surface=Some(crate::gamut_surface::Surface{triangles:vec![[[10.,-10.,-10.],[90.,20.,-20.],[90.,0.,20.]]],resolution:25,volume:0.});
   let o=ViewOptions{candidate:false,..Default::default()};
   assert_ne!(render(Some(&d),o).image.as_raw(),render(Some(&d),ViewOptions{floor_contour:false,..o}).image.as_raw());
+ }
+ #[test]fn cached_camera_matches_original_projection(){
+  for yaw in [0.,0.65,1.2,3.14,6.2]{for pitch in [-1.5,0.,0.45,1.5]{
+   let o=ViewOptions{yaw,pitch,..Default::default()};let c=Camera::new(o);
+   for v in [[50.,0.,0.],[80.,30.,-20.],[0.,-128.,127.],[100.,127.,-128.]]{assert_eq!(c.project(v),project(v,yaw,pitch));}
+  }}
  }
  #[test]fn lab_color_has_expected_neutrals_and_hue(){
   let w=lab_rgb([100.,0.,0.]);assert!(w.iter().all(|&v|v>=254));assert_eq!(lab_rgb([0.,0.,0.]),[0;3]);
