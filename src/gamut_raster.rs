@@ -393,6 +393,15 @@ pub fn render_prepared(data:Option<&Overlay>,o:ViewOptions,wire_cache:[Option<&[
   let d=FrameKey{revision:2,..c};assert!(!g.request(d));assert!(!g.complete(c));assert!(g.request(d));assert!(g.complete(d));assert!(!g.pending());assert!(!g.request(d));
   let absent=FrameKey{present:false,..d};assert!(g.request(absent));assert!(!g.request(d));assert!(!g.complete(absent));assert!(g.request(d));assert!(g.complete(d));assert!(!g.pending());
  }
+ #[test]fn frame_gate_burst_never_enqueues_intermediate_requests(){
+  let mut gate=FrameGate::default();let first=FrameKey{revision:7,present:true,options:ViewOptions::default()};
+  assert!(gate.request(first));
+  let mut last=first;
+  for i in 1..=1000{last.options.yaw=i as f32*0.006;assert!(!gate.request(last));}
+  assert!(gate.complete(first));assert!(gate.pending());assert!(gate.request(last));
+  assert!(gate.complete(last));assert!(!gate.pending());assert!(!gate.request(last));
+  assert!(!gate.complete(first));
+ }
  #[test]fn cached_camera_matches_original_projection(){
   for yaw in [0.,0.65,1.2,3.14,6.2]{for pitch in [-1.5,0.,0.45,1.5]{
    let o=ViewOptions{yaw,pitch,..Default::default()};let c=Camera::new(o);
