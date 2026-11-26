@@ -59,7 +59,7 @@ update is implied by CI success.
 - Run `cargo test --lib --no-default-features --release sparse_rebuild_benchmark -- --ignored --nocapture` for the synthetic microbenchmark. No elapsed-time target is asserted in CI.
 
 ### beta.34 legacy correction acceptance (pending)
-- Verify v2 mft2 profiles enable bounded points, selective regions and smoothing only when all reverse intents are supported. Confirm v2 black generation/whole-profile optimization disabled with reason. Compare all four intents; test extended PCS endpoints, source caps, zero inks, explicit TAC, A2B bytes and no-clobber saves.
+- Verify v2 mft2 profiles enable bounded points, selective regions and smoothing only when all reverse intents are supported. For Beta.34 specifically, confirm v2 black generation/whole-profile optimization disabled with reason; Beta.44 subsequently enabled these tools for compatible LUT16 profiles (see Beta.44 acceptance). Compare all four intents; test extended PCS endpoints, source caps, zero inks, explicit TAC, A2B bytes and no-clobber saves.
 - Run opt-in FOGRA55 Rust regression with operator-supplied ICC; compare against independent native diagnostic and print/RIP validation. No physical color approval from structural checks alone.
 
 ### beta.35 N-color model acceptance (pending)
@@ -83,7 +83,7 @@ Verify per-ink grid controls, preset, product overflow and node/work budget, cha
 
 ## Current release checklist (2026-11-25; all unchecked until evidence is recorded)
 
-- [ ] #24 exact-head CI success after fix; previous #106 had 184 passed/4 ignored backend tests but failed GUI build.
+- [x] #24 exact-head CI #107 success after fix; previous #106 had 184 passed/4 ignored backend tests but failed GUI build.
 - [ ] #25 Persian/Arabic full UI layout, mixed-script/Latin paths and numeric fields, both DPI sizes; no reversed scientific axes or colorant order.
 - [ ] #26 All five languages, dynamic parameterized diagnostics and raw native details; no missing static strings in priority workflows.
 - [ ] #27 Sliders, +/- controls, direct numeric entries, keyboard and clamping; compare chart scales, legend/ink order, zero and missing data; busy guards.
@@ -104,7 +104,7 @@ Evidence per check: build commit, input profile signature/version/channel count,
 - [ ] Inventory remaining dynamic success/status messages, technical descriptions and raw native diagnostics; replace with stable typed IDs/parameters in future batches. Static literal translation checks are not proof of complete UI translation.
 
 ### Beta.41 consolidated CI and manual gates (pending)
-- [ ] One exact-head Windows CI for consolidated #35, including #34; previous CI #108 had already been launched before consolidation. No per-commit CI.
+- [x] Exact-head Windows CI #109 passed for consolidated #35, including #34; previous CI #108 had already been launched before consolidation. No per-commit CI.
 - [ ] Numeric value click, type ASCII/Persian/Arabic digits, decimal, minus, Enter/Escape/Backspace/Delete; invalid/out-of-range values rejected, step snapping and endpoints, busy guard, focus changes/page switches. Manual keyboard/IME and clipboard acceptance outstanding.
 - [ ] Read-only jobs: cancel before/mid/after checkpoint, no stale/cancelled result publication, correct progress phase count, UI recovery. Verify gamut in expanded mode, comparison, gradient, optimizer and all N-color audit workers. Rebuild uses separate publication-safe control; other write/external jobs not covered.
 - [ ] Gamut shared/separate intent selectors, same target set, all four intents, 2D/3D/panel and expanded mode, caveat for cross-intent comparison, native errors.
@@ -141,3 +141,8 @@ Evidence per check: build commit, input profile signature/version/channel count,
 - [ ] Rapid orbit/zoom, style switches, toggles and 2D slices on high-quality two-profile meshes; last requested camera eventually displayed; same-dataset intermediate frames marked rendering; old dataset never appears after a new dataset request. Open/reload/clear profiles while raster is active, switch tabs and filter chart. Verify no unbounded queue and responsive navigation.
 - [ ] Background PNG export matches requested view snapshot and does not overwrite existing output. Check file failure and busy recovery; preview worker is independent of write jobs. Worker panic handling assumes unwind; no claim of hard cancellation of an active raster.
 - [ ] Compare Beta.45/46 on Windows for UI response latency, raster wall time, peak private bytes, sustained FPS and visible final-frame convergence. No measured improvements claimed until this is executed. Manual RTL/IME and live updater remain open.
+
+### Audit update — 2026-11-26 / Beta.47
+- [x] CI #114, #115 and #116 passed for exact heads of PRs #39, #40 and #41, respectively; all three merged. This confirms automated checks, not runtime Windows or real-profile acceptance.
+- [ ] #30 rendering intent feature implemented; verify interactive scenarios above before closing. #25–29, #31–33 retain their explicit remaining gates; individual issue comments record progress and blockers.
+- [ ] Beta.48: check indexed dictionary parity, fallback/native detail preservation and both preview counts across five locales. Switch language with an existing or in-flight preview and confirm displayed counts change language without rerendering the mesh; manual RTL wrapping/DPI still required.

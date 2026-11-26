@@ -1,18 +1,22 @@
 //! UI localization dictionary. English fallback for unlocalized engine diagnostics.
 use serde::{Serialize,Deserialize};
-use std::cell::Cell;
+use std::{cell::Cell,collections::HashMap,sync::OnceLock};
 #[derive(Clone,Copy,Debug,Default,PartialEq,Eq,Serialize,Deserialize)]
 pub enum Language{#[default] En,Fa,It,Ar,Ru}
 impl Language{pub const ALL:[Self;5]=[Self::En,Self::Fa,Self::It,Self::Ar,Self::Ru];pub fn name(self)->&'static str{match self{Self::En=>"English",Self::Fa=>"فارسی",Self::It=>"Italiano",Self::Ar=>"العربية",Self::Ru=>"Русский"}}pub fn rtl(self)->bool{matches!(self,Self::Fa|Self::Ar)}}
 thread_local!{static ACTIVE:Cell<Language>=const{Cell::new(Language::En)};}
 pub fn set_active(l:Language){ACTIVE.with(|v|v.set(l));}
 pub fn is_rtl()->bool{ACTIVE.with(|v|v.get().rtl())}
-pub fn tr(s:&str)->String{let l=ACTIVE.with(Cell::get);let i=match l{Language::En=>0,Language::Fa=>1,Language::It=>2,Language::Ar=>3,Language::Ru=>4};let value=ROWS.iter().find(|r|r[0]==s).map(|r|r[i]).unwrap_or(s);crate::rtl::visual(value)}
+static INDEX:OnceLock<HashMap<&'static str,&'static [&'static str;5]>>=OnceLock::new();
+fn row(s:&str)->Option<&'static [&'static str;5]>{INDEX.get_or_init(||ROWS.iter().map(|r|(r[0],r)).collect()).get(s).copied()}
+pub fn tr(s:&str)->String{let l=ACTIVE.with(Cell::get);let i=match l{Language::En=>0,Language::Fa=>1,Language::It=>2,Language::Ar=>3,Language::Ru=>4};let value=row(s).map(|r|r[i]).unwrap_or(s);crate::rtl::visual(value)}
+/// Worker output stays numeric; translate on the current UI thread at display time.
+pub fn preview_summary(visible:[usize;2],units:f32)->String{format!("{}: {} · {}: {} · ±{:.0} Lab",tr("Reference points"),visible[0],tr("Candidate points"),visible[1],units)}
 /// Display-only diagnostic adapter. Keep raw strings for logging and engine APIs.
 pub fn diagnostic(raw:&str)->String{
  if ACTIVE.with(Cell::get)==Language::En{return raw.to_owned()}
  let translated=tr(raw);
- if ROWS.iter().any(|r|r[0]==raw){return format!("{}\n{}",translated,raw)}
+ if row(raw).is_some(){return format!("{}\n{}",translated,raw)}
  if let Some((prefix,detail))=raw.split_once(": "){
   if matches!(prefix,"Error"|"Open failed"|"Version conversion refused"|"Name preference not saved"|"Language preference not saved"){
    return format!("{}\n{}",tr(prefix),detail)
@@ -23,7 +27,7 @@ pub fn diagnostic(raw:&str)->String{
 /// Translate known status messages at render time, not at assignment.
 pub fn status(raw:&str)->String{
  if ACTIVE.with(Cell::get)==Language::En{return raw.to_owned()}
- if ROWS.iter().any(|r|r[0]==raw){return tr(raw)}
+ if row(raw).is_some(){return tr(raw)}
  // Keep runtime details on their own line so native paths, percentages,
  // Lab values and error messages are not reordered by the RTL shaper.
  const PREFIXES:&[(&str,&str)]=&[
@@ -682,6 +686,8 @@ const ROWS:&[[&str;5]]=&[
 ["Show navigation","نمایش منو","Mostra navigazione","إظهار التنقل","Показать навигацию"],
 ["Rendering preview…","در حال رندر پیش‌نمایش…","Rendering anteprima…","جارٍ تصيير المعاينة…","Рендеринг предпросмотра…"],
 ["Preview rendering failed","رندر پیش‌نمایش ناموفق بود","Rendering anteprima non riuscito","فشل تصيير المعاينة","Не удалось отрисовать предпросмотр"],
+["Reference points","نقاط مرجع","Punti di riferimento","نقاط المرجع","Точки эталона"],
+["Candidate points","نقاط مقایسه","Punti di confronto","نقاط المقارنة","Точки кандидата"],
 ["Exporting gamut PNG…","در حال خروجی PNG گاموت…","Esportazione PNG gamut…","جارٍ تصدير PNG للنطاق…","Экспорт PNG цветового охвата…"],
 ];
 #[cfg(test)]mod tests{use super::*;#[test]fn five_languages_and_fallback(){for l in Language::ALL{set_active(l);assert!(!tr("Settings").is_empty());assert_eq!(tr("A2B1"),"A2B1");}set_active(Language::Fa);assert_eq!(tr("Settings"),crate::rtl::visual("تنظیمات"));assert!(Language::Ar.rtl());}}
@@ -699,13 +705,14 @@ mod coverage_tests {
  }
  #[test]
  fn literal_studio_translation_calls_are_covered() {
-  let source=include_str!("bin/studio.rs");
+  for source in [include_str!("bin/studio.rs"),include_str!("gamut_view.rs")] {
   for tail in source.split("tr(\"").skip(1) {
    if let Some((key,_))=tail.split_once("\"") {
     if !key.contains('\\') {
-     assert!(ROWS.iter().any(|row|row[0]==key),"missing UI translation: {key}");
+     assert!(row(key).is_some(),"missing UI translation: {key}");
     }
    }
+  }
   }
  }
 }
@@ -725,4 +732,10 @@ mod coverage_tests {
   let messages=["Saved edited ICC: C:\\ICC\\new.icc","Compared 729 sRGB samples and 33 neutrals.","Gamut ready: 123 reference points, 456 candidate points","42 candidate recipes evaluated","Error: native A2B1"];
   for lang in Language::ALL{set_active(lang);for raw in messages{let shown=status(raw);if lang==Language::En{assert_eq!(shown,raw)}else{assert!(shown.ends_with(raw));assert_ne!(shown,raw);}}}
  }
+}
+
+#[cfg(test)]mod indexed_preview_tests{
+ use super::*;
+ #[test]fn indexed_lookup_matches_linear_dictionary(){for r in ROWS{assert_eq!(row(r[0]),Some(r));}assert!(row("untranslated engine details").is_none());}
+ #[test]fn preview_summary_follows_current_language(){for lang in Language::ALL{set_active(lang);let shown=preview_summary([123,456],78.);assert!(shown.contains(&tr("Reference points")));assert!(shown.contains(&tr("Candidate points")));assert!(shown.contains("123"));assert!(shown.contains("456"));assert!(shown.contains("±78 Lab"));}set_active(Language::En);}
 }

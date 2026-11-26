@@ -322,3 +322,7 @@ PR #35 supersedes the separately stacked #34 and includes all its gamut intent a
 ## Beta.47 — raster hot-path follow-up
 - Beta.46 PR #40 merged after exact-head CI #115. Carry forward only raster changes from the earlier isolated optimization branch; retain background scheduling and PNG export. Skip clipped/occluded wire RGB interpolation, preserve inclusive depth ties and solid-wire bias; direct opaque writes, transparent no-ops and skip empty-layer compositing. No ICC processing changes.
 - Regression tests compare old/new wire depth and pixel colors, and all integer alpha values. Existing frame scheduling tests retained. One final-head CI request. Actual Windows frame times, memory and manual UI/RTL acceptance remain unverified.
+
+## Beta.48 — localization and issue audit
+- Beta.47 PR #41 merged after exact-head CI #116. Audited all nine open issues #25–33, added individual progress/remaining-work comments; retain explicit acceptance criteria. #30 feature implementation complete; Windows interactive acceptance still pending. No issue falsely closed.
+- #26/#25: indexed lookup for 642 dictionary rows using OnceLock/HashMap, preserving fallback and original raw diagnostics; preview counts now carried as typed worker data and translated on UI thread in current locale. Extend literal coverage checks to gamut_view.rs; parity and locale-switch tests. No ICC math or async scheduling change. One final-head CI request; manual UI acceptance still required.

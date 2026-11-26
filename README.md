@@ -121,3 +121,5 @@ Beta.45 reduces temporary gamut raster allocations and repeated UI computation, 
 Beta.46 moves CPU gamut raster and PNG export to background workers, coalesces camera requests and rejects stale dataset frames. Actual Windows latency, FPS and peak memory acceptance remain pending. See PERFORMANCE_QA.md.
 
 Beta.47 eliminates redundant clipped/occluded wire interpolation, uses exact transparent/opaque blend fast paths and skips empty-layer compositing. Keeps the Beta.46 asynchronous scheduler unchanged. Regression tests compare previous depth/color and all integer alpha values. CI and measured Windows performance pending.
+
+Beta.48 indexes the five-language UI dictionary once, retains numeric preview statistics in worker results, and translates preview counts on the current UI thread (including after language switches). Automated dictionary and preview summary checks added; Windows mixed-script UI acceptance remains pending.
