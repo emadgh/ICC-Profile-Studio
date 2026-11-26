@@ -123,3 +123,5 @@ Beta.46 moves CPU gamut raster and PNG export to background workers, coalesces c
 Beta.47 eliminates redundant clipped/occluded wire interpolation, uses exact transparent/opaque blend fast paths and skips empty-layer compositing. Keeps the Beta.46 asynchronous scheduler unchanged. Regression tests compare previous depth/color and all integer alpha values. CI and measured Windows performance pending.
 
 Beta.48 indexes the five-language UI dictionary once, retains numeric preview statistics in worker results, and translates preview counts on the current UI thread (including after language switches). Automated dictionary and preview summary checks added; Windows mixed-script UI acceptance remains pending.
+
+Beta.49 streams ICC tag payloads directly into atomic no-clobber temporary saves and reserves the exact planned capacity for in-memory serialization. A shared directory plan preserves previous serialized bytes; parity and partial-write tests added. No change to ICC color processing or the read path. CI and measured Windows memory acceptance pending.
