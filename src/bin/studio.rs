@@ -33,7 +33,7 @@ struct Studio {
  link_grid:usize,link_tolerance:f64,link_intent:lcms2::Intent,link_report:Option<(PathBuf,PathBuf,PathBuf,device_link::MultiLinkReport)>,
  slider_drag:Option<(&'static str,usize)>,numeric_edit:Option<((&'static str,usize),String,FocusHandle,bool)>,embedded_names:bool,display_profile:Option<Profile>,source_bounds:Option<color_convert_rust::print_space::Bounds>,source_tac_estimate:Option<f64>,language:Language,nav_collapsed:[bool;5],nav_visible:bool,picker:Option<Picker>,system_catalog:Option<system_profiles::Catalog>,system_error:Option<String>,system_loading:bool,
  version_allow_omit:bool,version_relative_only:bool,version_de:f64,version_ink:f64,version_report:Option<versioning::Report>,page:Page, source:Option<PathBuf>, capability:Option<Capabilities>, predicted_inks:Vec<u32>, report:Option<Inspection>, error:Option<String>,
- caps:Vec<f64>,tac:f64,grid:usize,mode:Mode,status:String,busy:bool,analysis_job:Option<color_convert_rust::analysis_job::Job>,rebuild_control:Option<color_convert_rust::multichannel::RebuildControl>, candidate:Option<PathBuf>,comparison:Option<Comparison>,compare_error:Option<String>,compare_grid:usize,compare_intent:lcms2::Intent,gamma:Vec<f64>,order:Vec<usize>, preview_open:bool, preview:Option<Overlay>, preview_revision:u64, preview_width:f32,preview_fullscreen:bool,resize_last:Option<Pixels>,gamut_advanced:bool,curve_drag:Option<(usize,usize,Pixels)>,curve_mode:usize,curve_channel:usize, preview_cache:std::cell::RefCell<gamut_view::PreviewCache>, preview_options:ViewOptions, gamut_grid:usize,gamut_reference_intent:lcms2::Intent,gamut_candidate_intent:lcms2::Intent,gamut_separate_intents:bool,gradient:Option<GradientReport>,gradient_detail:Option<usize>,gradient_selected:usize,gradient_shared_scale:bool,gradient_error:Option<String>,coverage_threshold:f64, regions:[Selective;MAX_REGIONS],region_count:usize,region_selected:usize, correction_grid:usize, correction_tac:f64, smoothing:f64, smoothing_passes:usize,orbit_last:Option<Point<Pixels>>,chart_dpi:u32,recipe_target:[f64;3],recipe_settings:RecipeSettings,recipe_result:Option<RecipeReport>,lab_levels:usize,lab_tab:usize,lab_advanced:bool,lab_loading:bool,lab_attempted:bool,lab_epoch:u64,lab_error:Option<String>,compare_overlay:bool,compare_details:bool,recipe_tab:usize,recipe_weights_open:bool,characterization:Option<std::sync::Arc<color_convert_rust::characterization::Chart>>,characterization_page:usize,characterization_patch:Option<usize>,characterization_fit:Option<color_convert_rust::characterization::Fit>,ncolor_report:Option<color_convert_rust::ncolor_model::CrossValidation>,ncolor_inverse:Option<color_convert_rust::ncolor_model::InverseReport>,ncolor_audit:Option<color_convert_rust::ncolor_model::ContinuityAudit>,ncolor_ramp:Option<color_convert_rust::ncolor_model::InverseRampAudit>,ncolor_regularized:Option<color_convert_rust::ncolor_model::RegularizedRamp>,ncolor_lattice:Option<color_convert_rust::ncolor_model::LatticeAudit>,ncolor_forward:Option<color_convert_rust::ncolor_model::ForwardGridAudit>,ncolor_forward_grid:Vec<usize>,ncolor_span:[f64;3],ncolor_slice:usize,ncolor_lambda:f64,ncolor_target:[f64;3],ncolor_tolerance:f64,ncolor_distance:f64,characterization_measured:bool,characterization_heat:bool,spectral_illuminant:Illuminant,spectral_observer:Observer,characterization_filter:target_tools::Filter,characterization_cloud:bool,characterization_view:ViewOptions,characterization_cache:std::cell::RefCell<gamut_view::PreviewCache>,characterization_cloud_cache:std::cell::RefCell<Option<(u64,Overlay)>>,characterization_revision:u64,measured:[Option<PathBuf>;2],measurement_result:Option<MeasuredComparison>,black:BlackGeneration,black_channel:Option<usize>,curve_points:Vec<[f64;5]>,logo:std::sync::Arc<gpui::Image>,#[cfg(windows)] updater:StudioUpdater,#[cfg(windows)] update_started:bool,#[cfg(windows)] update_notice:Option<String>,#[cfg(windows)] notified_version:Option<String>,
+ caps:Vec<f64>,tac:f64,grid:usize,mode:Mode,status:String,busy:bool,analysis_job:Option<color_convert_rust::analysis_job::Job>,rebuild_control:Option<color_convert_rust::multichannel::RebuildControl>, candidate:Option<PathBuf>,comparison:Option<Comparison>,compare_error:Option<String>,compare_grid:usize,compare_intent:lcms2::Intent,gamma:Vec<f64>,order:Vec<usize>, preview_open:bool, preview:Option<std::sync::Arc<Overlay>>, preview_revision:u64, preview_width:f32,preview_fullscreen:bool,resize_last:Option<Pixels>,gamut_advanced:bool,curve_drag:Option<(usize,usize,Pixels)>,curve_mode:usize,curve_channel:usize, preview_cache:std::cell::RefCell<gamut_view::PreviewCache>, preview_options:ViewOptions, gamut_grid:usize,gamut_reference_intent:lcms2::Intent,gamut_candidate_intent:lcms2::Intent,gamut_separate_intents:bool,gradient:Option<GradientReport>,gradient_detail:Option<usize>,gradient_selected:usize,gradient_shared_scale:bool,gradient_error:Option<String>,coverage_threshold:f64, regions:[Selective;MAX_REGIONS],region_count:usize,region_selected:usize, correction_grid:usize, correction_tac:f64, smoothing:f64, smoothing_passes:usize,orbit_last:Option<Point<Pixels>>,chart_dpi:u32,recipe_target:[f64;3],recipe_settings:RecipeSettings,recipe_result:Option<RecipeReport>,lab_levels:usize,lab_tab:usize,lab_advanced:bool,lab_loading:bool,lab_attempted:bool,lab_epoch:u64,lab_error:Option<String>,compare_overlay:bool,compare_details:bool,recipe_tab:usize,recipe_weights_open:bool,characterization:Option<std::sync::Arc<color_convert_rust::characterization::Chart>>,characterization_page:usize,characterization_patch:Option<usize>,characterization_fit:Option<color_convert_rust::characterization::Fit>,ncolor_report:Option<color_convert_rust::ncolor_model::CrossValidation>,ncolor_inverse:Option<color_convert_rust::ncolor_model::InverseReport>,ncolor_audit:Option<color_convert_rust::ncolor_model::ContinuityAudit>,ncolor_ramp:Option<color_convert_rust::ncolor_model::InverseRampAudit>,ncolor_regularized:Option<color_convert_rust::ncolor_model::RegularizedRamp>,ncolor_lattice:Option<color_convert_rust::ncolor_model::LatticeAudit>,ncolor_forward:Option<color_convert_rust::ncolor_model::ForwardGridAudit>,ncolor_forward_grid:Vec<usize>,ncolor_span:[f64;3],ncolor_slice:usize,ncolor_lambda:f64,ncolor_target:[f64;3],ncolor_tolerance:f64,ncolor_distance:f64,characterization_measured:bool,characterization_heat:bool,spectral_illuminant:Illuminant,spectral_observer:Observer,characterization_filter:target_tools::Filter,characterization_cloud:bool,characterization_view:ViewOptions,characterization_cache:std::cell::RefCell<gamut_view::PreviewCache>,characterization_cloud_cache:std::cell::RefCell<Option<(u64,std::sync::Arc<Overlay>)>>,characterization_revision:u64,measured:[Option<PathBuf>;2],measurement_result:Option<MeasuredComparison>,black:BlackGeneration,black_channel:Option<usize>,curve_points:Vec<[f64;5]>,logo:std::sync::Arc<gpui::Image>,#[cfg(windows)] updater:StudioUpdater,#[cfg(windows)] update_started:bool,#[cfg(windows)] update_notice:Option<String>,#[cfg(windows)] notified_version:Option<String>,
 }
 impl Default for Studio {
  fn default()->Self{Self{link_grid:0,link_tolerance:2.,link_intent:lcms2::Intent::RelativeColorimetric,link_report:None,slider_drag:None,numeric_edit:None,embedded_names:true,display_profile:None,source_bounds:None,source_tac_estimate:None,language:Language::En,nav_collapsed:[false;5],nav_visible:true,picker:None,system_catalog:None,system_error:None,system_loading:false,version_allow_omit:false,version_relative_only:false,version_de:0.5,version_ink:0.5,version_report:None,page:Page::Inspector,source:None,capability:None,predicted_inks:vec![],report:None,error:None,caps:vec![],tac:240.,grid:33,mode:Mode::Custom,status:"Open an ICC or ICM profile to start.".into(),busy:false,analysis_job:None,rebuild_control:None,candidate:None,comparison:None,compare_error:None,compare_grid:17,compare_intent:lcms2::Intent::RelativeColorimetric,gamma:vec![],order:vec![],preview_open:true,preview:None,preview_revision:0,preview_width:360.,preview_fullscreen:false,resize_last:None,gamut_advanced:false,curve_drag:None,curve_mode:0,curve_channel:0,preview_cache:std::cell::RefCell::new(gamut_view::PreviewCache::default()),preview_options:ViewOptions::default(),gamut_grid:33,gamut_reference_intent:lcms2::Intent::RelativeColorimetric,gamut_candidate_intent:lcms2::Intent::RelativeColorimetric,gamut_separate_intents:false,gradient:None,gradient_detail:None,gradient_selected:0,gradient_shared_scale:true,gradient_error:None,coverage_threshold:2.,regions:[Selective::default();MAX_REGIONS],region_count:1,region_selected:0,correction_grid:33,correction_tac:400.,smoothing:0.20,smoothing_passes:1,orbit_last:None,chart_dpi:300,recipe_target:[50.,0.,0.],recipe_settings:RecipeSettings{caps:vec![100.;4],tac:240.,weights:vec![1.;4],tolerance:2.},recipe_result:None,lab_levels:5,lab_tab:0,lab_advanced:false,lab_loading:false,lab_attempted:false,lab_epoch:0,lab_error:None,compare_overlay:true,compare_details:false,recipe_tab:0,recipe_weights_open:false,characterization:None,characterization_page:1,characterization_patch:None,characterization_fit:None,ncolor_report:None,ncolor_inverse:None,ncolor_audit:None,ncolor_ramp:None,ncolor_regularized:None,ncolor_lattice:None,ncolor_forward:None,ncolor_forward_grid:vec![],ncolor_span:[1.;3],ncolor_slice:1,ncolor_lambda:0.02,ncolor_target:[50.,0.,0.],ncolor_tolerance:2.,ncolor_distance:0.4,characterization_measured:false,characterization_heat:false,spectral_illuminant:Illuminant::D50,spectral_observer:Observer::Two,characterization_filter:target_tools::Filter::default(),characterization_cloud:false,characterization_view:ViewOptions{profile_colors:false,layout:CompareLayout::Shared,solid:false,wireframe:false,floor_contour:false,..ViewOptions::default()},characterization_cache:std::cell::RefCell::new(gamut_view::PreviewCache::default()),characterization_cloud_cache:Default::default(),characterization_revision:0,measured:[None,None],measurement_result:None,black:BlackGeneration::default(),black_channel:None,curve_points:IDENTITY_POINTS.to_vec(),logo:std::sync::Arc::new(gpui::Image::from_bytes(gpui::ImageFormat::Png,include_bytes!("../../assets/icon.png").to_vec())),#[cfg(windows)] update_started:false,#[cfg(windows)] update_notice:None,#[cfg(windows)] notified_version:None,#[cfg(windows)] updater:StudioUpdater::new(UpdateConfig::new("emadgh/color-convert-rust","ICC-Profile-Studio.exe",STUDIO_VERSION.trim()).with_app_name("ICC Profile Studio").with_checksum_asset("ICC-Profile-Studio.exe.sha256").with_required_checksum(true))}}
@@ -558,9 +558,25 @@ impl Studio {
   let job=self.start_analysis_job(cx);cx.spawn(async move |this,cx|{
    let worker=job.clone();let result=cx.background_spawn(async move{worker.run(||Ok(gamut::overlay_with_intents(&reference,candidate.as_deref(),grid,reference_intent,candidate_intent)))}).await;
    let _=this.update(cx,|view,cx|{if !view.finish_analysis_job(&job,cx){return}
-    let result=match result{Ok(r)=>r,Err(e)=>{view.status=e;cx.notify();return}};let status=match &result.reference{Ok(c)=>format!("Gamut ready: {} reference points{}",c.points.len(),match &result.candidate{Some(Ok(c))=>format!(", {} candidate points",c.points.len()),Some(Err(e))=>format!("; candidate failed: {e}"),None=>String::new()}),Err(e)=>format!("Reference gamut failed: {e}")};view.preview=Some(result);view.preview_revision=view.preview_revision.wrapping_add(1);view.busy=false;view.status=status;cx.notify();
+    let result=match result{Ok(r)=>r,Err(e)=>{view.status=e;cx.notify();return}};let status=match &result.reference{Ok(c)=>format!("Gamut ready: {} reference points{}",c.points.len(),match &result.candidate{Some(Ok(c))=>format!(", {} candidate points",c.points.len()),Some(Err(e))=>format!("; candidate failed: {e}"),None=>String::new()}),Err(e)=>format!("Reference gamut failed: {e}")};view.preview=Some(std::sync::Arc::new(result));view.preview_revision=view.preview_revision.wrapping_add(1);view.busy=false;view.status=status;cx.notify();
    });
   }).detach();
+ }
+ /// Both preview widgets share the main frame slot; characterization has
+ /// its own slot. No heavy geometry work runs in the GPUI render callback.
+ fn async_gamut_frame(&self,data:Option<std::sync::Arc<Overlay>>,revision:u64,o:ViewOptions,characterization:bool,display:f32,cx:&mut Context<Self>)->Div{
+  let cache=if characterization{&self.characterization_cache}else{&self.preview_cache};
+  let work=cache.borrow_mut().request(data,revision,o);
+  if let Some(work)=work{
+   cx.spawn(async move|this,cx|{
+    let result=cx.background_spawn(async move{work.run()}).await;
+    let _=this.update(cx,|v,cx|{
+     let cache=if characterization{&v.characterization_cache}else{&v.preview_cache};
+     cache.borrow_mut().complete(result);cx.notify();
+    });
+   }).detach();
+  }
+  gamut_view::plot(&cache.borrow(),display)
  }
  fn gamut_plot(&self,display:f32,id:&'static str,cx:&mut Context<Self>)->Stateful<Div>{
   let mut o=self.preview_options;
@@ -586,7 +602,7 @@ impl Studio {
      let dy=f32::from(e.delta.pixel_delta(px(20.)).y);
      if dy.is_finite(){this.preview_options.zoom=(this.preview_options.zoom*(dy*0.004).clamp(-0.6,0.6).exp()).clamp(0.5,3.);cx.notify();cx.stop_propagation();}
     }))
-    .child(gamut_view::plot(self.preview.as_ref(),self.preview_revision,o,&mut self.preview_cache.borrow_mut(),display))
+    .child(self.async_gamut_frame(self.preview.clone(),self.preview_revision,o,false,display,cx))
  }
  fn gamut_toolbar(&self,cx:&mut Context<Self>)->Div{
   let mut o=self.preview_options;
@@ -680,7 +696,26 @@ impl Studio {
      .child(seg("compare-tint","Compare tint",!o.profile_colors).on_click(cx.listener(|v,_,_,cx|{v.preview_options.profile_colors=false;cx.notify();}))))
     .child(div().flex().gap_1().flex_wrap()
      .child(seg("floor","Floor",o.floor_contour).on_click(cx.listener(|v,_,_,cx|{v.preview_options.floor_contour=!v.preview_options.floor_contour;cx.notify();}))))
-    .child(seg("save-gamut-png","Export PNG",false).on_click(cx.listener(|v,_,_,cx|{if let Some(data)=&v.preview{if let Some(path)=rfd::FileDialog::new().add_filter("PNG",&["png"]).set_file_name("gamut.png").save_file(){let result=color_convert_rust::gamut_raster::render(Some(data),v.preview_options).png().and_then(|bytes|{use std::io::Write;let mut f=tempfile::NamedTempFile::new_in(path.parent().unwrap_or(std::path::Path::new("."))).map_err(|e|e.to_string())?;f.write_all(&bytes).map_err(|e|e.to_string())?;f.persist_noclobber(&path).map_err(|e|e.to_string())?;Ok(())});v.status=result.map(|_|format!("Saved {}",path.display())).unwrap_or_else(|e|format!("Error: {e}"));cx.notify();}}})))
+    .child(seg("save-gamut-png","Export PNG",false).on_click(cx.listener(|v,_,_,cx|{
+     if v.busy{return}
+     let Some(data)=v.preview.clone()else{return};
+     let Some(path)=rfd::FileDialog::new().add_filter("PNG",&["png"]).set_file_name("gamut.png").save_file()else{return};
+     let mut options=v.preview_options;
+     if v.candidate.is_none()&&options.layout!=CompareLayout::Shared{options.layout=CompareLayout::Shared;options.solid=true;options.wireframe=false;}
+     v.busy=true;v.status="Exporting gamut PNG…".into();cx.notify();
+     cx.spawn(async move|this,cx|{
+      let result=cx.background_spawn(async move{
+       let bytes=color_convert_rust::gamut_raster::render(Some(data.as_ref()),options).png()?;
+       use std::io::Write;
+       let parent=path.parent().filter(|p|!p.as_os_str().is_empty()).unwrap_or(std::path::Path::new("."));
+       let mut f=tempfile::NamedTempFile::new_in(parent).map_err(|e|e.to_string())?;
+       f.write_all(&bytes).map_err(|e|e.to_string())?;f.as_file().sync_all().map_err(|e|e.to_string())?;
+       f.persist_noclobber(&path).map_err(|e|e.to_string())?;
+       Ok::<_,String>(path)
+      }).await;
+      let _=this.update(cx,|v,cx|{v.busy=false;v.status=result.map(|path|format!("Saved {}",path.display())).unwrap_or_else(|e|format!("Error: {e}"));cx.notify();});
+     }).detach();
+    })))
     .child(div().text_xs().text_color(rgb(0xa1a1aa)).child(tr("Sampled round-trip ΔE00 ≤ 2 surface; profile colors approximate D50 Lab to sRGB. Wire grid = L* rings and hue meridians. Not a measured physical gamut.")));
   }
   p
@@ -1350,8 +1385,8 @@ impl Studio {
   p=p.child(seg("target-cloud-toggle",tr("Paired 3D Lab cloud"),self.characterization_cloud).on_click(cx.listener(|v,_,_,cx|{v.characterization_cloud=!v.characterization_cloud;cx.notify();})));
   if self.characterization_cloud{
    let mut cached=self.characterization_cloud_cache.borrow_mut();
-   if cached.as_ref().map_or(true,|(revision,_)|*revision!=self.characterization_revision){*cached=Some((self.characterization_revision,target_tools::paired_cloud(c,filter)));}
-   let overlay=&cached.as_ref().unwrap().1;
+   if cached.as_ref().map_or(true,|(revision,_)|*revision!=self.characterization_revision){*cached=Some((self.characterization_revision,std::sync::Arc::new(target_tools::paired_cloud(c,filter))));}
+   let overlay=cached.as_ref().unwrap().1.clone();drop(cached);
    p=p.child(tr("Matched target patches: measured D50/2° estimates or declared Lab (blue) and absolute ICC predictions (amber). Not a full gamut boundary."))
     .child(div().flex().gap_2().items_center().child(swatch(0x60a5fa,12.)).child(tr("Measurement")).child(swatch(0xfbbf24,12.)).child(tr("ICC prediction")))
     .child(div().flex().items_center().gap_2().child(tr("Yaw")).child(self.numeric_slider(("target-yaw",0),self.characterization_view.yaw as f64,-3.14,3.14,0.05,|v,x|v.characterization_view.yaw=x as f32,cx)))
@@ -1359,7 +1394,7 @@ impl Studio {
     .child(div().flex().gap_1()
      .child(seg("target-cloud-ref","Measurement",self.characterization_view.reference).on_click(cx.listener(|v,_,_,cx|{v.characterization_view.reference=!v.characterization_view.reference;cx.notify();})))
      .child(seg("target-cloud-icc","ICC",self.characterization_view.candidate).on_click(cx.listener(|v,_,_,cx|{v.characterization_view.candidate=!v.characterization_view.candidate;cx.notify();}))))
-    .child(gamut_view::plot(Some(overlay),self.characterization_revision,self.characterization_view,&mut self.characterization_cache.borrow_mut(),420.));
+    .child(self.async_gamut_frame(Some(overlay),self.characterization_revision,self.characterization_view,true,420.,cx));
   }
   }
   p=p.child(button("target-cgats-export",tr("Export target CGATS")).on_click(cx.listener(|v,_,_,cx|{
