@@ -293,7 +293,7 @@ pub fn render_prepared(data:Option<&Overlay>,o:ViewOptions,wire_cache:[Option<&[
     outline_only[i]=wire&&!solid;
    }else{
     if solid{for &t in mesh{layer.triangle(t.map(screen),t.map(color));}}
-    if wire{let mut draw=|[a,b]|{layer.wire(screen(a),screen(b),color(a),color(b),solid);true};
+    if wire{let mut draw=|[a,b]:[[f32;3];2]|{layer.wire(screen(a),screen(b),color(a),color(b),solid);true};
      if let Some(segments)=wire_cache[i]{for &segment in segments{draw(segment);}}else{visit_quad_grid(mesh,draw);}
     }
    }
