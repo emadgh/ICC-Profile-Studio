@@ -130,22 +130,43 @@ impl Profile {
   if self.tags.keys().any(|k|k.starts_with(b"B2D")){return Err("Unsupported alternate B2D output transforms".into())}
   Ok(())
  }
- pub fn bytes(&self)->R<Vec<u8>>{
-  let mut out=self.header.clone();out[84..100].fill(0);
-  put32(&mut out,self.tags.len() as u32);out.resize(132+12*self.tags.len(),0);
+ /// Plan the complete directory before writing any payload. Keep the existing
+ /// ordering, alignment, profile-ID reset and serialized-size limit.
+ fn serialization_plan(&self)->R<(Vec<u8>,usize)>{
+  let mut header=self.header.clone();header[84..100].fill(0);
+  put32(&mut header,self.tags.len() as u32);header.resize(132+12*self.tags.len(),0);
+  let mut size=header.len();
   for (i,(key,val)) in self.tags.iter().enumerate(){
-   while out.len()%4!=0{out.push(0)}
-   if out.len().checked_add(val.len()).is_none_or(|n|n>128*1024*1024-3){return Err("Serialized ICC exceeds 128 MiB".into())}
-   let o=u32::try_from(out.len()).map_err(|_|"ICC too big")?;let l=u32::try_from(val.len()).map_err(|_|"ICC tag too big")?;let p=132+i*12;
-   out[p..p+4].copy_from_slice(key);out[p+4..p+8].copy_from_slice(&o.to_be_bytes());out[p+8..p+12].copy_from_slice(&l.to_be_bytes());out.extend(val);
+   size=(size+3)&!3;
+   let end=size.checked_add(val.len()).filter(|n|*n<=128*1024*1024-3).ok_or("Serialized ICC exceeds 128 MiB")?;
+   let o=u32::try_from(size).map_err(|_|"ICC too big")?;let l=u32::try_from(val.len()).map_err(|_|"ICC tag too big")?;let p=132+i*12;
+   header[p..p+4].copy_from_slice(key);header[p+4..p+8].copy_from_slice(&o.to_be_bytes());header[p+8..p+12].copy_from_slice(&l.to_be_bytes());
+   size=end;
   }
-  while out.len()%4!=0{out.push(0)}
-  let n=out.len() as u32;out[..4].copy_from_slice(&n.to_be_bytes());Ok(out)
+  size=(size+3)&!3;header[..4].copy_from_slice(&(size as u32).to_be_bytes());Ok((header,size))
+ }
+ fn write_serialized(&self,writer:&mut impl Write,header:&[u8])->R<()>{
+  writer.write_all(header).map_err(|e|e.to_string())?;
+  let mut position=header.len();
+  for val in self.tags.values(){
+   let pad=(4-position%4)%4;
+   writer.write_all(&[0;3][..pad]).and_then(|_|writer.write_all(val)).map_err(|e|e.to_string())?;
+   position+=pad+val.len();
+  }
+  writer.write_all(&[0;3][..(4-position%4)%4]).map_err(|e|e.to_string())
+ }
+ pub fn bytes(&self)->R<Vec<u8>>{
+  let (header,size)=self.serialization_plan()?;
+  let mut out=Vec::new();out.try_reserve_exact(size).map_err(|e|e.to_string())?;
+  self.write_serialized(&mut out,&header)?;Ok(out)
  }
  pub fn save_new(&self,p:&Path)->R<()>{
-  let b=self.bytes()?;
+  let (header,_)=self.serialization_plan()?;
   let mut f=tempfile::NamedTempFile::new_in(p.parent().filter(|v|!v.as_os_str().is_empty()).unwrap_or(Path::new("."))).map_err(|e|e.to_string())?;
-  f.write_all(&b).and_then(|_|f.as_file().sync_all()).map_err(|e|e.to_string())?;
+  // Stream borrowed tag payloads into the temporary file instead of allocating
+  // another complete ICC. Failed writes leave no published destination.
+  self.write_serialized(&mut f,&header)?;
+  f.as_file().sync_all().map_err(|e|e.to_string())?;
   f.persist_noclobber(p).map_err(|e|e.to_string())?;Ok(())
  }
  pub fn describe(&mut self,name:&str){
@@ -397,6 +418,42 @@ mod tests{
   assert!(Lut::parse(&a).is_err());
   let out=p.custom_rebuild([1.,1.,1.,0.],1.,9,|_|{}).unwrap();
   assert_eq!(out.tags[b"A2B1"],a);assert_eq!(out.verify([1.,1.,1.,0.]).unwrap()[3],0.);
+ }
+ // Frozen previous encoder: parity must include byte order, padding,
+ // directory offsets, profile size and the cleared v4 profile ID.
+ fn previous_bytes(p:&Profile)->Vec<u8>{
+  let mut out=p.header.clone();out[84..100].fill(0);
+  put32(&mut out,p.tags.len() as u32);out.resize(132+12*p.tags.len(),0);
+  for (i,(key,val)) in p.tags.iter().enumerate(){
+   while out.len()%4!=0{out.push(0)}
+   let o=out.len() as u32;let l=val.len() as u32;let p=132+i*12;
+   out[p..p+4].copy_from_slice(key);out[p+4..p+8].copy_from_slice(&o.to_be_bytes());out[p+8..p+12].copy_from_slice(&l.to_be_bytes());out.extend(val);
+  }
+  while out.len()%4!=0{out.push(0)}
+  let n=out.len() as u32;out[..4].copy_from_slice(&n.to_be_bytes());out
+ }
+ #[test]fn streamed_serialization_matches_previous_encoder(){
+  let d=tempfile::tempdir().unwrap();
+  for (i,mut p) in [fixture(),synthetic_cmyk_v4(true)].into_iter().enumerate(){
+   p.header[84..100].fill(17);
+   for n in 0..4{let mut val=b"test\\0\\0\\0\\0".to_vec();val.resize(8+n,0x6b);p.tags.insert([b'z',b'z',b'z',b'0'+n as u8],val);}
+   let expected=previous_bytes(&p);let actual=p.bytes().unwrap();assert_eq!(actual,expected);
+   let path=d.path().join(format!("{i}.icc"));p.save_new(&path).unwrap();assert_eq!(fs::read(&path).unwrap(),expected);
+   let reopened=Profile::read(&path).unwrap();assert_eq!(reopened.tags,p.tags);
+  }
+ }
+ #[test]fn streamed_writer_propagates_partial_failure(){
+  struct Failing{remaining:usize}
+  impl Write for Failing{
+   fn write(&mut self,b:&[u8])->std::io::Result<usize>{
+    if self.remaining==0{return Err(std::io::Error::other("test write failure"))}
+    let n=b.len().min(self.remaining);self.remaining-=n;Ok(n)
+   }
+   fn flush(&mut self)->std::io::Result<()>{Ok(())}
+  }
+  let p=fixture();let (header,_)=p.serialization_plan().unwrap();
+  let mut sink=Failing{remaining:header.len()+3};
+  assert!(p.write_serialized(&mut sink,&header).unwrap_err().contains("test write failure"));
  }
  #[test]fn atomic_icc_save_never_clobbers(){
   let d=tempfile::tempdir().unwrap();let path=d.path().join("profile.icc");let p=fixture();
