@@ -31,14 +31,16 @@ pub fn sample_with_intent(path:&Path,grid:usize,intent:Intent)->Result<Cloud,Str
  }).collect();
  if values.is_empty(){return Err("No valid PCS targets".into())}
  crate::analysis_job::phase("Sampling Lab targets",values.len().div_ceil(4096))?;
- let mut result=Vec::with_capacity(values.len());for batch in values.chunks(4096){result.extend(native.apply(batch)?);crate::analysis_job::advance()?;}
- let mut points=Vec::with_capacity(result.len());let mut errors=Vec::with_capacity(result.len());
- for (v,target) in result.into_iter().zip(&values){
+ let mut points=Vec::with_capacity(values.len());let mut errors=Vec::with_capacity(values.len());
+ for batch in values.chunks(4096){
+ for (v,target) in native.apply(batch)?.into_iter().zip(batch){
   let l=CIEXYZ{X:v[0],Y:v[1],Z:v[2]}.to_lab(&white);
   if ![l.L,l.a,l.b].iter().all(|v|v.is_finite()){return Err("Non-finite Lab result".into())}
   let target=CIEXYZ{X:target[0],Y:target[1],Z:target[2]}.to_lab(&white);
   let error=l.cie2000_delta_e(&target,1.,1.,1.);if !error.is_finite()||error<0.{return Err("Invalid Lab target error".into())}errors.push(error);
   points.push([l.L as f32,l.a as f32,l.b as f32]);
+ }
+ crate::analysis_job::advance()?;
  }
  // Duplicate projected colors are common when targets lie outside the gamut.
  // Quantize only the display point keys, retain the original Lab coordinates.
@@ -52,22 +54,29 @@ pub fn sample_with_intent(path:&Path,grid:usize,intent:Intent)->Result<Cloud,Str
  for j in 0..3{lo[j]-=12.;hi[j]+=12.;}
  lo[0]=lo[0].max(-5.);hi[0]=hi[0].min(105.);
  let n=if grid<=9{25usize}else if grid<=17{41}else{57};
- let mut field=vec![20.;n.pow(3)];let mut sample_xyz=Vec::new();let mut sample_indices=Vec::new();let mut target_lab=Vec::new();
- for x in 1..n-1{crate::analysis_job::check()?;for y in 1..n-1{for z in 1..n-1{
-  let v:[f32;3]=std::array::from_fn(|j|lo[j]+(hi[j]-lo[j])*[x,y,z][j] as f32/(n-1) as f32);
-  if !(0. ..=100.).contains(&v[0]){continue}
-  let l=CIELab{L:v[0] as f64,a:v[1] as f64,b:v[2] as f64};let t=l.to_xyz(&white);
-  let xyz=[t.X,t.Y,t.Z];if xyz.iter().all(|v|v.is_finite()&&*v>=0.&&*v<2.){
-   sample_xyz.push(xyz);sample_indices.push((x*n+y)*n+z);target_lab.push(l);
+ let mut field=vec![20.;n.pow(3)];
+ // Process one L* plane at a time: at most (n-2)^2 samples.
+ // Preserve original traversal, target coordinates and exact field values.
+ let capacity=(n-2).pow(2);let mut sample_xyz=Vec::with_capacity(capacity);let mut sample_indices=Vec::with_capacity(capacity);let mut target_lab=Vec::with_capacity(capacity);
+ crate::analysis_job::phase("Sampling tolerance field",n-2)?;
+ for x in 1..n-1{
+  crate::analysis_job::check()?;sample_xyz.clear();sample_indices.clear();target_lab.clear();
+  for y in 1..n-1{for z in 1..n-1{
+   let v:[f32;3]=std::array::from_fn(|j|lo[j]+(hi[j]-lo[j])*[x,y,z][j] as f32/(n-1) as f32);
+   if !(0. ..=100.).contains(&v[0]){continue}
+   let l=CIELab{L:v[0] as f64,a:v[1] as f64,b:v[2] as f64};let t=l.to_xyz(&white);
+   let xyz=[t.X,t.Y,t.Z];if xyz.iter().all(|v|v.is_finite()&&*v>=0.&&*v<2.){
+    sample_xyz.push(xyz);sample_indices.push((x*n+y)*n+z);target_lab.push(l);
+   }
+  }}
+  if !sample_xyz.is_empty(){
+   let actual=native.apply(&sample_xyz)?;
+   for ((&i,lab),v) in sample_indices.iter().zip(&target_lab).zip(actual){
+    let l=CIEXYZ{X:v[0],Y:v[1],Z:v[2]}.to_lab(&white);
+    let e=l.cie2000_delta_e(lab,1.,1.,1.);if e.is_finite()&&e>=0.{field[i]=e.min(20.);}
+   }
   }
- }}}
- if !sample_xyz.is_empty(){
-  crate::analysis_job::phase("Sampling tolerance field",sample_xyz.len().div_ceil(4096))?;
-  let mut actual=Vec::with_capacity(sample_xyz.len());for batch in sample_xyz.chunks(4096){actual.extend(native.apply(batch)?);crate::analysis_job::advance()?;}
-  for ((i,lab),v) in sample_indices.into_iter().zip(target_lab).zip(actual){
-   let l=CIEXYZ{X:v[0],Y:v[1],Z:v[2]}.to_lab(&white);
-   let e=l.cie2000_delta_e(&lab,1.,1.,1.);if e.is_finite()&&e>=0.{field[i]=e.min(20.);}
-  }
+  crate::analysis_job::advance()?;
  }
  crate::analysis_job::check()?;let surface=crate::gamut_surface::extract_controlled(&field,n,lo,hi,crate::gamut_surface::TOLERANCE)?;
  crate::analysis_job::check()?;Ok(Cloud{points,sampled:values.len(),errors,surface})

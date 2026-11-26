@@ -30,6 +30,13 @@ fn fold(key:&[u32])->u32{
 fn distance(a:&[u32],b:&[u32])->u64{
  a.iter().zip(b).map(|(&x,&y)|{let d=u64::from(x.abs_diff(y));d*d}).sum()
 }
+// Squared integer distances are nonnegative. Once a partial distance
+// strictly exceeds the current worst neighbor, it cannot enter top-k.
+// Keep equality for deterministic index tie-breaking.
+#[inline]
+fn distance_bounded(a:&[u32],b:&[u32],limit:u64)->u64{
+ let mut sum=0u64;for (&x,&y) in a.iter().zip(b){let d=u64::from(x.abs_diff(y));sum+=d*d;if sum>limit{return sum}}sum
+}
 fn tac(key:&[u32])->f64{key.iter().map(|&v|f64::from(v)/SCALE).sum()}
 fn stats(mut x:Vec<f64>)->R<ErrorStats>{
  if x.is_empty()||x.iter().any(|v|!v.is_finite()||*v<0.){return Err("Invalid or empty error samples".into())}
@@ -44,7 +51,7 @@ fn estimate(training:&[Sample],target:&[u32])->([f64;3],[f64;3],f64){
  // Sorted recipe keys make ties deterministic. Keep only eight neighbors.
  let mut best=[(u64::MAX,usize::MAX);K];
  for (i,s) in training.iter().enumerate(){
-  let pair=(distance(&s.key,target),i);
+  let pair=(distance_bounded(&s.key,target,best[K-1].0),i);
   if pair<best[K-1]{let j=best.partition_point(|&v|v<=pair);best.copy_within(j..K-1,j+1);best[j]=pair;}
  }
  let (d,i)=best[0];let nearest=training[i].lab;
@@ -104,7 +111,7 @@ fn local_kernel(training:&[&Sample],target:&[u32],tapered:bool)->R<([f64;3],[f64
  if training.len()<count{return Err("Insufficient neighbors for local model".into())}
  let mut best=[(u64::MAX,usize::MAX);LOCAL_K+1];
  for (i,s) in training.iter().enumerate(){
-  let pair=(distance(&s.key,target),i);
+  let pair=(distance_bounded(&s.key,target,best[count-1].0),i);
   if pair<best[count-1]{let j=best[..count].partition_point(|&v|v<=pair);best.copy_within(j..count-1,j+1);best[j]=pair;}
  }
  let (d,i)=best[0];let nearest=training[i].lab;
@@ -764,4 +771,30 @@ pub fn audit_continuity(chart:&Chart,channels:usize)->R<ContinuityAudit>{
   assert!((audit.stress.as_ref().unwrap().tapered.p95-9.38617).abs()<0.01);
   let cv=cross_validate(&c,7).unwrap();println!("{cv:#?}");assert_eq!(cv.pooled.test,4272);assert_eq!(cv.stress.as_ref().unwrap().test,413);assert_eq!(cv.active_counts,vec![1,119,308,1406,2025,339,73,1]);assert!((cv.pooled.local.mean-1.2086).abs()<0.01);assert!((cv.stress.unwrap().local.mean-3.4681).abs()<0.01);
  }
+}
+
+#[cfg(test)]mod bounded_distance_tests{
+ use super::*;
+ #[test]fn bounded_top_k_matches_full_sort_with_ties(){
+  for n in [2,4,7,15]{
+   let recipes:Vec<Vec<u32>>=(0..512u32).map(|i|(0..n).map(|j|((i.wrapping_mul(7919).wrapping_add(j as u32*12345))%17)*62500).collect()).collect();
+   for q in recipes.iter().step_by(13){
+    let mut full:Vec<_>=recipes.iter().enumerate().map(|(i,v)|(distance(v,q),i)).collect();full.sort_unstable();
+    let mut best=[(u64::MAX,usize::MAX);33];
+    for (i,v) in recipes.iter().enumerate(){let pair=(distance_bounded(v,q,best[32].0),i);if pair<best[32]{let j=best.partition_point(|&p|p<=pair);best.copy_within(j..32,j+1);best[j]=pair;}}
+    assert_eq!(&best[..],&full[..33]);
+   }
+  }
+ }
+ #[test]#[ignore="Timing diagnostic; run release mode locally, not a CI performance threshold"]
+ fn benchmark_neighbor_scan(){
+  use std::hint::black_box;
+  let recipes:Vec<Vec<u32>>=(0..4272u32).map(|i|(0..7).map(|j|{let x=i.wrapping_mul(0x9e3779b9).rotate_left(j*3).wrapping_add(j*7919);x%1000001}).collect()).collect();
+  let scan=|bounded:bool|{let t=std::time::Instant::now();let mut checksum=0u64;for q in recipes.iter().step_by(5){
+   let mut best=[(u64::MAX,usize::MAX);33];for(i,v)in recipes.iter().enumerate(){let d=if bounded{distance_bounded(v,q,best[32].0)}else{distance(v,q)};let pair=(d,i);if pair<best[32]{let j=best.partition_point(|&p|p<=pair);best.copy_within(j..32,j+1);best[j]=pair;}}
+   checksum=checksum.wrapping_add(black_box(best[32].0));
+  }(checksum,t.elapsed())};
+  let a=scan(false);let b=scan(true);assert_eq!(a.0,b.0);println!("Full {:?}; bounded {:?}",a.1,b.1);
+ }
+ #[test]fn exact_at_limit_and_full_range(){assert_eq!(distance_bounded(&[3,4],&[0,0],25),25);assert_eq!(distance_bounded(&[1000000;15],&[0;15],u64::MAX),15_000_000_000_000);}
 }

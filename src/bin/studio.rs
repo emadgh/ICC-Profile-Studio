@@ -31,12 +31,12 @@ enum Picker{Reference,Comparison,Gamut}
 enum Event { Progress(String), Done(Result<String,String>) }
 struct Studio {
  link_grid:usize,link_tolerance:f64,link_intent:lcms2::Intent,link_report:Option<(PathBuf,PathBuf,PathBuf,device_link::MultiLinkReport)>,
- slider_drag:Option<(&'static str,usize)>,numeric_edit:Option<((&'static str,usize),String,FocusHandle,bool)>,embedded_names:bool,display_profile:Option<Profile>,language:Language,nav_collapsed:[bool;5],picker:Option<Picker>,system_catalog:Option<system_profiles::Catalog>,system_error:Option<String>,system_loading:bool,
+ slider_drag:Option<(&'static str,usize)>,numeric_edit:Option<((&'static str,usize),String,FocusHandle,bool)>,embedded_names:bool,display_profile:Option<Profile>,source_bounds:Option<color_convert_rust::print_space::Bounds>,source_tac_estimate:Option<f64>,language:Language,nav_collapsed:[bool;5],nav_visible:bool,picker:Option<Picker>,system_catalog:Option<system_profiles::Catalog>,system_error:Option<String>,system_loading:bool,
  version_allow_omit:bool,version_relative_only:bool,version_de:f64,version_ink:f64,version_report:Option<versioning::Report>,page:Page, source:Option<PathBuf>, capability:Option<Capabilities>, predicted_inks:Vec<u32>, report:Option<Inspection>, error:Option<String>,
- caps:Vec<f64>,tac:f64,grid:usize,mode:Mode,status:String,busy:bool,analysis_job:Option<color_convert_rust::analysis_job::Job>,rebuild_control:Option<color_convert_rust::multichannel::RebuildControl>, candidate:Option<PathBuf>,comparison:Option<Comparison>,compare_error:Option<String>,compare_grid:usize,compare_intent:lcms2::Intent,gamma:Vec<f64>,order:Vec<usize>, preview_open:bool, preview:Option<Overlay>, preview_revision:u64, preview_width:f32,preview_fullscreen:bool,resize_last:Option<Pixels>,gamut_advanced:bool,curve_drag:Option<(usize,usize,Pixels)>,curve_mode:usize,curve_channel:usize, preview_cache:std::cell::RefCell<gamut_view::PreviewCache>, preview_options:ViewOptions, gamut_grid:usize,gamut_reference_intent:lcms2::Intent,gamut_candidate_intent:lcms2::Intent,gamut_separate_intents:bool,gradient:Option<GradientReport>,gradient_detail:Option<usize>,gradient_selected:usize,gradient_shared_scale:bool,gradient_error:Option<String>,coverage_threshold:f64, regions:[Selective;MAX_REGIONS],region_count:usize,region_selected:usize, correction_grid:usize, correction_tac:f64, smoothing:f64, smoothing_passes:usize,orbit_last:Option<Point<Pixels>>,chart_dpi:u32,recipe_target:[f64;3],recipe_settings:RecipeSettings,recipe_result:Option<RecipeReport>,lab_levels:usize,lab_tab:usize,lab_advanced:bool,lab_loading:bool,lab_attempted:bool,lab_epoch:u64,lab_error:Option<String>,compare_overlay:bool,compare_details:bool,recipe_tab:usize,recipe_weights_open:bool,characterization:Option<color_convert_rust::characterization::Chart>,characterization_page:usize,characterization_patch:Option<usize>,characterization_fit:Option<color_convert_rust::characterization::Fit>,ncolor_report:Option<color_convert_rust::ncolor_model::CrossValidation>,ncolor_inverse:Option<color_convert_rust::ncolor_model::InverseReport>,ncolor_audit:Option<color_convert_rust::ncolor_model::ContinuityAudit>,ncolor_ramp:Option<color_convert_rust::ncolor_model::InverseRampAudit>,ncolor_regularized:Option<color_convert_rust::ncolor_model::RegularizedRamp>,ncolor_lattice:Option<color_convert_rust::ncolor_model::LatticeAudit>,ncolor_forward:Option<color_convert_rust::ncolor_model::ForwardGridAudit>,ncolor_forward_grid:Vec<usize>,ncolor_span:[f64;3],ncolor_slice:usize,ncolor_lambda:f64,ncolor_target:[f64;3],ncolor_tolerance:f64,ncolor_distance:f64,characterization_measured:bool,characterization_heat:bool,spectral_illuminant:Illuminant,spectral_observer:Observer,characterization_filter:target_tools::Filter,characterization_cloud:bool,characterization_view:ViewOptions,characterization_cache:std::cell::RefCell<gamut_view::PreviewCache>,characterization_revision:u64,measured:[Option<PathBuf>;2],measurement_result:Option<MeasuredComparison>,black:BlackGeneration,black_channel:Option<usize>,curve_points:Vec<[f64;5]>,logo:std::sync::Arc<gpui::Image>,#[cfg(windows)] updater:StudioUpdater,#[cfg(windows)] update_started:bool,#[cfg(windows)] update_notice:Option<String>,#[cfg(windows)] notified_version:Option<String>,
+ caps:Vec<f64>,tac:f64,grid:usize,mode:Mode,status:String,busy:bool,analysis_job:Option<color_convert_rust::analysis_job::Job>,rebuild_control:Option<color_convert_rust::multichannel::RebuildControl>, candidate:Option<PathBuf>,comparison:Option<Comparison>,compare_error:Option<String>,compare_grid:usize,compare_intent:lcms2::Intent,gamma:Vec<f64>,order:Vec<usize>, preview_open:bool, preview:Option<Overlay>, preview_revision:u64, preview_width:f32,preview_fullscreen:bool,resize_last:Option<Pixels>,gamut_advanced:bool,curve_drag:Option<(usize,usize,Pixels)>,curve_mode:usize,curve_channel:usize, preview_cache:std::cell::RefCell<gamut_view::PreviewCache>, preview_options:ViewOptions, gamut_grid:usize,gamut_reference_intent:lcms2::Intent,gamut_candidate_intent:lcms2::Intent,gamut_separate_intents:bool,gradient:Option<GradientReport>,gradient_detail:Option<usize>,gradient_selected:usize,gradient_shared_scale:bool,gradient_error:Option<String>,coverage_threshold:f64, regions:[Selective;MAX_REGIONS],region_count:usize,region_selected:usize, correction_grid:usize, correction_tac:f64, smoothing:f64, smoothing_passes:usize,orbit_last:Option<Point<Pixels>>,chart_dpi:u32,recipe_target:[f64;3],recipe_settings:RecipeSettings,recipe_result:Option<RecipeReport>,lab_levels:usize,lab_tab:usize,lab_advanced:bool,lab_loading:bool,lab_attempted:bool,lab_epoch:u64,lab_error:Option<String>,compare_overlay:bool,compare_details:bool,recipe_tab:usize,recipe_weights_open:bool,characterization:Option<std::sync::Arc<color_convert_rust::characterization::Chart>>,characterization_page:usize,characterization_patch:Option<usize>,characterization_fit:Option<color_convert_rust::characterization::Fit>,ncolor_report:Option<color_convert_rust::ncolor_model::CrossValidation>,ncolor_inverse:Option<color_convert_rust::ncolor_model::InverseReport>,ncolor_audit:Option<color_convert_rust::ncolor_model::ContinuityAudit>,ncolor_ramp:Option<color_convert_rust::ncolor_model::InverseRampAudit>,ncolor_regularized:Option<color_convert_rust::ncolor_model::RegularizedRamp>,ncolor_lattice:Option<color_convert_rust::ncolor_model::LatticeAudit>,ncolor_forward:Option<color_convert_rust::ncolor_model::ForwardGridAudit>,ncolor_forward_grid:Vec<usize>,ncolor_span:[f64;3],ncolor_slice:usize,ncolor_lambda:f64,ncolor_target:[f64;3],ncolor_tolerance:f64,ncolor_distance:f64,characterization_measured:bool,characterization_heat:bool,spectral_illuminant:Illuminant,spectral_observer:Observer,characterization_filter:target_tools::Filter,characterization_cloud:bool,characterization_view:ViewOptions,characterization_cache:std::cell::RefCell<gamut_view::PreviewCache>,characterization_cloud_cache:std::cell::RefCell<Option<(u64,Overlay)>>,characterization_revision:u64,measured:[Option<PathBuf>;2],measurement_result:Option<MeasuredComparison>,black:BlackGeneration,black_channel:Option<usize>,curve_points:Vec<[f64;5]>,logo:std::sync::Arc<gpui::Image>,#[cfg(windows)] updater:StudioUpdater,#[cfg(windows)] update_started:bool,#[cfg(windows)] update_notice:Option<String>,#[cfg(windows)] notified_version:Option<String>,
 }
 impl Default for Studio {
- fn default()->Self{Self{link_grid:0,link_tolerance:2.,link_intent:lcms2::Intent::RelativeColorimetric,link_report:None,slider_drag:None,numeric_edit:None,embedded_names:true,display_profile:None,language:Language::En,nav_collapsed:[false;5],picker:None,system_catalog:None,system_error:None,system_loading:false,version_allow_omit:false,version_relative_only:false,version_de:0.5,version_ink:0.5,version_report:None,page:Page::Inspector,source:None,capability:None,predicted_inks:vec![],report:None,error:None,caps:vec![],tac:240.,grid:33,mode:Mode::Custom,status:"Open an ICC or ICM profile to start.".into(),busy:false,analysis_job:None,rebuild_control:None,candidate:None,comparison:None,compare_error:None,compare_grid:17,compare_intent:lcms2::Intent::RelativeColorimetric,gamma:vec![],order:vec![],preview_open:true,preview:None,preview_revision:0,preview_width:360.,preview_fullscreen:false,resize_last:None,gamut_advanced:false,curve_drag:None,curve_mode:0,curve_channel:0,preview_cache:std::cell::RefCell::new(gamut_view::PreviewCache::default()),preview_options:ViewOptions::default(),gamut_grid:33,gamut_reference_intent:lcms2::Intent::RelativeColorimetric,gamut_candidate_intent:lcms2::Intent::RelativeColorimetric,gamut_separate_intents:false,gradient:None,gradient_detail:None,gradient_selected:0,gradient_shared_scale:true,gradient_error:None,coverage_threshold:2.,regions:[Selective::default();MAX_REGIONS],region_count:1,region_selected:0,correction_grid:33,correction_tac:400.,smoothing:0.20,smoothing_passes:1,orbit_last:None,chart_dpi:300,recipe_target:[50.,0.,0.],recipe_settings:RecipeSettings{caps:vec![100.;4],tac:240.,weights:vec![1.;4],tolerance:2.},recipe_result:None,lab_levels:5,lab_tab:0,lab_advanced:false,lab_loading:false,lab_attempted:false,lab_epoch:0,lab_error:None,compare_overlay:true,compare_details:false,recipe_tab:0,recipe_weights_open:false,characterization:None,characterization_page:1,characterization_patch:None,characterization_fit:None,ncolor_report:None,ncolor_inverse:None,ncolor_audit:None,ncolor_ramp:None,ncolor_regularized:None,ncolor_lattice:None,ncolor_forward:None,ncolor_forward_grid:vec![],ncolor_span:[1.;3],ncolor_slice:1,ncolor_lambda:0.02,ncolor_target:[50.,0.,0.],ncolor_tolerance:2.,ncolor_distance:0.4,characterization_measured:false,characterization_heat:false,spectral_illuminant:Illuminant::D50,spectral_observer:Observer::Two,characterization_filter:target_tools::Filter::default(),characterization_cloud:false,characterization_view:ViewOptions{profile_colors:false,layout:CompareLayout::Shared,solid:false,wireframe:false,floor_contour:false,..ViewOptions::default()},characterization_cache:std::cell::RefCell::new(gamut_view::PreviewCache::default()),characterization_revision:0,measured:[None,None],measurement_result:None,black:BlackGeneration::default(),black_channel:None,curve_points:IDENTITY_POINTS.to_vec(),logo:std::sync::Arc::new(gpui::Image::from_bytes(gpui::ImageFormat::Png,include_bytes!("../../assets/icon.png").to_vec())),#[cfg(windows)] update_started:false,#[cfg(windows)] update_notice:None,#[cfg(windows)] notified_version:None,#[cfg(windows)] updater:StudioUpdater::new(UpdateConfig::new("emadgh/color-convert-rust","ICC-Profile-Studio.exe",STUDIO_VERSION.trim()).with_app_name("ICC Profile Studio").with_checksum_asset("ICC-Profile-Studio.exe.sha256").with_required_checksum(true))}}
+ fn default()->Self{Self{link_grid:0,link_tolerance:2.,link_intent:lcms2::Intent::RelativeColorimetric,link_report:None,slider_drag:None,numeric_edit:None,embedded_names:true,display_profile:None,source_bounds:None,source_tac_estimate:None,language:Language::En,nav_collapsed:[false;5],nav_visible:true,picker:None,system_catalog:None,system_error:None,system_loading:false,version_allow_omit:false,version_relative_only:false,version_de:0.5,version_ink:0.5,version_report:None,page:Page::Inspector,source:None,capability:None,predicted_inks:vec![],report:None,error:None,caps:vec![],tac:240.,grid:33,mode:Mode::Custom,status:"Open an ICC or ICM profile to start.".into(),busy:false,analysis_job:None,rebuild_control:None,candidate:None,comparison:None,compare_error:None,compare_grid:17,compare_intent:lcms2::Intent::RelativeColorimetric,gamma:vec![],order:vec![],preview_open:true,preview:None,preview_revision:0,preview_width:360.,preview_fullscreen:false,resize_last:None,gamut_advanced:false,curve_drag:None,curve_mode:0,curve_channel:0,preview_cache:std::cell::RefCell::new(gamut_view::PreviewCache::default()),preview_options:ViewOptions::default(),gamut_grid:33,gamut_reference_intent:lcms2::Intent::RelativeColorimetric,gamut_candidate_intent:lcms2::Intent::RelativeColorimetric,gamut_separate_intents:false,gradient:None,gradient_detail:None,gradient_selected:0,gradient_shared_scale:true,gradient_error:None,coverage_threshold:2.,regions:[Selective::default();MAX_REGIONS],region_count:1,region_selected:0,correction_grid:33,correction_tac:400.,smoothing:0.20,smoothing_passes:1,orbit_last:None,chart_dpi:300,recipe_target:[50.,0.,0.],recipe_settings:RecipeSettings{caps:vec![100.;4],tac:240.,weights:vec![1.;4],tolerance:2.},recipe_result:None,lab_levels:5,lab_tab:0,lab_advanced:false,lab_loading:false,lab_attempted:false,lab_epoch:0,lab_error:None,compare_overlay:true,compare_details:false,recipe_tab:0,recipe_weights_open:false,characterization:None,characterization_page:1,characterization_patch:None,characterization_fit:None,ncolor_report:None,ncolor_inverse:None,ncolor_audit:None,ncolor_ramp:None,ncolor_regularized:None,ncolor_lattice:None,ncolor_forward:None,ncolor_forward_grid:vec![],ncolor_span:[1.;3],ncolor_slice:1,ncolor_lambda:0.02,ncolor_target:[50.,0.,0.],ncolor_tolerance:2.,ncolor_distance:0.4,characterization_measured:false,characterization_heat:false,spectral_illuminant:Illuminant::D50,spectral_observer:Observer::Two,characterization_filter:target_tools::Filter::default(),characterization_cloud:false,characterization_view:ViewOptions{profile_colors:false,layout:CompareLayout::Shared,solid:false,wireframe:false,floor_contour:false,..ViewOptions::default()},characterization_cache:std::cell::RefCell::new(gamut_view::PreviewCache::default()),characterization_cloud_cache:Default::default(),characterization_revision:0,measured:[None,None],measurement_result:None,black:BlackGeneration::default(),black_channel:None,curve_points:IDENTITY_POINTS.to_vec(),logo:std::sync::Arc::new(gpui::Image::from_bytes(gpui::ImageFormat::Png,include_bytes!("../../assets/icon.png").to_vec())),#[cfg(windows)] update_started:false,#[cfg(windows)] update_notice:None,#[cfg(windows)] notified_version:None,#[cfg(windows)] updater:StudioUpdater::new(UpdateConfig::new("emadgh/color-convert-rust","ICC-Profile-Studio.exe",STUDIO_VERSION.trim()).with_app_name("ICC Profile Studio").with_checksum_asset("ICC-Profile-Studio.exe.sha256").with_required_checksum(true))}}
 }
 fn button(id: impl Into<ElementId>,label:impl Into<SharedString>)->Stateful<Div>{
  let label:SharedString=label.into();
@@ -237,10 +237,10 @@ impl Studio {
   self.numeric_edit=None;self.picker=None;
   let retained_candidate=if matches!(self.page,Page::Comparison|Page::DeviceLink|Page::Gradient){self.candidate.clone()}else{None};
   self.lab_epoch=self.lab_epoch.wrapping_add(1);self.lab_loading=false;self.lab_attempted=false;self.lab_error=None;self.measured=[None,None];self.measurement_result=None;self.link_report=None;
-  self.source=Some(path.clone());self.characterization=None;self.ncolor_report=None;self.ncolor_inverse=None;self.ncolor_audit=None;self.ncolor_ramp=None;self.ncolor_regularized=None;self.ncolor_lattice=None;self.ncolor_forward=None;self.ncolor_forward_grid.clear();self.characterization_patch=None;self.characterization_fit=None;self.characterization_measured=false;self.characterization_heat=false;self.spectral_illuminant=Illuminant::D50;self.spectral_observer=Observer::Two;self.characterization_filter=target_tools::Filter::default();self.characterization_cloud=false;self.characterization_revision=self.characterization_revision.wrapping_add(1);self.characterization_page=1;self.version_report=None;self.version_allow_omit=false;self.version_relative_only=false;self.black=BlackGeneration::default();self.black_channel=None;self.curve_points=IDENTITY_POINTS.to_vec();self.recipe_result=None;self.recipe_settings.weights.clear();self.regions=[Selective::default();MAX_REGIONS];self.region_count=1;self.region_selected=0;self.correction_grid=33;self.correction_tac=400.;self.smoothing=0.20;self.smoothing_passes=1;self.preview=None;self.candidate=retained_candidate;self.gradient=None;self.gradient_detail=None;self.gradient_error=None;self.gamma.clear();self.order.clear();self.curve_drag=None;self.curve_channel=0;self.comparison=None;self.compare_error=None;self.report=None;self.capability=None;self.predicted_inks.clear();self.display_profile=None;self.caps.clear();self.tac=0.;self.mode=Mode::Custom;self.error=None;
+  self.source=Some(path.clone());self.characterization=None;self.characterization_cloud_cache.get_mut().take();self.ncolor_report=None;self.ncolor_inverse=None;self.ncolor_audit=None;self.ncolor_ramp=None;self.ncolor_regularized=None;self.ncolor_lattice=None;self.ncolor_forward=None;self.ncolor_forward_grid.clear();self.characterization_patch=None;self.characterization_fit=None;self.characterization_measured=false;self.characterization_heat=false;self.spectral_illuminant=Illuminant::D50;self.spectral_observer=Observer::Two;self.characterization_filter=target_tools::Filter::default();self.characterization_cloud=false;self.characterization_revision=self.characterization_revision.wrapping_add(1);self.characterization_page=1;self.version_report=None;self.version_allow_omit=false;self.version_relative_only=false;self.black=BlackGeneration::default();self.black_channel=None;self.curve_points=IDENTITY_POINTS.to_vec();self.recipe_result=None;self.recipe_settings.weights.clear();self.regions=[Selective::default();MAX_REGIONS];self.region_count=1;self.region_selected=0;self.correction_grid=33;self.correction_tac=400.;self.smoothing=0.20;self.smoothing_passes=1;self.preview=None;self.candidate=retained_candidate;self.gradient=None;self.gradient_detail=None;self.gradient_error=None;self.gamma.clear();self.order.clear();self.curve_drag=None;self.curve_channel=0;self.comparison=None;self.compare_error=None;self.report=None;self.capability=None;self.predicted_inks.clear();self.display_profile=None;self.source_bounds=None;self.source_tac_estimate=None;self.caps.clear();self.tac=0.;self.mode=Mode::Custom;self.error=None;
   match inspection::inspect(&path){Ok(r)=>self.report=Some(r),Err(e)=>self.error=Some(e)}
   if let Ok(p)=Profile::read(&path){
-   self.display_profile=Some(p.clone());
+   self.source_bounds=color_convert_rust::print_space::bounds(&p).ok();self.source_tac_estimate=if p.cmyk(){p.estimated_tac_percent()}else{None};
    self.capability=Some(capabilities::inspect(&p));self.predicted_inks=capabilities::predicted_swatches(&p).unwrap_or_default();
    if let Ok(n)=editing::editable_channel_count(&p){self.gamma=vec![1.;n];self.recipe_settings.weights=vec![1.;n];self.order=(0..n).collect();self.curve_points=vec![[0.,0.25,0.5,0.75,1.];n];if !p.cmyk(){self.correction_tac=n as f64*100.;}}
    let n=self.capability.as_ref().map(|c|c.channels).unwrap_or(0);
@@ -251,6 +251,7 @@ impl Studio {
     self.mode=if p.version_major()==2&&p.cmyk(){Mode::Argyll}else{Mode::Custom};
     self.grid=if p.version_major()==4&&p.cmyk(){33}else{17};
    }
+   self.display_profile=Some(p);
   }
   self.status=if self.report.is_some(){"Profile loaded with LittleCMS.".into()}else{"Profile could not be opened.".into()};
   if self.page==Page::Lab{self.ensure_lab_target(cx);}
@@ -286,9 +287,10 @@ impl Studio {
 
  fn start_analysis_job(&mut self,cx:&mut Context<Self>)->color_convert_rust::analysis_job::Job{
   self.numeric_edit=None;let job=color_convert_rust::analysis_job::Job::default();self.analysis_job=Some(job.clone());let poll=job.clone();
-  cx.spawn(async move|this,cx|{loop{
+  cx.spawn(async move|this,cx|{let mut previous=None;loop{
    cx.background_executor().timer(Duration::from_millis(120)).await;
-   if !matches!(this.update(cx,|v,cx|{let active=v.analysis_job.as_ref().is_some_and(|j|j.same(&poll));if active{cx.notify();}active}),Ok(true)){break}
+   let current=poll.progress().display_state();let changed=previous!=Some(current);previous=Some(current);
+   if !matches!(this.update(cx,|v,cx|{let active=v.analysis_job.as_ref().is_some_and(|j|j.same(&poll));if active&&changed{cx.notify();}active}),Ok(true)){break}
   }}).detach();
   job
  }
@@ -561,10 +563,12 @@ impl Studio {
   }).detach();
  }
  fn gamut_plot(&self,display:f32,id:&'static str,cx:&mut Context<Self>)->Stateful<Div>{
-  let o=self.preview_options;
+  let mut o=self.preview_options;
+  if self.candidate.is_none()&&o.layout!=CompareLayout::Shared{o.layout=CompareLayout::Shared;o.solid=true;o.wireframe=false;}
   div().id(id).w_full().flex_shrink_0().cursor_pointer()
     .on_mouse_down(MouseButton::Left,cx.listener(|this,e:&MouseDownEvent,_,cx|{this.orbit_last=Some(e.position);cx.notify();}))
     .on_mouse_up(MouseButton::Left,cx.listener(|this,_,_,cx|{this.orbit_last=None;cx.notify();}))
+    .on_mouse_up_out(MouseButton::Left,cx.listener(|this,_,_,cx|{this.orbit_last=None;cx.notify();}))
     .on_mouse_move(cx.listener(|this,e:&MouseMoveEvent,_,cx|{
      if !e.dragging(){this.orbit_last=None;return}
      if let Some(last)=this.orbit_last{
@@ -585,7 +589,8 @@ impl Studio {
     .child(gamut_view::plot(self.preview.as_ref(),self.preview_revision,o,&mut self.preview_cache.borrow_mut(),display))
  }
  fn gamut_toolbar(&self,cx:&mut Context<Self>)->Div{
-  let o=self.preview_options;
+  let mut o=self.preview_options;
+  if self.candidate.is_none()&&o.layout!=CompareLayout::Shared{o.layout=CompareLayout::Shared;o.solid=true;o.wireframe=false;}
   let style=|i:usize|o.style_label(i);
   let candidate_intent=if self.gamut_separate_intents{self.gamut_candidate_intent}else{self.gamut_reference_intent};
   let name=if self.candidate.is_some(){format!("{}: {} · {} | {}: {} · {}",tr("Reference"),style(0),tr(intent_label(self.gamut_reference_intent)),tr("Candidate"),style(1),tr(intent_label(candidate_intent)))}else{format!("{}: {} · {}",tr("Reference"),style(0),tr(intent_label(self.gamut_reference_intent)))};
@@ -608,15 +613,13 @@ impl Studio {
  }
  fn preview_panel(&self,width:f32,display:f32,full:bool,cx:&mut Context<Self>)->Div{
   let panel=div().flex().flex_col().w(px(width)).flex_shrink_0().h_full().min_h(px(0.)).overflow_hidden().bg(rgb(0x101010)).when(self.language.rtl(),|p|p.text_right())
-   .child(div().flex().items_center().justify_between().p_2().flex_shrink_0()
+   .child(div().flex().items_center().justify_between().p_2().flex_shrink_0().when(self.language.rtl(),|p|p.flex_row_reverse())
     .child(div().text_sm().child(tr("Gamut")))
     .child(div().flex().gap_1()
      .child(seg("full-gamut",if full{"Exit expanded"}else{"Expand"},full).on_click(cx.listener(|v,_,_,cx|{v.preview_fullscreen=!v.preview_fullscreen;cx.notify();})))
      .when(!full,|p|p.child(seg("collapse-preview","»",false).on_click(cx.listener(|v,_,_,cx|{v.preview_open=false;cx.notify();}))))))
-   .child(self.gamut_toolbar(cx))
-   .child(self.gamut_plot(display,"gamut-orbit",cx))
    .child(self.analysis_progress(1,cx))
-   .child(div().id("preview-scroll").flex_1().min_h(px(0.)).overflow_y_scroll().p_2().child(self.gamut_controls(cx)));
+   .child(div().id("preview-scroll").flex_1().min_h(px(0.)).overflow_y_scroll().p_2().child(self.gamut_toolbar(cx)).child(self.gamut_plot(display,"gamut-orbit",cx)).child(self.gamut_controls(cx)));
   panel
  }
  fn gamut_intent_controls(&self,scope:usize,cx:&mut Context<Self>)->Div{
@@ -750,7 +753,7 @@ impl Studio {
   let mut p=div().flex().flex_col().gap_3().child(heading("Gamut Viewer","Effective separation coverage and sampled nonconvex surface."))
    .child(self.gamut_intent_controls(1,cx))
    .child(self.gamut_plot(320.,"gamut-page-orbit",cx))
-   .child(button("open-gamut-page-preview","Show preview pane").on_click(cx.listener(|this,_,_,cx|{this.preview_open=true;if this.preview.is_none(){this.refresh_gamut(cx);}cx.notify();})))
+   .child(button("open-gamut-page-preview","Show preview pane").on_click(cx.listener(|this,_,window,cx|{this.preview_open=true;if f32::from(window.viewport_size().width)<1100.{this.preview_fullscreen=true;}if this.preview.is_none(){this.refresh_gamut(cx);}cx.notify();})))
    .child(div().flex().gap_2().items_center().child(tr("Target tolerance ΔE00")).children([1usize,2,3,5].map(|v|button(("threshold",v),if self.coverage_threshold==v as f64{format!("{v} ✓")}else{v.to_string()}).on_click(cx.listener(move|this,_,_,cx|{this.coverage_threshold=v as f64;cx.notify();})))));
   if let Some(data)=&self.preview{
    if let (Ok(a),Some(Ok(b)))=(&data.reference,&data.candidate){
@@ -770,8 +773,8 @@ impl Studio {
   p.child(tr("Coverage is a sampled round-trip reproduction test, not proof of physical achievability. Volume estimates integrate sampled cell occupancy at ΔE00 ≤ 2; resolution dependent, not a measured physical gamut."))
  }
  fn correction_options(&self,cx:&mut Context<Self>)->Div{
-  let estimate=self.display_profile.as_ref().filter(|p|p.cmyk()).and_then(|p|p.estimated_tac_percent());
-  let source_bound=self.display_profile.as_ref().and_then(|p|color_convert_rust::print_space::bounds(p).ok()).map(|b|b.tac*100.);
+  let estimate=self.source_tac_estimate;
+  let source_bound=self.source_bounds.as_ref().map(|b|b.tac*100.);
   let dynamic=self.display_profile.as_ref().is_some_and(|p|!p.cmyk());let maximum=if dynamic{self.gamma.len() as f64*100.}else{400.};
   let mut p=div().flex().flex_col().gap_2().p_3().rounded_md().bg(rgb(0x282828)).child(div().text_lg().child(tr("Output settings")))
    .child(div().flex().flex_wrap().items_center().gap_1().child(tr("CLUT grid")).children([17usize,33,49,65].into_iter().filter(|&g|!dynamic||g<=33).map(|g|button(("edit-grid",g),if self.correction_grid==g{format!("{g} ✓")}else{g.to_string()}).on_click(cx.listener(move|this,_,_,cx|{if !this.busy{this.correction_grid=g;cx.notify();}})))))
@@ -983,7 +986,7 @@ impl Studio {
    let _=this.update(cx,|v,cx|{
     if v.lab_epoch!=epoch{return}
     v.lab_loading=false;
-    match result{Ok((c,notice))=>{v.characterization_page=c.patches.first().map(|p|p.page).unwrap_or(1);v.characterization_patch=if c.patches.is_empty(){None}else{Some(0)};v.characterization=Some(c);v.lab_error=notice;v.characterization_revision=v.characterization_revision.wrapping_add(1);},Err(e)=>v.lab_error=Some(e)}
+    match result{Ok((c,notice))=>{v.characterization_page=c.patches.first().map(|p|p.page).unwrap_or(1);v.characterization_patch=if c.patches.is_empty(){None}else{Some(0)};v.characterization=Some(std::sync::Arc::new(c));v.characterization_revision=v.characterization_revision.wrapping_add(1);v.lab_error=notice;},Err(e)=>v.lab_error=Some(e)}
     cx.notify();
    });
   }).detach();
@@ -999,19 +1002,19 @@ impl Studio {
   if !ready&&!self.busy{p=p.child(button("retry-auto-target","Retry automatic target").on_click(cx.listener(|v,_,_,cx|{if !v.busy{v.lab_attempted=false;v.ensure_lab_target(cx);}}))); }
   if !ready||self.lab_advanced{p=p.child(div().flex().gap_2().flex_wrap().children([false,true].map(|virtual_mode|{
    button(("characterization-load",virtual_mode as usize),if virtual_mode{"Generate virtual target"}else{"Extract embedded target"}).on_click(cx.listener(move|v,_,_,cx|{
-    if v.busy||v.lab_loading{return}let Some(source)=v.source.clone()else{return};v.busy=true;v.lab_error=None;v.characterization=None;v.ncolor_report=None;v.ncolor_inverse=None;v.ncolor_audit=None;v.ncolor_ramp=None;v.ncolor_regularized=None;v.ncolor_lattice=None;v.ncolor_forward=None;v.characterization_patch=None;v.characterization_fit=None;v.characterization_measured=false;v.characterization_heat=false;v.characterization_filter=target_tools::Filter::default();v.characterization_cloud=false;v.characterization_revision=v.characterization_revision.wrapping_add(1);v.status="Reading characterization data…".into();cx.notify();
+    if v.busy||v.lab_loading{return}let Some(source)=v.source.clone()else{return};v.busy=true;v.lab_error=None;v.characterization=None;v.characterization_cloud_cache.get_mut().take();v.ncolor_report=None;v.ncolor_inverse=None;v.ncolor_audit=None;v.ncolor_ramp=None;v.ncolor_regularized=None;v.ncolor_lattice=None;v.ncolor_forward=None;v.characterization_patch=None;v.characterization_fit=None;v.characterization_measured=false;v.characterization_heat=false;v.characterization_filter=target_tools::Filter::default();v.characterization_cloud=false;v.characterization_revision=v.characterization_revision.wrapping_add(1);v.status="Reading characterization data…".into();cx.notify();
     cx.spawn(async move|this,cx|{
      let result=cx.background_spawn(async move{Profile::read(&source).and_then(|p|if virtual_mode{color_convert_rust::characterization::virtual_chart(&p)}else{color_convert_rust::characterization::extract(&p)})}).await;
-     let _=this.update(cx,|v,cx|{v.busy=false;match result{Ok(c)=>{v.characterization_page=c.patches.first().map(|p|p.page).unwrap_or(1);v.characterization=Some(c);v.status="Characterization target ready".into()},Err(e)=>{v.lab_error=Some(e.clone());v.status=e}}cx.notify();});
+     let _=this.update(cx,|v,cx|{v.busy=false;match result{Ok(c)=>{v.characterization_page=c.patches.first().map(|p|p.page).unwrap_or(1);v.characterization=Some(std::sync::Arc::new(c));v.characterization_revision=v.characterization_revision.wrapping_add(1);v.status="Characterization target ready".into()},Err(e)=>{v.lab_error=Some(e.clone());v.status=e}}cx.notify();});
     }).detach();
    }))
   })));}
   p=p.child(button("target-import-cgats","Import CGATS / TI3").on_click(cx.listener(|v,_,_,cx|{
    if v.busy||v.lab_loading{return}let Some(source)=v.source.clone()else{return};let Some(path)=rfd::FileDialog::new().add_filter("CGATS",&["txt","cgats","ti3"]).pick_file()else{return};
-   v.busy=true;v.lab_error=None;v.characterization=None;v.ncolor_report=None;v.ncolor_inverse=None;v.ncolor_audit=None;v.ncolor_ramp=None;v.ncolor_regularized=None;v.ncolor_lattice=None;v.ncolor_forward=None;v.characterization_patch=None;v.characterization_fit=None;v.characterization_measured=false;v.characterization_heat=false;v.characterization_filter=target_tools::Filter::default();v.characterization_cloud=false;v.characterization_revision=v.characterization_revision.wrapping_add(1);v.status="Reading measured CGATS…".into();cx.notify();
+   v.busy=true;v.lab_error=None;v.characterization=None;v.characterization_cloud_cache.get_mut().take();v.ncolor_report=None;v.ncolor_inverse=None;v.ncolor_audit=None;v.ncolor_ramp=None;v.ncolor_regularized=None;v.ncolor_lattice=None;v.ncolor_forward=None;v.characterization_patch=None;v.characterization_fit=None;v.characterization_measured=false;v.characterization_heat=false;v.characterization_filter=target_tools::Filter::default();v.characterization_cloud=false;v.characterization_revision=v.characterization_revision.wrapping_add(1);v.status="Reading measured CGATS…".into();cx.notify();
    cx.spawn(async move|this,cx|{
     let result=cx.background_spawn(async move{Profile::read(&source).and_then(|p|color_convert_rust::characterization::import_cgats(&p,&path))}).await;
-    let _=this.update(cx,|v,cx|{v.busy=false;match result{Ok(c)=>{v.characterization_page=c.patches.first().map(|p|p.page).unwrap_or(1);v.characterization=Some(c);v.status="CGATS target ready".into()},Err(e)=>{v.lab_error=Some(e.clone());v.status=e}}cx.notify();});
+    let _=this.update(cx,|v,cx|{v.busy=false;match result{Ok(c)=>{v.characterization_page=c.patches.first().map(|p|p.page).unwrap_or(1);v.characterization=Some(std::sync::Arc::new(c));v.characterization_revision=v.characterization_revision.wrapping_add(1);v.status="CGATS target ready".into()},Err(e)=>{v.lab_error=Some(e.clone());v.status=e}}cx.notify();});
    }).detach();
   })));
   let Some(c)=&self.characterization else{return p};
@@ -1296,7 +1299,7 @@ impl Studio {
    .child(button("target-compare-absolute","Confirm comparable conditions and calculate ΔE00").on_click(cx.listener(|v,_,_,cx|{
     if v.busy{return}
     if let Some(c)=&mut v.characterization{
-     match color_convert_rust::characterization::compare_absolute(c){Ok(r)=>{v.characterization_fit=Some(r);v.characterization_revision=v.characterization_revision.wrapping_add(1);v.status="Characterization fit calculated".into()},Err(e)=>{v.characterization_fit=None;v.status=e}}
+     match color_convert_rust::characterization::compare_absolute(std::sync::Arc::make_mut(c)){Ok(r)=>{v.characterization_fit=Some(r);v.characterization_revision=v.characterization_revision.wrapping_add(1);v.status="Characterization fit calculated".into()},Err(e)=>{v.characterization_fit=None;v.status=e}}
      cx.notify();
     }
    })));
@@ -1346,7 +1349,9 @@ impl Studio {
   if self.lab_advanced{
   p=p.child(seg("target-cloud-toggle",tr("Paired 3D Lab cloud"),self.characterization_cloud).on_click(cx.listener(|v,_,_,cx|{v.characterization_cloud=!v.characterization_cloud;cx.notify();})));
   if self.characterization_cloud{
-   let overlay=target_tools::paired_cloud(c,filter);
+   let mut cached=self.characterization_cloud_cache.borrow_mut();
+   if cached.as_ref().map_or(true,|(revision,_)|*revision!=self.characterization_revision){*cached=Some((self.characterization_revision,target_tools::paired_cloud(c,filter)));}
+   let overlay=&cached.as_ref().unwrap().1;
    p=p.child(tr("Matched target patches: measured D50/2° estimates or declared Lab (blue) and absolute ICC predictions (amber). Not a full gamut boundary."))
     .child(div().flex().gap_2().items_center().child(swatch(0x60a5fa,12.)).child(tr("Measurement")).child(swatch(0xfbbf24,12.)).child(tr("ICC prediction")))
     .child(div().flex().items_center().gap_2().child(tr("Yaw")).child(self.numeric_slider(("target-yaw",0),self.characterization_view.yaw as f64,-3.14,3.14,0.05,|v,x|v.characterization_view.yaw=x as f32,cx)))
@@ -1354,7 +1359,7 @@ impl Studio {
     .child(div().flex().gap_1()
      .child(seg("target-cloud-ref","Measurement",self.characterization_view.reference).on_click(cx.listener(|v,_,_,cx|{v.characterization_view.reference=!v.characterization_view.reference;cx.notify();})))
      .child(seg("target-cloud-icc","ICC",self.characterization_view.candidate).on_click(cx.listener(|v,_,_,cx|{v.characterization_view.candidate=!v.characterization_view.candidate;cx.notify();}))))
-    .child(gamut_view::plot(Some(&overlay),self.characterization_revision,self.characterization_view,&mut self.characterization_cache.borrow_mut(),420.));
+    .child(gamut_view::plot(Some(overlay),self.characterization_revision,self.characterization_view,&mut self.characterization_cache.borrow_mut(),420.));
   }
   }
   p=p.child(button("target-cgats-export",tr("Export target CGATS")).on_click(cx.listener(|v,_,_,cx|{
@@ -1515,8 +1520,8 @@ impl Studio {
   if !self.display_profile.as_ref().is_some_and(|p|matches!(p.version_major(),2|4)&&p.pcs()=="Lab "&&color_convert_rust::multichannel::channel_count(p).is_ok()){return div().child(tr("Black generation requires compatible ICC v2 LUT16 or v4 mBA."))}
   let dynamic=self.display_profile.as_ref().is_some_and(|p|!p.cmyk());
   let user_caps=self.caps.clone();
-  let bounds=self.display_profile.as_ref().and_then(|p|color_convert_rust::print_space::bounds(p).ok());
-  let caps=bounds.as_ref().map(|b|b.channels.iter().zip(&user_caps).map(|(&x,&y)|(x*100.).min(y)).collect::<Vec<_>>()).unwrap_or_default();
+  let bounds=self.source_bounds.as_ref();
+  let caps=bounds.map(|b|b.channels.iter().zip(&user_caps).map(|(&x,&y)|(x*100.).min(y)).collect::<Vec<_>>()).unwrap_or_default();
   let effective_tac=self.correction_tac.min(self.tac);
   let s=self.black;
   let mut p=div().flex().flex_col().gap_3().child(heading("Black Generation / GCR / UCR","Explicit physical black channel · predictive constrained separation"))
@@ -1747,7 +1752,7 @@ impl Render for Studio {
   let docked=ui_geometry::docked_preview(self.preview_open,vw);
   let width=self.preview_width.clamp(280.,(vw-760.).max(280.));
   let rtl=self.language.rtl();
-  let display=(width-24.).min((vh-240.).max(180.));
+  let display=(width-36.).min((vh-240.).max(180.));
   if self.preview_fullscreen{return div().flex().size_full().bg(rgb(0x101010)).text_color(rgb(0xe8e8e8)).child(self.preview_panel(vw,(vw-28.).min((vh-220.).max(180.)),true,cx));}
   let groups:[(&str,&[(Page,&str,&str)]);5]=[
    ("Inspection",&[(Page::Inspector,"Profile Inspector","◎"),(Page::Validator,"Profile Validator","✓")]),
@@ -1755,12 +1760,12 @@ impl Render for Studio {
    ("Separation",&[(Page::Black,"Black Generation","◕"),(Page::Recipes,"Ink Optimizer","◈"),(Page::DeviceLink,"DeviceLink Generator","↔")]),
    ("Analysis",&[(Page::Comparison,"Profile Comparison","≍"),(Page::Gamut,"Gamut Viewer","◇"),(Page::Gradient,"Gradient Analyzer","▥"),(Page::Lab,"Profiling Lab","⊞")]),
    ("Application",&[(Page::Settings,"Settings","⚙"),(Page::About,"About & Updates","ⓘ")])];
-  let mut brand=div().flex().items_center().gap_1()
-   .child(div().id("brand-about").flex().flex_1().min_w(px(0.)).items_center().gap_2().rounded_md().cursor_pointer().hover(|s|s.bg(rgb(0x363636)))
+  let mut brand=div().flex().items_center().gap_1().when(rtl,|p|p.flex_row_reverse())
+   .child(div().id("brand-about").flex().flex_1().min_w(px(0.)).items_center().gap_2().when(rtl,|p|p.flex_row_reverse()).rounded_md().cursor_pointer().hover(|s|s.bg(rgb(0x363636)))
     .child(img(self.logo.clone()).size(px(30.))).child(div().flex().flex_col().min_w(px(0.)).child(div().text_sm().child("ICC Profile Studio")).child(div().text_xs().text_color(rgb(0xa1a1aa)).child("by emadghasemi.ir")))
-    .on_click(cx.listener(|v,_,_,cx|{v.page=Page::About;v.picker=None;v.preview_fullscreen=false;cx.notify();})));
+    .on_click(cx.listener(|v,_,_,cx|{v.page=Page::About;v.numeric_edit=None;v.picker=None;v.preview_fullscreen=false;cx.notify();})));
   #[cfg(windows)] if matches!(self.updater.status(),UpdateStatus::Available(..)|UpdateStatus::Ready(..)){
-   brand=brand.child(seg("brand-update","↑",true).bg(rgb(0xc65f24)).on_click(cx.listener(|v,_,_,cx|{v.page=Page::About;v.picker=None;v.update_notice=None;cx.notify();})));
+   brand=brand.child(seg("brand-update","↑",true).bg(rgb(0xc65f24)).on_click(cx.listener(|v,_,_,cx|{v.page=Page::About;v.numeric_edit=None;v.picker=None;v.update_notice=None;cx.notify();})));
   }
   let mut sidebar=div().id("sidebar").flex().flex_col().w(px(if vw<900.{200.}else{238.})).flex_shrink_0().h_full().overflow_y_scroll().p_3().gap_1().bg(rgb(0x262626)).when(rtl,|p|p.text_right())
    .child(brand)
@@ -1810,23 +1815,24 @@ impl Render for Studio {
   let mut editor=div().flex().flex_col().flex_1().min_w(px(0.)).h_full().bg(rgb(0x242424));
   #[cfg(windows)] if let Some(version)=&self.update_notice{editor=editor.child(div().flex().flex_wrap().items_center().gap_2().px_4().py_2().bg(rgb(0x543621)).child(div().flex_1().min_w(px(0.)).child(format!("{}: {version}",tr("New update available")))).child(button("notice-about","View update").on_click(cx.listener(|v,_,_,cx|{v.page=Page::About;v.update_notice=None;v.picker=None;cx.notify();}))).child(button("notice-dismiss","Later").on_click(cx.listener(|v,_,_,cx|{v.update_notice=None;cx.notify();}))));}
   let editor=editor
-    .child(div().flex().flex_wrap().gap_2().items_center().justify_between().px_5().py_3().bg(rgb(0x282828)).child(div().flex_1().min_w(px(0.)).child(self.source.as_ref().and_then(|p|p.file_name()).map(|p|p.to_string_lossy().into_owned()).unwrap_or_else(||tr("No profile selected")))).when(self.display_profile.is_some(),|r|r.child(div().flex().gap_1().items_center()
+    .child(div().flex().flex_wrap().gap_2().items_center().justify_between().when(rtl,|p|p.flex_row_reverse()).px_5().py_3().bg(rgb(0x282828)).child(seg("toggle-navigation",if self.nav_visible{"Hide navigation"}else{"Show navigation"},false).on_click(cx.listener(|v,_,_,cx|{v.nav_visible=!v.nav_visible;v.picker=None;cx.notify();}))).child(div().flex_1().min_w(px(0.)).child(self.source.as_ref().and_then(|p|p.file_name()).map(|p|p.to_string_lossy().into_owned()).unwrap_or_else(||tr("No profile selected")))).when(self.display_profile.is_some(),|r|r.child(div().flex().gap_1().items_center()
      .child(seg("ink-name-standard","Standard names",!self.embedded_names).on_click(cx.listener(|v,_,_,cx|{v.embedded_names=false;v.persist_name_mode();cx.notify();})))
      .child(seg("ink-name-profile","Profile names",self.embedded_names).on_click(cx.listener(|v,_,_,cx|{v.embedded_names=true;v.persist_name_mode();cx.notify();})))
      .when(self.embedded_names&&self.display_profile.as_ref().is_some_and(|p|p.colorants().iter().all(Option::is_none)),|r|r.child(div().text_xs().text_color(rgb(0xfbbf24)).child(tr("No embedded ink names")))))).child(button("toggle-preview",if vw<1100.{"Open expanded gamut"}else if docked{"Hide preview"}else{"Show preview"}).on_click(cx.listener(move|this,_,_,cx|{if vw<1100.{this.preview_fullscreen=true;}else{this.preview_open=!this.preview_open;}if (this.preview_open||this.preview_fullscreen)&&this.preview.is_none(){this.refresh_gamut(cx);}cx.notify();}))))
     .child(div().id("content-scroll").flex_1().min_h(px(0.)).overflow_y_scroll().p_5().child(div().w_full().max_w(px(1000.)).mx_auto().when(rtl,|p|p.text_right()).child(content)))
     .child(self.analysis_progress(0,cx))
-    .child(div().flex().items_center().gap_2().px_5().py_3().bg(rgb(0x262626)).text_sm().when(rtl,|p|p.flex_row_reverse()).child(div().size(px(8.)).rounded_md().bg(rgb(if self.busy{0xe87935}else{0x858585}))).child(div().flex_1().min_w(px(0.)).when(rtl,|r|r.text_right()).child(i18n::status(&self.status))).when(self.rebuild_control.is_some(),|r|r.child(button("cancel-rebuild",if self.rebuild_control.as_ref().is_some_and(|c|c.cancelled()){tr("Cancelling…")}else{tr("Cancel rebuild")}).on_click(cx.listener(|v,_,_,cx|{if let Some(c)=&v.rebuild_control{if c.cancel(){v.status="Cancelling…".into();cx.notify();}}})))));
+    .child(div().flex().items_center().gap_2().px_5().py_3().bg(rgb(0x262626)).text_sm().when(rtl,|p|p.flex_row_reverse()).child(div().size(px(8.)).rounded_md().bg(rgb(if self.busy{0xe87935}else{0x858585}))).child(div().id("status-details").flex_1().min_w(px(0.)).max_h(px(104.)).overflow_y_scroll().when(rtl,|r|r.text_right()).child(i18n::status(&self.status))).when(self.rebuild_control.is_some(),|r|r.child(button("cancel-rebuild",if self.rebuild_control.as_ref().is_some_and(|c|c.cancelled()){tr("Cancelling…")}else{tr("Cancel rebuild")}).on_click(cx.listener(|v,_,_,cx|{if let Some(c)=&v.rebuild_control{if c.cancel(){v.status="Cancelling…".into();cx.notify();}}})))));
   let mut root=div().flex().size_full().bg(rgb(0x242424)).text_color(rgb(0xe8e8e8));
   let resizer=div().id("gamut-resizer").w(px(6.)).h_full().flex_shrink_0().bg(rgb(0x383838)).hover(|s|s.bg(rgb(0xfb923c))).cursor_pointer()
     .on_mouse_down(MouseButton::Left,cx.listener(|v,e:&MouseDownEvent,_,cx|{v.resize_last=Some(e.position.x);cx.stop_propagation();}))
     .on_mouse_up(MouseButton::Left,cx.listener(|v,_,_,cx|{v.resize_last=None;cx.notify();}));
-  if rtl{if docked{root=root.child(self.preview_panel(width,display,false,cx)).child(resizer);}root=root.child(editor).child(sidebar);}else{root=root.child(sidebar).child(editor);if docked{root=root.child(resizer).child(self.preview_panel(width,display,false,cx));}}
+  if rtl{if docked{root=root.child(self.preview_panel(width,display,false,cx)).child(resizer);}root=root.child(editor);if self.nav_visible{root=root.child(sidebar);}}else{if self.nav_visible{root=root.child(sidebar);}root=root.child(editor);if docked{root=root.child(resizer).child(self.preview_panel(width,display,false,cx));}}
   root.on_mouse_move(cx.listener(move|v,e:&MouseMoveEvent,_,cx|{
     if !e.dragging(){v.resize_last=None;v.slider_drag=None;return}
     if let Some(last)=v.resize_last{v.preview_width=(v.preview_width+if rtl{f32::from(e.position.x-last)}else{-f32::from(e.position.x-last)}).clamp(280.,(vw-760.).max(280.));v.resize_last=Some(e.position.x);cx.notify();}
    }))
-   .on_mouse_up(MouseButton::Left,cx.listener(|v,_,_,_|{v.resize_last=None;v.curve_drag=None;}))
+   .on_mouse_up(MouseButton::Left,cx.listener(|v,_,_,_|{v.resize_last=None;v.curve_drag=None;v.slider_drag=None;}))
+   .on_mouse_up_out(MouseButton::Left,cx.listener(|v,_,_,_|{v.resize_last=None;v.curve_drag=None;v.slider_drag=None;}))
  }
 }
 fn main(){

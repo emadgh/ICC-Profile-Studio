@@ -33,7 +33,13 @@ impl Rendered{
   Ok(bytes)
  }
 }
-fn projected(v:[f32;3],o:ViewOptions)->[f32;3]{if o.three_d{project(v,o.yaw,o.pitch)}else{[v[1],v[2],0.]}}
+// Reuse exactly the same f32 trigonometric coefficients for every vertex.
+#[derive(Clone,Copy)]
+struct Camera{three_d:bool,sy:f32,cy:f32,sp:f32,cp:f32}
+impl Camera{
+ fn new(o:ViewOptions)->Self{Self{three_d:o.three_d,sy:o.yaw.sin(),cy:o.yaw.cos(),sp:o.pitch.sin(),cp:o.pitch.cos()}}
+ #[inline]fn project(self,v:[f32;3])->[f32;3]{if self.three_d{let [l,a,b]=v;let z=l-50.;let x=a*self.cy-b*self.sy;let y=a*self.sy+b*self.cy;[x,z*self.cp-y*self.sp,z*self.sp+y*self.cp]}else{[v[1],v[2],0.]}}
+}
 fn in_slice(v:[f32;3],o:ViewOptions)->bool{o.three_d||!o.slice||(v[0]-o.light).abs()<=5.}
 fn paint(img:&mut RgbImage,x:i32,y:i32,color:[u8;3],alpha:u16){
  if x<0||y<0||x>=SIZE as i32||y>=SIZE as i32{return}
@@ -58,15 +64,15 @@ pub fn lab_rgb(v:[f32;3])->[u8;3]{
  let rgb=[3.1338561*x-1.6168667*y-0.4906146*z,-0.9787684*x+1.9161415*y+0.0334540*z,0.0719453*x-0.2289914*y+1.4052427*z];
  rgb.map(|v|{let v=v.clamp(0.,1.);let s=if v<=0.0031308{12.92*v}else{1.055*v.powf(1./2.4)-0.055};(255.*s).round() as u8})
 }
-fn triangles(c:&Cloud)->Vec<[[f32;3];3]>{c.surface.as_ref().map(|s|s.triangles.clone()).unwrap_or_default()}
+fn triangles(c:&Cloud)->&[[[f32;3];3]]{c.surface.as_ref().map(|s|s.triangles.as_slice()).unwrap_or(&[])}
 fn slice_segment(t:[[f32;3];3],light:f32)->Option<[[f32;3];2]>{
- let mut points=Vec::new();
+ let mut points=[[0.;3];3];let mut n=0;
  for (a,b) in [(t[0],t[1]),(t[1],t[2]),(t[2],t[0])]{
   if (a[0]<=light&&b[0]>light)||(b[0]<=light&&a[0]>light){
-   let f=(light-a[0])/(b[0]-a[0]);points.push([light,a[1]+(b[1]-a[1])*f,a[2]+(b[2]-a[2])*f]);
+   let f=(light-a[0])/(b[0]-a[0]);points[n]=[light,a[1]+(b[1]-a[1])*f,a[2]+(b[2]-a[2])*f];n+=1;
   }
  }
- if points.len()==2{Some([points[0],points[1]])}else{None}
+ if n==2{Some([points[0],points[1]])}else{None}
 }
 struct Layer{depth:Vec<f32>,color:Vec<[u8;3]>}
 impl Layer{
@@ -85,9 +91,12 @@ impl Layer{
    let (fx,fy)=(x as f32+0.5,y as f32+0.5);
    let a=edge(p[1],p[2],fx,fy)/area;let b=edge(p[2],p[0],fx,fy)/area;let c=1.-a-b;
    if a>=-0.00001&&b>=-0.00001&&c>=-0.00001{
-    let weights=[a,b,c];let z=(0..3).map(|j|weights[j]*p[j][2]).sum();
+    let weights=[a,b,c];let z=(0..3).map(|j|weights[j]*p[j][2]).sum::<f32>();
+    let idx=y as usize*SIZE as usize+x as usize;
+    // Rejected back fragments never need RGB interpolation.
+    if !(z>=self.depth[idx]){continue}
     let color=std::array::from_fn(|i|(0..3).map(|j|weights[j]*colors[j][i] as f32).sum::<f32>().round().clamp(0.,255.) as u8);
-    self.pixel(x,y,z,color);
+    self.depth[idx]=z;self.color[idx]=color;
    }
   }}
  }
@@ -110,18 +119,17 @@ impl Layer{
 // constant L* rings and vertical hue meridians. No internal triangle edges.
 // At cusps and disconnected regions this is not an all-quad topology.
 fn plane_segment(t:[[f32;3];3],value:impl Fn([f32;3])->f32)->Option<[[f32;3];2]>{
- let mut p=Vec::new();
+ let mut p=[[0.;3];3];let mut n=0;
  for (a,b) in [(t[0],t[1]),(t[1],t[2]),(t[2],t[0])]{
   let (u,v)=(value(a),value(b));
   if (u<=0.&&v>0.)||(v<=0.&&u>0.){
-   let f=u/(u-v);p.push(std::array::from_fn(|j|a[j]+(b[j]-a[j])*f));
+   let f=u/(u-v);p[n]=std::array::from_fn(|j|a[j]+(b[j]-a[j])*f);n+=1;
   }
  }
- if p.len()==2{Some([p[0],p[1]])}else{None}
+ if n==2{Some([p[0],p[1]])}else{None}
 }
-fn quad_grid(mesh:&[[[f32;3];3]])->Vec<[[f32;3];2]>{
- let mut out=Vec::new();
- for light in (5..100).step_by(5){out.extend(mesh.iter().filter_map(|&t|slice_segment(t,light as f32)));}
+fn visit_quad_grid(mesh:&[[[f32;3];3]],mut visit:impl FnMut([[f32;3];2])->bool)->bool{
+ for light in (5..100).step_by(5){for segment in mesh.iter().filter_map(|&t|slice_segment(t,light as f32)){if !visit(segment){return false}}}
  for k in 0..24{
   let angle=k as f32*std::f32::consts::TAU/24.;let (s,c)=angle.sin_cos();
   for &t in mesh{
@@ -132,12 +140,19 @@ fn quad_grid(mesh:&[[[f32;3];3]])->Vec<[[f32;3];2]>{
      let f=ra/(ra-rb);let p=std::array::from_fn(|j|a[j]+(b[j]-a[j])*f);
      if ra<0.{a=p}else{b=p}
     }
-    out.push([a,b]);
+    if !visit([a,b]){return false}
    }
   }
  }
- out
+ true
 }
+// Cache only bounded geometry; over-budget meshes stream directly instead.
+const MAX_WIRE_SEGMENTS:usize=65_536;
+pub fn prepare_wire(c:&Cloud)->Option<Vec<[[f32;3];2]>>{
+ let mut out=Vec::new();let completed=visit_quad_grid(triangles(c),|segment|{if out.len()>=MAX_WIRE_SEGMENTS{return false}out.push(segment);true});
+ completed.then_some(out)
+}
+#[cfg(test)]fn quad_grid(mesh:&[[[f32;3];3]])->Vec<[[f32;3];2]>{let mut out=Vec::new();visit_quad_grid(mesh,|s|{out.push(s);true});out}
 fn boundary(l:&Layer,i:usize)->bool{
  if !l.depth[i].is_finite(){return false}
  let n=SIZE as usize;let x=i%n;let y=i/n;
@@ -204,7 +219,9 @@ fn grid3d(img:&mut RgbImage,p:&impl Fn([f32;3])->[f32;2],o:ViewOptions,a:f32,b:f
  label(img,p([0.,a,-b_back]),"a*");label(img,p([0.,-a_back,b]),"b*");
 }
 
-pub fn render(data:Option<&Overlay>,o:ViewOptions)->Rendered{
+pub fn render(data:Option<&Overlay>,o:ViewOptions)->Rendered{render_prepared(data,o,[None,None])}
+/// Prepared segments must belong to the corresponding current cloud revision.
+pub fn render_prepared(data:Option<&Overlay>,o:ViewOptions,wire_cache:[Option<&[[[f32;3];2]]>;2])->Rendered{
  let mut img=RgbImage::from_pixel(SIZE,SIZE,Rgb(BG));
  let clouds:[Option<&Cloud>;2]=[data.and_then(|d|d.reference.as_ref().ok()),data.and_then(|d|d.candidate.as_ref()).and_then(|d|d.as_ref().ok())];
  // Fit all points (not only visible ones) in a rotation-invariant frame.
@@ -218,7 +235,8 @@ pub fn render(data:Option<&Overlay>,o:ViewOptions)->Rendered{
  let zoom=if o.zoom.is_finite(){o.zoom.clamp(0.5,3.)}else{1.};
  let scale=(SIZE as f32/2.-28.)/range*zoom;
  let at=|v:[f32;3]|[SIZE as f32/2.+v[0]*scale,SIZE as f32/2.-v[1]*scale];
- let p=|v:[f32;3]|at(projected(v,o));
+ let camera=Camera::new(o);
+ let p=|v:[f32;3]|at(camera.project(v));
  let step=if range>100.{20.}else if range>50.{10.}else{5.};
  let tick_count=(range/step).floor() as i32;
  // The axis/grid is always rendered, including before a profile is opened.
@@ -247,28 +265,28 @@ pub fn render(data:Option<&Overlay>,o:ViewOptions)->Rendered{
   if !(if i==0{o.reference}else{o.candidate}){continue}
   let Some(c)=cloud else{continue};let (solid,wire)=o.style(i);styles[i]=(solid,wire);let tint=if i==0{BEFORE}else{AFTER};
   let color=|lab:[f32;3]|if o.profile_colors{lab_rgb(lab)}else{tint};
-  let screen=|v:[f32;3]|{let q=projected(v,o);let xy=at(q);[xy[0],xy[1],if o.three_d{q[2]}else{v[0]}]};
-  let points:Vec<_>=c.points.iter().copied().filter(|v|v.iter().all(|v|v.is_finite())&&in_slice(*v,o)).collect();
-  visible[i]=points.len();let mut layer=Layer::new();
-  let mesh=if solid||wire||o.floor_contour&&o.three_d{triangles(c)}else{Vec::new()};
+  let screen=|v:[f32;3]|{let q=camera.project(v);let xy=at(q);[xy[0],xy[1],if o.three_d{q[2]}else{v[0]}]};
+  let points=||c.points.iter().copied().filter(|v|v.iter().all(|v|v.is_finite())&&in_slice(*v,o));
+  visible[i]=points().count();let mut layer=Layer::new();
+  let mesh=if solid||wire||o.floor_contour&&o.three_d{triangles(c)}else{&[]};
   // One union projection per visible profile. A disconnected footprint may
   // still have several components, but there are no stacked L* contours.
   if o.three_d&&o.floor_contour&&!mesh.is_empty(){
    let mut floor=Layer::new();
-   for &t in &mesh{
+   for &t in mesh{
     let q=t.map(|v|{let xy=p([0.,v[1],v[2]]);[xy[0],xy[1],v[0]]});
     floor.triangle(q,t.map(color));
    }
    paint_outline(&mut img,&floor,205);
   }
-  let mesh=if solid||wire{mesh}else{Vec::new()};
+  let mesh=if solid||wire{mesh}else{&[]};
   if !mesh.is_empty(){
    if !o.three_d&&o.slice{
-    let segments:Vec<_>=mesh.iter().filter_map(|&t|slice_segment(t,o.light)).collect();
     if solid||wire{
-     let segs:Vec<_>=segments.iter().map(|s|s.map(screen)).collect();
+     let segs:Vec<_>=mesh.iter().filter_map(|&t|slice_segment(t,o.light)).map(|s|s.map(screen)).collect();
+     let mut xs=Vec::new();
      for y in 0..SIZE as i32{
-      let fy=y as f32+0.5;let mut xs=Vec::new();
+      let fy=y as f32+0.5;xs.clear();
       for [a,b] in &segs{if (a[1]<=fy&&b[1]>fy)||(b[1]<=fy&&a[1]>fy){xs.push(a[0]+(b[0]-a[0])*(fy-a[1])/(b[1]-a[1]));}}
       xs.sort_by(f32::total_cmp);
       for pair in xs.chunks_exact(2){for x in (pair[0].ceil() as i32).max(0)..=(pair[1].floor() as i32).min(SIZE as i32-1){
@@ -281,15 +299,17 @@ pub fn render(data:Option<&Overlay>,o:ViewOptions)->Rendered{
    }else if !o.three_d{
     // Project union of surface triangles, retaining nonconvex silhouettes
     // and holes rather than drawing all triangulation edges.
-    for &t in &mesh{layer.triangle(t.map(screen),t.map(color));}
+    for &t in mesh{layer.triangle(t.map(screen),t.map(color));}
     outline_only[i]=wire&&!solid;
    }else{
-    if solid{for &t in &mesh{layer.triangle(t.map(screen),t.map(color));}}
-    if wire{for [a,b] in quad_grid(&mesh){layer.wire(screen(a),screen(b),color(a),color(b),solid);}}
+    if solid{for &t in mesh{layer.triangle(t.map(screen),t.map(color));}}
+    if wire{let mut draw=|[a,b]:[[f32;3];2]|{layer.wire(screen(a),screen(b),color(a),color(b),solid);true};
+     if let Some(segments)=wire_cache[i]{for &segment in segments{draw(segment);}}else{visit_quad_grid(mesh,draw);}
+    }
    }
   }else{
    // Explicitly reported by UI as points fallback if no surface is found.
-   for v in points{let p=screen(v);let c=color(v);for dx in -3..=3{for dy in -3..=3{if dx*dx+dy*dy<=9{layer.pixel(p[0].round() as i32+dx,p[1].round() as i32+dy,p[2],c);}}}}
+   for v in points(){let p=screen(v);let c=color(v);for dx in -3..=3{for dy in -3..=3{if dx*dx+dy*dy<=9{layer.pixel(p[0].round() as i32+dx,p[1].round() as i32+dy,p[2],c);}}}}
   }
   layers[i]=Some(layer);
  }
@@ -339,6 +359,12 @@ pub fn render(data:Option<&Overlay>,o:ViewOptions)->Rendered{
   let o=ViewOptions{candidate:false,..Default::default()};
   assert_ne!(render(Some(&d),o).image.as_raw(),render(Some(&d),ViewOptions{floor_contour:false,..o}).image.as_raw());
  }
+ #[test]fn cached_camera_matches_original_projection(){
+  for yaw in [0.,0.65,1.2,3.14,6.2]{for pitch in [-1.5,0.,0.45,1.5]{
+   let o=ViewOptions{yaw,pitch,..Default::default()};let c=Camera::new(o);
+   for v in [[50.,0.,0.],[80.,30.,-20.],[0.,-128.,127.],[100.,127.,-128.]]{assert_eq!(c.project(v),project(v,yaw,pitch));}
+  }}
+ }
  #[test]fn lab_color_has_expected_neutrals_and_hue(){
   let w=lab_rgb([100.,0.,0.]);assert!(w.iter().all(|&v|v>=254));assert_eq!(lab_rgb([0.,0.,0.]),[0;3]);
   let red=lab_rgb([55.,65.,40.]);assert!(red[0]>red[1]&&red[0]>red[2]);
@@ -356,11 +382,24 @@ pub fn render(data:Option<&Overlay>,o:ViewOptions)->Rendered{
   let result=render(Some(&d),o);
   assert_eq!(result.image.get_pixel(SIZE/2,SIZE/2).0,BEFORE);
  }
+ #[test]fn intersections_and_borrowed_mesh(){
+  let t=[[20.,0.,0.],[80.,10.,0.],[80.,0.,10.]];
+  assert_eq!(slice_segment(t,50.),plane_segment(t,|v|v[0]-50.));
+  assert!(slice_segment(t,10.).is_none());assert!(plane_segment(t,|v|v[0]-90.).is_none());
+  let mut d=example();let c=d.reference.as_mut().unwrap();
+  c.surface=Some(crate::gamut_surface::Surface{triangles:vec![t],resolution:25,volume:0.});
+  assert_eq!(triangles(c).as_ptr(),c.surface.as_ref().unwrap().triangles.as_ptr());
+ }
  #[test]fn slice_crosses_triangle(){let r=slice_segment([[20.,0.,0.],[80.,10.,0.],[80.,0.,10.]],50.).unwrap();assert_eq!(r,[[50.,5.,0.],[50.,0.,5.]]);}
  #[test]fn both_wire_preserves_rgb_ratios(){
   let mut layer=Layer::new();
   layer.wire([10.,10.,0.],[20.,10.,0.],[200,100,50],[200,100,50],true);
   assert_eq!(layer.color[10*SIZE as usize+15],[136,68,34]);
+ }
+ #[test]fn prepared_and_streamed_wire_render_identically(){
+  let mut d=example();let c=d.reference.as_mut().unwrap();c.surface=Some(crate::gamut_surface::Surface{triangles:vec![[[10.,-10.,-10.],[90.,20.,-20.],[90.,0.,20.]]],resolution:25,volume:0.});
+  let wire=prepare_wire(c).unwrap();let o=ViewOptions{candidate:false,layout:CompareLayout::Shared,solid:true,wireframe:true,..Default::default()};
+  assert_eq!(render(Some(&d),o).image,render_prepared(Some(&d),o,[Some(&wire),None]).image);
  }
  #[test]fn quad_grid_uses_surface_sections(){
   let t=[[[10.,10.,0.],[90.,10.,10.],[90.,-10.,0.]]];

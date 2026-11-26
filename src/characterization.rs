@@ -118,18 +118,20 @@ pub struct Fit{pub count:usize,pub mean:f64,pub p95:f64,pub max:f64}
 /// conditions and absolute reference. This is characterization fit,
 // not independent validation and not proof of M0/M1 equivalence.
 pub fn compare_absolute(c:&mut Chart)->R<Fit>{
- let mut ds=Vec::new();
- for p in &mut c.patches{
-  p.delta_e=None;
-  if let (Some(m),Some(a))=(p.comparison_lab,p.absolute_lab){
+ // Stage all differences first. A failed calculation must leave the
+ // previous chart and its cached visualization intact.
+ let mut ds=Vec::new();let mut staged=Vec::with_capacity(c.patches.len());
+ for p in &c.patches{
+  let d=if let (Some(m),Some(a))=(p.comparison_lab,p.absolute_lab){
    let to=|v:[f64;3]|CIELab{L:v[0],a:v[1],b:v[2]};
    let d=to(m).cie2000_delta_e(&to(a),1.,1.,1.);
    if !d.is_finite()||d<0.{return Err("Invalid characterization Delta E".into())}
-   p.delta_e=Some(d);ds.push(d);
-  }
+   ds.push(d);Some(d)
+  }else{None};staged.push(d);
  }
  if ds.is_empty(){return Err("No comparable absolute D50/2° pairs; measured Lab conditions or spectral grid may be unsupported".into())}
  ds.sort_by(f64::total_cmp);let count=ds.len();let p95=ds[((count as f64*0.95).ceil() as usize).saturating_sub(1)];
+ for (p,d) in c.patches.iter_mut().zip(staged){p.delta_e=d;}
  Ok(Fit{count,mean:ds.iter().sum::<f64>()/count as f64,p95,max:ds[count-1]})
 }
 pub fn extract(p:&Profile)->R<Chart>{

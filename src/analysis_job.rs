@@ -4,7 +4,11 @@ use std::{cell::RefCell,sync::{Arc,Mutex,atomic::{AtomicBool,AtomicUsize,Orderin
 use crate::R;
 #[derive(Default)]struct State{cancel:AtomicBool,steps:AtomicUsize,phase:Mutex<(&'static str,usize,usize)>}
 #[derive(Clone,Default)]pub struct Job(Arc<State>);
-#[derive(Clone,Copy,Debug)]pub struct Progress{pub phase:&'static str,pub completed:usize,pub total:usize,pub checkpoints:usize,pub cancelled:bool}
+#[derive(Clone,Copy,Debug,PartialEq,Eq)]pub struct Progress{pub phase:&'static str,pub completed:usize,pub total:usize,pub checkpoints:usize,pub cancelled:bool}
+impl Progress{
+ /// The UI displays checkpoint counts only during indeterminate phases.
+ pub fn display_state(mut self)->Self{if self.total>0{self.checkpoints=0;}self}
+}
 thread_local!{static ACTIVE:RefCell<Option<Job>>=const{RefCell::new(None)};}
 struct Restore(Option<Job>);
 impl Drop for Restore{fn drop(&mut self){ACTIVE.with(|a|{a.replace(self.0.take());});}}
@@ -24,6 +28,13 @@ pub fn phase(name:&'static str,total:usize)->R<()>{check()?;ACTIVE.with(|a|{if l
 pub fn advance()->R<()>{checkpoint()?;ACTIVE.with(|a|{if let Some(j)=a.borrow().as_ref(){let mut p=j.0.phase.lock().unwrap();p.1=(p.1+1).min(p.2);}});Ok(())}
 #[cfg(test)]mod tests{
  use super::*;
+ #[test]fn progress_redraw_only_for_visible_changes(){
+  let a=Progress{phase:"sample",completed:1,total:4,checkpoints:2,cancelled:false};
+  assert_eq!(a.display_state(),Progress{checkpoints:99,..a}.display_state());
+  assert_ne!(a.display_state(),Progress{completed:2,..a}.display_state());
+  assert_ne!(a.display_state(),Progress{cancelled:true,..a}.display_state());
+  let b=Progress{total:0,..a};assert_ne!(b.display_state(),Progress{checkpoints:3,..b}.display_state());
+ }
  #[test]fn scoped_progress_and_cancel(){let j=Job::default();assert!(j.run(||{phase("test",3)?;advance()?;assert_eq!(j.progress().completed,1);j.cancel();advance()}).is_err());assert!(checkpoint().is_ok());assert!(j.cancelled());assert!(j.run(||Ok(7)).is_err());}
  #[test]fn cross_thread_cancel_and_no_success_after_cancellation(){
   let j=Job::default();let worker=j.clone();let (ready,rx)=std::sync::mpsc::channel();let (go,resume)=std::sync::mpsc::channel();
